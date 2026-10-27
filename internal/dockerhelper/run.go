@@ -3,12 +3,13 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+//go:build !js
+
 package dockerhelper
 
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -23,17 +24,6 @@ import (
 	"go.bug.st/f"
 	"golang.org/x/sync/errgroup"
 )
-
-// RunOptions is what a container is run with. Only Image is required.
-type RunOptions struct {
-	Image      string
-	Entrypoint []string
-	Cmd        []string
-	Binds      []string
-	Env        map[string]string
-	Stdout     io.Writer
-	Stderr     io.Writer
-}
 
 // Run is `docker run --rm`: the container is started, waited for and removed, and what
 // it writes reaches the writers. A missing image is downloaded first.
@@ -148,21 +138,6 @@ func Run(ctx context.Context, docker client.APIClient, opts RunOptions) error {
 	_ = g.Wait()
 
 	return cmp.Or(ctx.Err(), runErr)
-}
-
-// ExitError is what Run returns for a container that exited non-zero.
-type ExitError struct {
-	Code int64
-}
-
-func (e *ExitError) Error() string {
-	return fmt.Sprintf("container exited with status %d", e.Code)
-}
-
-// IsExitError reports a container that exited non-zero, at any depth of the error.
-func IsExitError(err error) bool {
-	_, ok := errors.AsType[*ExitError](err)
-	return ok
 }
 
 // ensureImage downloads what the board has not, with the disk check and the retry that

@@ -12,9 +12,9 @@ import (
 	"net/http"
 
 	"github.com/arduino/go-paths-helper"
-	"github.com/docker/cli/cli/command"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -32,7 +32,7 @@ type AppInstallResponse struct {
 // HandleAppInstall installs a release archive as a new app. The appID is not an input:
 // the release name the archive holds decides it, and it is reported in the "done" event.
 func HandleAppInstall(
-	dockerClient command.Cli,
+	dockerClient dockerhelper.Cli,
 	provisioner *orchestrator.Provision,
 	idProvider *appid.Provider,
 	cfg config.Configuration,

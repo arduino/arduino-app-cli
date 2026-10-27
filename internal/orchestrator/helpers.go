@@ -15,7 +15,6 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/gosimple/slug"
 	"github.com/moby/moby/api/types/container"
-	dockerClient "github.com/moby/moby/client"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
@@ -95,7 +94,7 @@ func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 
 func getAppsStatus(
 	ctx context.Context,
-	docker dockerClient.APIClient,
+	docker dockerhelper.EngineClient,
 ) ([]AppStatusInfo, error) {
 	containers, err := dockerhelper.Containers(ctx, docker, DockerAppLabel+"=true")
 	if err != nil {
@@ -109,7 +108,7 @@ func getAppsStatus(
 
 func getAppStatus(
 	ctx context.Context,
-	docker dockerClient.APIClient,
+	docker dockerhelper.EngineClient,
 	app app.ArduinoApp,
 ) (AppStatusInfo, error) {
 	containers, err := dockerhelper.Containers(ctx, docker, DockerAppPathLabel+"="+app.FullPath.String())
@@ -133,7 +132,7 @@ func getAppStatus(
 
 func getRunningApp(
 	ctx context.Context,
-	docker dockerClient.APIClient,
+	docker dockerhelper.EngineClient,
 ) (*app.ArduinoApp, error) {
 	apps, err := getAppsStatus(ctx, docker)
 	if err != nil {
@@ -154,7 +153,7 @@ func getRunningApp(
 
 // getAppServicesFromContainers reads the services of an app from its containers. The
 // compose file is not a source: an update removes the brick files that it includes.
-func getAppServicesFromContainers(ctx context.Context, docker dockerClient.APIClient, app app.ArduinoApp) ([]string, error) {
+func getAppServicesFromContainers(ctx context.Context, docker dockerhelper.EngineClient, app app.ArduinoApp) ([]string, error) {
 	containers, err := dockerhelper.Containers(ctx, docker, DockerAppPathLabel+"="+app.FullPath.String())
 	if err != nil {
 		return nil, err

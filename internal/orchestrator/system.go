@@ -9,26 +9,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"slices"
 	"strings"
 
-	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
-	"github.com/docker/cli/cli/command"
 	"github.com/moby/moby/api/types/container"
-	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
 	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
-	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -87,7 +82,7 @@ func (o SystemInitOptions) Validate() error {
 // SystemInit pulls all the docker images needed for the current version of the software to run and the
 // sketch libraries used in the example apps. Can be used to pre-install docker images/libraries on an
 // empty system, or to update all the docker images/libraries that need it.
-func SystemInit(ctx context.Context, cfg config.Configuration, platform platform.Platform, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, modelsIndex *modelsindex.ModelsIndex, options SystemInitOptions, eventCB InitEventCallback) error {
+func SystemInit(ctx context.Context, cfg config.Configuration, platform platform.Platform, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker dockerhelper.Cli, modelsIndex *modelsindex.ModelsIndex, options SystemInitOptions, eventCB InitEventCallback) error {
 	if eventCB == nil {
 		eventCB = func(InitEvent) {}
 	}
@@ -126,7 +121,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 	return nil
 }
 
-func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker *command.DockerCli, eventCB InitEventCallback) error {
+func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker dockerhelper.Cli, eventCB InitEventCallback) error {
 	eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDocker, Message: "Pulling the latest docker images ..."})
 	brickImages, err := getAllSupportedBrickImages(brickindex, servicesindex)
 	if err != nil {
@@ -240,7 +235,7 @@ type SystemCleanupOptions struct {
 
 // SystemCleanup removes dangling containers and unused images.
 // Also running apps are stopped and removed.
-func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker command.Cli, platform platform.Platform, opts SystemCleanupOptions) (SystemCleanupResult, error) {
+func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker dockerhelper.Cli, platform platform.Platform, opts SystemCleanupOptions) (SystemCleanupResult, error) {
 	var result SystemCleanupResult
 
 	// Read before anything removes the containers: they tell which network is ours.
@@ -385,124 +380,6 @@ func installPlatformPackage(ctx context.Context, plat platform.Platform, eventCB
 	return nil
 }
 
-func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Configuration, platform platform.Platform, eventCB InitEventCallback) error {
-	// Start an Arduino Core Server RPC server
-	logrus.SetOutput(io.Discard) // Suppress logs from Arduino CLI
-	var cliInstance *rpc.Instance
-	cli := commands.NewArduinoCoreServer()
-
-	if err := SetArduinoCliConfig(ctx, cli); err != nil {
-		return fmt.Errorf("could not set Arduino CLI config: %w", err)
-	}
-
-	if resp, err := cli.Create(ctx, &rpc.CreateRequest{}); err != nil {
-		return fmt.Errorf("could not create Arduino Core Server client: %w", err)
-	} else {
-		cliInstance = resp.GetInstance()
-	}
-	defer func() {
-		// Close the server instance
-		_, _ = cli.Destroy(ctx, &rpc.DestroyRequest{Instance: cliInstance})
-	}()
-
-	// Download progress CB
-	currLabel := ""
-	var reported helpers.LastPercent
-	downloadProgressCB := func(curr *rpc.DownloadProgress) {
-		if start := curr.GetStart(); start != nil {
-			currLabel = start.GetLabel()
-			reported = 0
-		}
-		update := curr.GetUpdate()
-		if update == nil || !reported.Moved(update.GetDownloaded(), update.GetTotalSize()) {
-			return
-		}
-		eventCB(InitEvent{Type: InitProgressEvent, Source: InitSourceArduino, Progress: InitProgress{
-			Label: currLabel,
-			Curr:  update.GetDownloaded(),
-			Total: update.GetTotalSize(),
-		}})
-	}
-
-	// Force-update of the Arduino Libraries index
-	{
-		str, _ := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
-		if err := cli.UpdateLibrariesIndex(&rpc.UpdateLibrariesIndexRequest{Instance: cliInstance}, str); err != nil {
-			return fmt.Errorf("could not update libraries index: %w", err)
-		}
-	}
-
-	// Force-update of the Arduino Platforms index
-	{
-		str, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
-		if err := cli.UpdateIndex(&rpc.UpdateIndexRequest{Instance: cliInstance}, str); err != nil {
-			return fmt.Errorf("could not update platforms index: %w", err)
-		}
-	}
-
-	// Install the platform, if it is missing
-	{
-		if err := cli.Init(&rpc.InitRequest{Instance: cliInstance}, commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
-			if p := r.GetInitProgress().GetDownloadProgress(); p != nil {
-				downloadProgressCB(p)
-			}
-			return nil
-		})); err != nil {
-			return fmt.Errorf("could not initialize Arduino Core Server: %w", err)
-		}
-
-		// Only a missing platform is installed here, and its version is pinned to the
-		// configured constraint. An already installed one is left as it is: upgrading
-		// it is the job of `system update`.
-		version, err := platformVersionToInstall(ctx, cli, cliInstance, platform.PlatformID, cfg.ArduinoPlatformVersionConstraint)
-		if err != nil {
-			return err
-		}
-		if version == "" {
-			eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceArduino, Message: fmt.Sprintf(
-				"platform %s already installed, skipping install", platform.PlatformID)})
-		} else {
-			platformPackage, architecture, err := platform.PackageAndArchitecture()
-			if err != nil {
-				return err
-			}
-			str := commands.PlatformInstallStreamResponseToCallbackFunction(ctx, downloadProgressCB, func(msg *rpc.TaskProgress) {})
-			if err := cli.PlatformInstall(&rpc.PlatformInstallRequest{
-				Instance:        cliInstance,
-				PlatformPackage: platformPackage,
-				Architecture:    architecture,
-				Version:         version,
-			}, str); err != nil {
-				return fmt.Errorf("could not install %s platform %s: %w", platform.PlatformID, version, err)
-			}
-			fatomic.Sync()
-		}
-	}
-
-	// Get a list of example apps
-	pathsToExplore := cfg.ExamplesDirs(platform)
-	pathsToExplore.AddAll(cfg.ExamplesAdditionalDirs())
-	exampleAppsPath, err := app.FindAppsInFolders(pathsToExplore)
-	if err != nil {
-		return err
-	}
-
-	// After downloading the libs, clean up the download cache
-	defer func() {
-		_, _ = cli.CleanDownloadCacheDirectory(ctx, &rpc.CleanDownloadCacheDirectoryRequest{Instance: cliInstance})
-	}()
-
-	// Download libraries used in each example app
-	for _, appPath := range exampleAppsPath {
-		if err := downloadSketchLibsUsedInApp(ctx, appPath, platform, cli, cliInstance, downloadProgressCB); err != nil {
-			return fmt.Errorf("could not download libs in app %s: %w", appPath, err)
-		}
-	}
-	fatomic.Sync()
-
-	return nil
-}
-
 // platformVersionToInstall returns a platform version to install if it isn't installed, "" otherwise.
 func platformVersionToInstall(
 	ctx context.Context,
@@ -544,57 +421,6 @@ func platformVersionToInstall(
 		return "", fmt.Errorf("no version of platform %s satisfies the constraint '%s'", platformID, constraint)
 	}
 	return best.String(), nil
-}
-
-func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platform platform.Platform, cli rpc.ArduinoCoreServiceServer, cliInstance *rpc.Instance, downloadProgressCB func(*rpc.DownloadProgress)) error {
-	// Open the app to get the sketch path
-	app, err := app.Load(appPath)
-	if err != nil {
-		return err
-	}
-
-	// A release ships a frozen sketch profile, so there is nothing to migrate.
-	if editable, err := app.GetAsEditable(); err == nil {
-		if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, editable); err != nil {
-			slog.Warn("Failed to migrate app to remove router bridge", "app", appPath, "error", err)
-		} else if ok {
-			slog.Info("App migrated, RouterBridge has been removed successfully", "app", appPath)
-		}
-	}
-
-	sketchPath, ok := app.GetSketchPath()
-	if !ok {
-		return nil
-	}
-
-	// Detect the sketch default defaultProfile
-	defaultProfile := "default"
-	sk, err := cli.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath.String()})
-	if err != nil {
-		return fmt.Errorf("could not load sketch: %w", err)
-	}
-	if name := sk.GetSketch().GetDefaultProfile().GetName(); name != "" {
-		defaultProfile = name
-	}
-
-	// Initializing using the profile will force download and install of the missing libraries
-	if err := cli.Init(
-		&rpc.InitRequest{
-			Instance:   cliInstance,
-			SketchPath: sketchPath.String(),
-			Profile:    defaultProfile,
-		},
-		commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
-			if p := r.GetInitProgress().GetDownloadProgress(); p != nil {
-				downloadProgressCB(p)
-			}
-			return nil
-		}),
-	); err != nil {
-		return fmt.Errorf("could not initialize sketch %s: %w", sketchPath.String(), err)
-	}
-
-	return nil
 }
 
 // composeProjectLabel names the project a container or a network belongs to.

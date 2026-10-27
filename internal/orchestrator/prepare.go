@@ -11,7 +11,6 @@ import (
 	"fmt"
 
 	"github.com/compose-spec/compose-go/v2/types"
-	"github.com/docker/cli/cli/command"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -25,7 +24,7 @@ import (
 // frozen compose file names and the models it is wired with.
 func PrepareRelease(
 	ctx context.Context,
-	docker command.Cli,
+	docker dockerhelper.Cli,
 	arduinoApp app.ArduinoApp,
 	prj *types.Project,
 	cfg config.Configuration,
@@ -82,7 +81,7 @@ func PrepareRelease(
 // install does, followed by the prepare part alone.
 func PrepareInstalledRelease(
 	ctx context.Context,
-	docker command.Cli,
+	docker dockerhelper.Cli,
 	provisioner *Provision,
 	arduinoApp app.ArduinoApp,
 	cfg config.Configuration,
@@ -103,7 +102,7 @@ func PrepareInstalledRelease(
 // checkImages verifies the container images an app needs are on the board
 func checkImages(
 	ctx context.Context,
-	docker command.Cli,
+	docker dockerhelper.Cli,
 	prj *types.Project,
 ) error {
 	for _, image := range dockerhelper.ComposeImages(prj) {
@@ -124,7 +123,7 @@ func checkImages(
 // an unknown or incompatible model is skipped here and fails the check that follows.
 func prepareModels(
 	ctx context.Context,
-	docker command.Cli,
+	docker dockerhelper.Cli,
 	bricks []app.Brick,
 	index *bricksindex.BricksIndex,
 	modelIndex *modelsindex.ModelsIndex,
@@ -160,7 +159,7 @@ func prepareModels(
 // froze. It runs once the release is in place: the paths it resolves are absolute.
 func renderRelease(
 	ctx context.Context,
-	docker command.Cli,
+	docker dockerhelper.Cli,
 	provisioner *Provision,
 	arduinoApp app.ArduinoApp,
 	cfg config.Configuration,

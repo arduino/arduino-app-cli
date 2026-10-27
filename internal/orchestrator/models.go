@@ -18,10 +18,10 @@ import (
 	"time"
 
 	"github.com/arduino/go-paths-helper"
-	"github.com/docker/cli/cli/command"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -69,14 +69,14 @@ func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, i
 
 // AIModelInstall downloads a model the internal model list declares and describes what
 // landed. publish reports the handler's own events as they arrive.
-func AIModelInstall(ctx context.Context, dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, id string, publish func(modelsindex.StreamMessage)) (modelsindex.AIModel, error) {
+func AIModelInstall(ctx context.Context, dockerClient dockerhelper.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, id string, publish func(modelsindex.StreamMessage)) (modelsindex.AIModel, error) {
 	return modelsIndex.Install(ctx, dockerClient, id, plat, publish)
 }
 
 // AIModelDownload downloads a model no entry declares, from the links the caller supplies,
 // and describes it from the listing: the record the handler wrote is what says where the
 // files came from. The id is not an input, the downloader reports it.
-func AIModelDownload(ctx context.Context, dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, modelURL, mmprojURL string, publish func(modelsindex.StreamMessage)) (modelsindex.AIModel, error) {
+func AIModelDownload(ctx context.Context, dockerClient dockerhelper.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, modelURL, mmprojURL string, publish func(modelsindex.StreamMessage)) (modelsindex.AIModel, error) {
 	return modelsIndex.DownloadByURL(ctx, dockerClient.Client(), modelURL, mmprojURL, plat, publish)
 }
 
@@ -88,7 +88,7 @@ var (
 	ErrIncompleteImpulse   = errors.New("impulse not ready for deployment")
 )
 
-func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, modelID string, idProvider *appid.Provider, force bool) (err error) {
+func AIModelDelete(ctx context.Context, dockerClient dockerhelper.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, modelID string, idProvider *appid.Provider, force bool) (err error) {
 	res, err := modelsIndex.NewLookup().ByID(ctx, modelID)
 	if err != nil {
 		return err
@@ -149,7 +149,7 @@ func buildModelInUseMessage(references []string, runningAppRef *app.ArduinoApp) 
 // Both checks are performed simultaneously to support the "force" flag logic.
 // This allows the user to see both issues before deciding to use the flag
 // preventing the second error from being masked.
-func checkForModelReferences(ctx context.Context, dockerClient command.Cli,
+func checkForModelReferences(ctx context.Context, dockerClient dockerhelper.Cli,
 	cfg config.Configuration, idProvider *appid.Provider, bricksIndex *bricksindex.BricksIndex,
 	modelId string, platform platform.Platform) ([]string, *app.ArduinoApp, error) {
 	apps, err := ListApps(
@@ -183,7 +183,7 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli,
 	return slices.Collect(maps.Keys(references)), runningAppReference, nil
 }
 
-func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, modelId string) error {
+func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, dockerClient dockerhelper.Cli, modelId string) error {
 	model, err := modelsIndex.NewLookup().ByID(ctx, modelId)
 	if err != nil {
 		return fmt.Errorf("error retrieving model %q: %w", modelId, err)
@@ -208,7 +208,7 @@ func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, doc
 	return nil
 }
 
-func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, eiClient *edgeimpulse.EIClient, eiModelsDir *paths.Path, platform platform.Platform, projectID int, impulseID int) (modelsindex.AIModel, error) {
+func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient dockerhelper.Cli, eiClient *edgeimpulse.EIClient, eiModelsDir *paths.Path, platform platform.Platform, projectID int, impulseID int) (modelsindex.AIModel, error) {
 
 	eiParams, err := platform.EIDeploymentParams()
 	if err != nil {

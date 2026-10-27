@@ -13,7 +13,6 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
-	"github.com/docker/cli/cli/command"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
@@ -58,13 +57,13 @@ type service struct {
 }
 
 type Provision struct {
-	docker      command.Cli
+	docker      dockerhelper.Cli
 	pythonImage string
 	appsDir     *paths.Path
 }
 
 func NewProvision(
-	docker command.Cli,
+	docker dockerhelper.Cli,
 	cfg config.Configuration,
 ) (*Provision, error) {
 	provision := &Provision{

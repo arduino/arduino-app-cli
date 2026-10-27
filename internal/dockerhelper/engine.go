@@ -3,6 +3,8 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+//go:build !js
+
 // Package dockerhelper is what talks to docker: the engine of the board, through its
 // api, and the images of an app, through the registry they come from. Nothing else in
 // this project states a container, a network or a compose project.

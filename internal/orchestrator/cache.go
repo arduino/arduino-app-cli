@@ -9,8 +9,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/docker/cli/cli/command"
-
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -29,7 +28,7 @@ var (
 // it tries to stop it first.
 func CleanAppCache(
 	ctx context.Context,
-	docker command.Cli,
+	docker dockerhelper.Cli,
 	app app.ArduinoApp,
 	req CleanAppCacheRequest,
 	platform platform.Platform,

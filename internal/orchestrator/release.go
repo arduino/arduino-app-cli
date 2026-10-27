@@ -21,11 +21,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/arduino/arduino-cli/commands"
-	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/types"
-	"github.com/docker/cli/cli/command"
 	yaml "github.com/goccy/go-yaml"
 	"github.com/gosimple/slug"
 	"go.bug.st/f"
@@ -81,7 +78,7 @@ type ReleaseModel = release.ReleaseModel
 // environment into a release archive, without touching the app folder.
 func BuildRelease(
 	ctx context.Context,
-	docker command.Cli,
+	docker dockerhelper.Cli,
 	provisioner *Provision,
 	appToBuild app.ArduinoApp,
 	req BuildReleaseRequest,
@@ -335,7 +332,7 @@ func releaseLibraries(ctx context.Context, arduinoApp app.ArduinoApp) []string {
 
 // targetIndexes are the indexes of the board the release is built for: which bricks and
 // services exist, and which compose variant they use, depend on it.
-func targetIndexes(cfg config.Configuration, docker command.Cli, target string) (platform.Platform, *bricksindex.BricksIndex, *servicesindex.ServicesIndex, *modelsindex.ModelsIndex, error) {
+func targetIndexes(cfg config.Configuration, docker dockerhelper.Cli, target string) (platform.Platform, *bricksindex.BricksIndex, *servicesindex.ServicesIndex, *modelsindex.ModelsIndex, error) {
 	plat := platform.GetPlatform(cfg.DataDir())
 	if target != "" {
 		targetPlatform, ok := platform.ForBoard(target)
@@ -427,7 +424,7 @@ func stageReleaseSrc(appToBuild app.ArduinoApp, srcDir *paths.Path, bricksIndex 
 
 // buildPythonEnv builds the python environment in the runner image, as run.sh would do
 // at the first start, and leaves it in the prebuild dir.
-func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string, srcDir *paths.Path, prebuildDir *paths.Path, cb func(StreamMessage)) error {
+func buildPythonEnv(ctx context.Context, docker dockerhelper.Cli, pythonImage string, srcDir *paths.Path, prebuildDir *paths.Path, cb func(StreamMessage)) error {
 	if err := prebuildDir.MkdirAll(); err != nil {
 		return fmt.Errorf("failed to create the prebuild dir: %w", err)
 	}
@@ -464,66 +461,6 @@ func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string,
 
 // ReleaseFirmwareFileName is the compiled sketch a release ships in its prebuild dir.
 const ReleaseFirmwareFileName = "sketch.fw"
-
-func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platform.Platform, buildPath, destPath *paths.Path, verbose bool, cb func(StreamMessage)) error {
-	output := NewCallbackWriter(func(line string) {
-		cb(StreamMessage{data: line})
-	})
-
-	sketchPath, ok := appToBuild.GetSketchPath()
-	if !ok {
-		return fmt.Errorf("no sketch path found in the Arduino app")
-	}
-	if err := buildPath.MkdirAll(); err != nil {
-		return fmt.Errorf("failed to create build directory: %w", err)
-	}
-
-	srv, inst, err := initializeArduinoCli(ctx, sketchPath, output)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
-	}()
-
-	// The option only exists on the platforms that wait for the Linux side.
-	menuOptions, err := GetPlatformMenuOptions(ctx, platform)
-	if err != nil {
-		slog.Warn("failed to get platform menu options", slog.String("error", err.Error()))
-	}
-	fqbn := platform.FQBN
-	if menuOptions.Has(WaitForApp) {
-		fqbn += ":" + WaitForApp.String()
-	}
-
-	// Compile the sketch
-	if err := compileSketch(
-		ctx, srv, inst,
-		sketchPath, buildPath,
-		platform, fqbn,
-		verbose, output,
-	); err != nil {
-		return err
-	}
-
-	// Upload to file
-	uploadStream, _ := commands.UploadToServerStreams(ctx, output, output)
-	if err := srv.Upload(&rpc.UploadRequest{
-		Instance:   inst,
-		Fqbn:       fqbn,
-		SketchPath: sketchPath.String(),
-		ImportDir:  buildPath.String(),
-		Verbose:    verbose,
-		// There is no board to upload to: "default" is the protocol arduino-cli uses for
-		// portless uploads, and it selects the upload.tool.default recipe.
-		Port:                 &rpc.Port{Protocol: "default"},
-		UploadToFirmwareFile: new(destPath.Join(ReleaseFirmwareFileName).String()),
-	}, uploadStream); err != nil {
-		return fmt.Errorf("failed to create the sketch artifact: %w", err)
-	}
-
-	return nil
-}
 
 // archiveStream streams a release archive as it is written, so a caller can save it.
 type archiveStream struct {

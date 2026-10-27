@@ -18,19 +18,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
-	"github.com/docker/cli/cli/command"
 	"github.com/goccy/go-yaml"
 	"github.com/gosimple/slug"
-	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
-	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
-	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	appgenerator "github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
@@ -91,7 +86,7 @@ func (p *StreamMessage) GetType() MessageType {
 
 func StartApp(
 	ctx context.Context,
-	docker command.Cli,
+	docker dockerhelper.Cli,
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
@@ -301,7 +296,7 @@ func StartApp(
 	return nil
 }
 
-func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cmd string, cb func(StreamMessage)) error {
+func stopAppWithCmd(ctx context.Context, docker dockerhelper.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cmd string, cb func(StreamMessage)) error {
 	if cb == nil {
 		cb = func(StreamMessage) {}
 	}
@@ -360,11 +355,11 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 	return nil
 }
 
-func StopApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cb func(StreamMessage)) error {
+func StopApp(ctx context.Context, dockerClient dockerhelper.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cb func(StreamMessage)) error {
 	return stopAppWithCmd(ctx, dockerClient, platform, app, cfg, "stop", cb)
 }
 
-func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cb func(StreamMessage)) error {
+func StopAndDestroyApp(ctx context.Context, dockerClient dockerhelper.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cb func(StreamMessage)) error {
 	if err := stopAppWithCmd(ctx, dockerClient, platform, app, cfg, "down", cb); err != nil {
 		return err
 	}
@@ -403,7 +398,7 @@ func cleanAppCacheFiles(app app.ArduinoApp, cb func(StreamMessage)) error {
 
 func RestartApp(
 	ctx context.Context,
-	docker command.Cli,
+	docker dockerhelper.Cli,
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
@@ -434,7 +429,7 @@ func RestartApp(
 
 func StartDefaultApp(
 	ctx context.Context,
-	docker command.Cli,
+	docker dockerhelper.Cli,
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
@@ -504,7 +499,7 @@ type ListAppRequest struct {
 
 func ListApps(
 	ctx context.Context,
-	docker command.Cli,
+	docker dockerhelper.Cli,
 	req ListAppRequest,
 	idProvider *appid.Provider,
 	bricksIndex *bricksindex.BricksIndex,
@@ -613,7 +608,7 @@ func ListApps(
 // The result is sorted by app path.
 func ListActiveApps(
 	ctx context.Context,
-	docker command.Cli,
+	docker dockerhelper.Cli,
 	idProvider *appid.Provider,
 ) ([]AppInfo, error) {
 	// The statuses returned by getAppsStatus come only from Docker containers that have
@@ -700,7 +695,7 @@ type AppDetailedBrick struct {
 
 func AppDetails(
 	ctx context.Context,
-	docker command.Cli,
+	docker dockerhelper.Cli,
 	userApp app.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
 	idProvider *appid.Provider,
@@ -937,7 +932,7 @@ func CloneApp(
 	return CloneAppResponse{ID: id}, nil
 }
 
-func DeleteApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration) error {
+func DeleteApp(ctx context.Context, dockerClient dockerhelper.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration) error {
 	// We try to remove docker related resources at best effort
 	_ = StopAndDestroyApp(ctx, dockerClient, platform, app, cfg, func(StreamMessage) {})
 	// TODO: Shall we report stop error?
@@ -1006,7 +1001,7 @@ type AppEditRequest struct {
 
 func EditApp(
 	ctx context.Context,
-	docker command.Cli,
+	docker dockerhelper.Cli,
 	req AppEditRequest,
 	editApp *app.ArduinoApp,
 	cfg config.Configuration,
@@ -1192,262 +1187,6 @@ func compileUploadSketch(
 	}
 
 	return nil
-}
-
-func uploadFirmwareFile(
-	ctx context.Context,
-	verbose bool,
-	fwFile *paths.Path,
-	w io.Writer,
-) error {
-	srv, inst, err := initializeArduinoCli(ctx, nil, w)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
-	}()
-
-	// Upload the sketch
-	uploadServ, _ := commands.UploadFirmwareFileToServerStreams(ctx, w, w)
-	if err := srv.UploadFirmwareFile(&rpc.UploadFirmwareFileRequest{
-		Instance:     inst,
-		FirmwareFile: fwFile.String(),
-		Verbose:      verbose,
-	}, uploadServ); err != nil {
-		return err
-	}
-	return nil
-}
-
-func initializeArduinoCli(ctx context.Context, sketchPath *paths.Path, w io.Writer) (_ rpc.ArduinoCoreServiceServer, _ *rpc.Instance, _err error) {
-	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
-	srv := commands.NewArduinoCoreServer()
-	if err := SetArduinoCliConfig(ctx, srv); err != nil {
-		return nil, nil, err
-	}
-
-	var inst *rpc.Instance
-	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
-		return nil, nil, err
-	} else {
-		inst = resp.GetInstance()
-	}
-	defer func() {
-		if _err != nil {
-			_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
-		}
-	}()
-
-	initReq := &rpc.InitRequest{
-		Instance: inst,
-	}
-	if sketchPath != nil {
-		sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath.String()})
-		if err != nil {
-			return nil, nil, err
-		}
-		sketch := sketchResp.GetSketch()
-		profile := sketch.GetDefaultProfile().GetName()
-		if profile == "" {
-			return nil, nil, fmt.Errorf("sketch %q has no default profile", sketchPath)
-		}
-
-		initReq.Profile = profile
-		initReq.SketchPath = sketchPath.String()
-	}
-
-	if err := srv.Init(
-		initReq,
-		commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
-			var response string
-			switch msg := r.GetMessage().(type) {
-			case *rpc.InitResponse_InitProgress:
-				if progress := msg.InitProgress.GetTaskProgress(); progress != nil {
-					response = helpers.ArduinoCLITaskProgressToString(progress)
-				}
-				if progress := msg.InitProgress.GetDownloadProgress(); progress != nil {
-					response = helpers.ArduinoCLIDownloadProgressToString(progress)
-				}
-			case *rpc.InitResponse_Error:
-				response = "Error: " + msg.Error.String()
-			case *rpc.InitResponse_Profile:
-				response = fmt.Sprintf(
-					"Sketch profile configured: Name=%q, Port=%q",
-					msg.Profile.GetName(),
-					msg.Profile.GetPort(),
-				)
-			}
-			if _, err := w.Write([]byte(response + "\n")); err != nil {
-				return err
-			}
-
-			return nil
-		}),
-	); err != nil {
-		return nil, nil, err
-	}
-	return srv, inst, nil
-}
-
-func compileSketch(
-	ctx context.Context,
-	srv rpc.ArduinoCoreServiceServer,
-	inst *rpc.Instance,
-	sketchPath, buildPath *paths.Path,
-	platform platform.Platform,
-	fqbn string,
-	verbose bool,
-	w io.Writer,
-) error {
-	// build the sketch
-	slog.Debug("compile sketch", slog.String("fqbn", fqbn))
-
-	server, getCompileResult := commands.CompilerServerToStreams(ctx, w, w, nil)
-	compileReq := rpc.CompileRequest{
-		Instance:   inst,
-		Fqbn:       fqbn,
-		SketchPath: sketchPath.String(),
-		BuildPath:  buildPath.String(),
-		Jobs:       platform.CompileJobs,
-		Verbose:    verbose,
-	}
-	if err := srv.Compile(&compileReq, server); err != nil {
-		return err
-	}
-
-	// Output compilations details
-	result := getCompileResult()
-	f.Assert(result != nil, "Failed to get compilation result")
-	// TODO: maybe handle result.GetDiagnostics()
-	boardPlatform := result.GetBoardPlatform()
-	if boardPlatform != nil {
-		_, _ = w.Write([]byte("Board platform: " + boardPlatform.GetId() + " (" + boardPlatform.GetVersion() + ") in " + boardPlatform.GetInstallDir() + "\n"))
-	}
-	buildPlatform := result.GetBuildPlatform()
-	if buildPlatform != nil && buildPlatform.GetInstallDir() != boardPlatform.GetInstallDir() {
-		_, _ = w.Write([]byte("Build platform: " + buildPlatform.GetId() + " (" + buildPlatform.GetVersion() + ") in " + buildPlatform.GetInstallDir() + "\n"))
-
-	}
-	for _, lib := range result.GetUsedLibraries() {
-		_, _ = w.Write([]byte("Used library " + lib.GetName() + " (" + lib.GetVersion() + ") in " + lib.GetInstallDir() + "\n"))
-	}
-	return nil
-}
-
-// uploadSketch flashes what buildPath holds, whether a compile has just written it or
-// a release ships it.
-func uploadSketch(
-	ctx context.Context,
-	srv rpc.ArduinoCoreServiceServer,
-	inst *rpc.Instance,
-	sketchPath, buildPath *paths.Path,
-	useLegacyFlashToRam bool,
-	fqbn string,
-	w io.Writer,
-) error {
-	// Support the legacy ram upload option if there isn't the new wait_linux_boot option.
-	if useLegacyFlashToRam {
-		if err := legacyUploadSketchInRam(ctx, w, srv, inst, fqbn, sketchPath.String(), buildPath.String()); err != nil {
-			slog.Warn("failed to upload in ram mode, trying to configure the board in ram mode, and retry", slog.String("error", err.Error()))
-			if err := configureMicroInRamMode(ctx, w, srv, inst, fqbn); err != nil {
-				return err
-			}
-			return legacyUploadSketchInRam(ctx, w, srv, inst, fqbn, sketchPath.String(), buildPath.String())
-		}
-		return nil
-	}
-
-	stream, _ := commands.UploadToServerStreams(ctx, w, w)
-	return srv.Upload(&rpc.UploadRequest{
-		Instance:   inst,
-		Fqbn:       fqbn,
-		SketchPath: sketchPath.String(),
-		ImportDir:  buildPath.String(),
-	}, stream)
-}
-
-// migrateRemoveRouterBridgeIfNeeded removes the Arduino_RouterBridge library from the sketch profile to allow automatic update of the library.
-// This is needed by the platform 0.55 will need a new Arduino_RouterBridge library to allow Serial output redirection to Monitor.
-// The migration is applied only if the platform in the profile doesn't specify a version.
-func migrateRemoveRouterBridgeIfNeeded(ctx context.Context, platform platform.Platform, app app.Editable) (bool, error) {
-	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
-	srv := commands.NewArduinoCoreServer()
-	if err := SetArduinoCliConfig(ctx, srv); err != nil {
-		return false, err
-	}
-
-	var inst *rpc.Instance
-	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
-		return false, err
-	} else {
-		inst = resp.GetInstance()
-	}
-	defer func() {
-		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
-	}()
-
-	sketchPath, ok := app.GetSketchPath()
-	if !ok {
-		return false, fmt.Errorf("no sketch path found in the Arduino app")
-	}
-	sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath.String()})
-	if err != nil {
-		return false, err
-	}
-
-	sketch := sketchResp.GetSketch()
-	platforms := sketch.GetDefaultProfile().GetPlatforms()
-	if slices.ContainsFunc(platforms, func(p *rpc.ProfilePlatformReference) bool {
-		return p.GetId() == platform.PlatformID && p.GetVersion() != ""
-	}) {
-		slog.Debug("skip migration if the platform in the profiles specifies a version")
-		return false, nil
-	}
-
-	if err := srv.Init(
-		&rpc.InitRequest{Instance: inst},
-		commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
-			return nil
-		}),
-	); err != nil {
-		return false, err
-	}
-
-	boardInfo, err := srv.BoardDetails(ctx, &rpc.BoardDetailsRequest{
-		Instance: inst,
-		Fqbn:     platform.FQBN,
-	})
-	if err != nil {
-		return false, err
-	}
-
-	platformVersion, err := semver.Parse(boardInfo.GetVersion())
-	if err != nil {
-		return false, fmt.Errorf("unable to get installed platform version: %w", err)
-	}
-	slog.Debug("Installed platform version", "version", platformVersion.String())
-
-	if platformVersion.GreaterThan(semver.MustParse("0.54.1")) {
-		libs, err := ListSketchLibraries(ctx, *app.App())
-		if err != nil {
-			return false, fmt.Errorf("unable to list sketch libraries: %w", err)
-		}
-		if slices.ContainsFunc(libs, func(lib LibraryReleaseID) bool {
-			return lib.Name == "Arduino_RouterBridge"
-		}) {
-			if _, err := RemoveSketchLibrary(ctx, app, LibraryReleaseID{
-				Name: "Arduino_RouterBridge",
-			}, true); err != nil {
-				return false, err
-			}
-			return true, nil
-		} else {
-			return false, nil
-		}
-	}
-
-	return false, nil
 }
 
 type ConfigResponse struct {

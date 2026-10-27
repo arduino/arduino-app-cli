@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
@@ -21,8 +22,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/releasebuild"
 	"github.com/arduino/arduino-app-cli/internal/update"
 
-	"github.com/docker/cli/cli/command"
-
 	_ "net/http/pprof" //nolint:gosec // pprof import is safe for profiling endpoints
 )
 
@@ -30,7 +29,7 @@ import (
 var docsFS embed.FS
 
 func NewHTTPRouter(
-	dockerClient command.Cli,
+	dockerClient dockerhelper.Cli,
 	version string,
 	updater *update.Manager,
 	provisioner *orchestrator.Provision,

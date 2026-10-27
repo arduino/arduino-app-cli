@@ -10,7 +10,6 @@ package servicelocator
 import (
 	"sync"
 
-	dockerCommand "github.com/docker/cli/cli/command"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
@@ -50,9 +49,9 @@ var (
 		))
 	})
 
-	docker *dockerCommand.DockerCli
+	docker dockerhelper.Cli
 
-	GetDockerClient = sync.OnceValue(func() *dockerCommand.DockerCli {
+	GetDockerClient = sync.OnceValue(func() dockerhelper.Cli {
 		docker = f.Must(dockerhelper.NewCli())
 		return docker
 	})

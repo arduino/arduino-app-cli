@@ -12,7 +12,6 @@ import (
 	"log/slog"
 
 	"github.com/arduino/go-paths-helper"
-	"github.com/docker/cli/cli/command"
 	"github.com/moby/moby/api/types/events"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
@@ -21,7 +20,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker command.Cli, idProvider *appid.Provider) iter.Seq2[AppInfo, error] {
+func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker dockerhelper.Cli, idProvider *appid.Provider) iter.Seq2[AppInfo, error] {
 	chanMsg, chanError := dockerhelper.ContainerEvents(ctx, docker.Client(), DockerAppLabel+"=true",
 		"create", "start", "stop", "die", "restart", "destroy", "delete")
 
@@ -59,7 +58,7 @@ func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker comma
 	}
 }
 
-func parseDockerStatusEvent(ctx context.Context, cfg config.Configuration, docker command.Cli, idProvider *appid.Provider, event events.Message) (AppInfo, error) {
+func parseDockerStatusEvent(ctx context.Context, cfg config.Configuration, docker dockerhelper.Cli, idProvider *appid.Provider, event events.Message) (AppInfo, error) {
 
 	if pathLabel, ok := event.Actor.Attributes[DockerAppPathLabel]; ok {
 		app, err := app.Load(paths.New(pathLabel))

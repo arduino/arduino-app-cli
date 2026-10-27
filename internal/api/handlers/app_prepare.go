@@ -10,9 +10,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/docker/cli/cli/command"
-
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
@@ -31,7 +30,7 @@ type AppPrepareResponse struct {
 // HandleAppPrepare downloads what an already installed release needs to run,
 // without starting it: the containers its compose file names and the models it ships.
 func HandleAppPrepare(
-	dockerClient command.Cli,
+	dockerClient dockerhelper.Cli,
 	provisioner *orchestrator.Provision,
 	idProvider *appid.Provider,
 	cfg config.Configuration,

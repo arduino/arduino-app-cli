@@ -15,8 +15,6 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/docker/cli/cli/command"
-	"github.com/moby/moby/client"
 	"github.com/shirou/gopsutil/v4/disk"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
@@ -146,7 +144,7 @@ type ModelsIndex struct {
 	modelsDir       *paths.Path
 	customModelsDir *paths.Path
 	Handlers        *HandlersIndex
-	cli             client.APIClient
+	cli             dockerhelper.EngineClient
 	plat            platform.Platform
 }
 
@@ -274,7 +272,7 @@ func (m *ModelsIndex) loadDryModels() []AIModel {
 
 // Load constructs a ModelsIndex. Pass the result of LoadHandlers as handlers;
 // nil is accepted and disables handler-backed status checks.
-func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, customModelsDir *paths.Path, cli client.APIClient, cfg config.Configuration) (*ModelsIndex, error) {
+func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, customModelsDir *paths.Path, cli dockerhelper.EngineClient, cfg config.Configuration) (*ModelsIndex, error) {
 	if dir == nil || modelsDir == nil {
 		return &ModelsIndex{}, errors.New("either dir or modelsDir must be provided")
 	}
@@ -432,7 +430,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 // The id is not an input: the downloader makes it from the file that arrives, with the same
 // rule as the listing, and reports it on the stream. The id contains the repository
 // directory, so two owners with the same file name stay two models.
-func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, modelURL, mmprojURL string, plat platform.Platform, publish func(e StreamMessage)) (AIModel, error) {
+func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli dockerhelper.EngineClient, modelURL, mmprojURL string, plat platform.Platform, publish func(e StreamMessage)) (AIModel, error) {
 	variables := map[string]string{
 		"model_url": modelURL,
 		// Fixed, not taken from the caller: it is the only directory the listing scans for
@@ -489,7 +487,7 @@ func (m *ModelsIndex) known(id string) (*AIModel, bool) {
 // installed. The declaration describes it; only the size comes from what landed.
 //
 // A model installed by its declaration is returned as it is: there is nothing to fetch.
-func (m *ModelsIndex) Install(ctx context.Context, dockerClient command.Cli, id string, plat platform.Platform, publish func(e StreamMessage)) (AIModel, error) {
+func (m *ModelsIndex) Install(ctx context.Context, dockerClient dockerhelper.Cli, id string, plat platform.Platform, publish func(e StreamMessage)) (AIModel, error) {
 	model, found := m.known(id)
 	if !found {
 		return AIModel{}, fmt.Errorf("no model with id %q: %w", id, ErrUnknownModel)
@@ -514,7 +512,7 @@ func (m *ModelsIndex) Install(ctx context.Context, dockerClient command.Cli, id 
 
 // runDownload runs one handler's download action and keeps the model its stream names. An
 // error event ends the run as ErrDownloadReported: publish has already carried it out.
-func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) (*DownloadedModel, error) {
+func (m *ModelsIndex) runDownload(ctx context.Context, cli dockerhelper.EngineClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) (*DownloadedModel, error) {
 	if model.NeedsNoDownload() {
 		// Guarded here too: the alternative is dereferencing a nil Deployment.
 		return nil, fmt.Errorf("model %q has nothing to download: %w", model.ID, ErrNoHandler)
@@ -585,7 +583,7 @@ func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, mod
 	return downloaded, nil
 }
 
-func (m *ModelsIndex) Delete(ctx context.Context, dockerClient command.Cli, platform platform.Platform, model AIModel) error {
+func (m *ModelsIndex) Delete(ctx context.Context, dockerClient dockerhelper.Cli, platform platform.Platform, model AIModel) error {
 	if model.Deployment != nil && model.Deployment.Handler != "" {
 		// Internal model: run the delete action using the handler.
 		handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)

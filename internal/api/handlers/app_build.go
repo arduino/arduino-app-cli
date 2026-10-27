@@ -15,9 +15,9 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
-	"github.com/docker/cli/cli/command"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
@@ -39,7 +39,7 @@ type buildRequest struct {
 // HandleAppBuild builds an app into a release archive and sends it back as the last part
 // of a multipart response. Build progress is published to the global build events stream.
 func HandleAppBuild(
-	dockerClient command.Cli,
+	dockerClient dockerhelper.Cli,
 	provisioner *orchestrator.Provision,
 	idProvider *appid.Provider,
 	cfg config.Configuration,

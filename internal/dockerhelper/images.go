@@ -3,6 +3,8 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+//go:build !js
+
 package dockerhelper
 
 import (
@@ -24,9 +26,6 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 )
-
-// ErrOutOfSpace is what a download the board has no room for answers.
-var ErrOutOfSpace = errors.New("not enough disk space to pull the docker image")
 
 // images required by the system
 

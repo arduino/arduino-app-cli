@@ -11,9 +11,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/docker/cli/cli/command"
-
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -28,7 +27,7 @@ type AppListResponse struct {
 }
 
 func HandleAppList(
-	dockerCli command.Cli,
+	dockerCli dockerhelper.Cli,
 	idProvider *appid.Provider,
 	bricksIndex *bricksindex.BricksIndex,
 	cfg config.Configuration,
