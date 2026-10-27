@@ -86,6 +86,9 @@ func NewSSEStream(ctx context.Context, w http.ResponseWriter) (*SSEStream, error
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-cache")
 	h.Set("Connection", "keep-alive")
+	// The head goes out now: a reader learns that the stream is open before its first
+	// event, which may be long coming (or never, where nothing runs).
+	flusher.Flush()
 
 	const maxStreamTime = 24 * time.Hour
 
