@@ -125,7 +125,7 @@ func checkUserGroups() (string, error) {
 		}
 	}
 	if len(missing) > 0 {
-		return "", fmt.Errorf("run `sudo usermod -aG %s %s` and start a new session", strings.Join(missing, ","), current.Username)
+		return "", fmt.Errorf("run ` usermod -aG %s %s` and start a new session", strings.Join(missing, ","), current.Username)
 	}
 	return fmt.Sprintf("%s belongs to every required group", current.Username), nil
 }
