@@ -33,7 +33,7 @@ type watchSub struct {
 	excludes []string
 	log      *slog.Logger
 
-	fsw    *fsnotify.Watcher
+	fsw    fsWatcher
 	events chan []changeEvent
 	errors chan error
 
@@ -41,8 +41,19 @@ type watchSub struct {
 	watched map[string]struct{}
 }
 
+// fsWatcher is what a watchSub needs of an *fsnotify.Watcher. js/wasm has no
+// inotify, and watches through the fs object Go's os package runs on there
+// (fswatch_js.go); elsewhere it is fsnotify's (fswatch.go).
+type fsWatcher interface {
+	Add(name string) error
+	Remove(name string) error
+	Close() error
+	Events() <-chan fsnotify.Event
+	Errors() <-chan error
+}
+
 func newWatchSub(ctx context.Context, target *paths.Path, p watchParams, log *slog.Logger) (*watchSub, error) {
-	fw, err := fsnotify.NewWatcher()
+	fw, err := newFSWatcher()
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +174,7 @@ func (s *watchSub) loop(ctx context.Context, recursive bool, debounce time.Durat
 		select {
 		case <-ctx.Done():
 			return
-		case ev, ok := <-s.fsw.Events:
+		case ev, ok := <-s.fsw.Events():
 			if !ok {
 				flush()
 				return
@@ -187,7 +198,7 @@ func (s *watchSub) loop(ctx context.Context, recursive bool, debounce time.Durat
 			if timer == nil {
 				timer = time.NewTimer(debounce)
 			}
-		case err, ok := <-s.fsw.Errors:
+		case err, ok := <-s.fsw.Errors():
 			if !ok {
 				return
 			}

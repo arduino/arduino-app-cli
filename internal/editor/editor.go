@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Package editor exposes a WebSocket + JSON-RPC 2.0 endpoint for remote
-// file-watching. Only Config and New are public and no other internal/...
+// file-watching. Only Config, New and Serve are public and no other internal/...
 // package is imported, so the module can be extracted later.
 package editor
 
@@ -55,11 +55,9 @@ type Config struct {
 }
 
 func New(cfg Config) (http.Handler, error) {
-	if cfg.Logger == nil {
-		return nil, errors.New("editor: Logger required")
-	}
-	if cfg.MaxWatches <= 0 {
-		cfg.MaxWatches = 1024
+	cfg, err := withDefaults(cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	up := websocket.Upgrader{
@@ -72,17 +70,65 @@ func New(cfg Config) (http.Handler, error) {
 			cfg.Logger.Error("editor: upgrade failed", slog.String("err", err.Error()))
 			return
 		}
-		(&session{
-			cfg: cfg, conn: conn,
-			subs:     map[string]*subscription{},
-			byConfig: map[string]string{},
-		}).run(r.Context())
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		keepAlive(ctx, conn)
+		newSession(cfg).run(ctx, wsStream{conn})
 	}), nil
+}
+
+// Serve runs one session over stream until the peer goes away or ctx ends, and
+// closes stream: New's service, on a transport that is not a WebSocket. A
+// service worker cannot accept one, and is handed a MessagePort instead.
+func Serve(ctx context.Context, cfg Config, stream jsonrpc2.ObjectStream) error {
+	cfg, err := withDefaults(cfg)
+	if err != nil {
+		return err
+	}
+	newSession(cfg).run(ctx, stream)
+	return nil
+}
+
+func withDefaults(cfg Config) (Config, error) {
+	if cfg.Logger == nil {
+		return cfg, errors.New("editor: Logger required")
+	}
+	if cfg.MaxWatches <= 0 {
+		cfg.MaxWatches = 1024
+	}
+	return cfg, nil
+}
+
+// keepAlive pings the peer every pingInterval and lets a read fail once a pong
+// is late, so a vanished peer releases its subscriptions. The deadline and the
+// pong handler are in place before the session's first read.
+func keepAlive(ctx context.Context, conn *websocket.Conn) {
+	_ = conn.SetReadDeadline(time.Now().Add(pingInterval + pongTimeout))
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(pingInterval + pongTimeout))
+	})
+	go func() {
+		t := time.NewTicker(pingInterval)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(pongTimeout)); err != nil {
+					return
+				}
+			}
+		}
+	}()
+}
+
+func newSession(cfg Config) *session {
+	return &session{cfg: cfg, subs: map[string]*subscription{}, byConfig: map[string]string{}}
 }
 
 type session struct {
 	cfg  Config
-	conn *websocket.Conn
 	rpc  *jsonrpc2.Conn
 	mu   sync.Mutex
 	subs map[string]*subscription
@@ -125,30 +171,11 @@ func (s *session) releaseConfig(sub *subscription) {
 	}
 }
 
-func (s *session) run(ctx context.Context) {
+func (s *session) run(ctx context.Context, stream jsonrpc2.ObjectStream) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	_ = s.conn.SetReadDeadline(time.Now().Add(pingInterval + pongTimeout))
-	s.conn.SetPongHandler(func(string) error {
-		return s.conn.SetReadDeadline(time.Now().Add(pingInterval + pongTimeout))
-	})
-	go func() {
-		t := time.NewTicker(pingInterval)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				if err := s.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(pongTimeout)); err != nil {
-					return
-				}
-			}
-		}
-	}()
-
-	s.rpc = jsonrpc2.NewConn(ctx, wsStream{s.conn}, jsonrpc2.AsyncHandler(jsonrpc2.HandlerWithError(s.handle)))
+	s.rpc = jsonrpc2.NewConn(ctx, stream, jsonrpc2.AsyncHandler(jsonrpc2.HandlerWithError(s.handle)))
 	select {
 	case <-ctx.Done():
 	case <-s.rpc.DisconnectNotify():

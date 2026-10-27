@@ -18,6 +18,12 @@
 // sink {head(status, headers), chunk(Uint8Array), end(message?)}: streams such as the
 // app events arrive chunk by chunk, and cancel() ends a request the page no longer reads.
 // The page learns that the daemon is up from globalThis.arduinoAppCliReady(), if defined.
+//
+// The editor service, a WebSocket at the daemon's /v1/edit, takes a MessagePort here:
+//
+//	globalThis.arduinoAppCli.editor(port)
+//
+// runs one session on it, a JSON-RPC message per port message (editor.Serve).
 package main
 
 import (
@@ -70,6 +76,7 @@ func main() {
 	js.Global().Set("arduinoAppCli", js.ValueOf(map[string]any{
 		"version": Version,
 		"serve":   js.FuncOf(func(_ js.Value, args []js.Value) any { return serve(handler, args[0], args[1]) }),
+		"editor":  js.FuncOf(func(_ js.Value, args []js.Value) any { serveEditor(args[0]); return nil }),
 	}))
 	if ready := js.Global().Get("arduinoAppCliReady"); ready.Type() == js.TypeFunction {
 		ready.Invoke()
