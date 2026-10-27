@@ -23,9 +23,7 @@ func HandleMonitorWS(allowedOrigins []string) http.HandlerFunc {
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
-		CheckOrigin: func(r *http.Request) bool {
-			return checkOrigin(r.Header.Get("Origin"), allowedOrigins)
-		},
+		CheckOrigin:     CheckOrigin(allowedOrigins),
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -67,6 +65,14 @@ func splitOrigin(origin string) (scheme, host, port string, err error) {
 		port = "*"
 	}
 	return scheme, host, port, nil
+}
+
+// CheckOrigin admits a WebSocket whose origin is one of allowedOrigins: the monitor's,
+// and the daemon's other WebSockets, such as the editor's.
+func CheckOrigin(allowedOrigins []string) func(*http.Request) bool {
+	return func(r *http.Request) bool {
+		return checkOrigin(r.Header.Get("Origin"), allowedOrigins)
+	}
 }
 
 func checkOrigin(origin string, allowedOrigins []string) bool {

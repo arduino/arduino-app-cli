@@ -128,6 +128,11 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 		corsConfig.Origins,
 	)
 
+	apiSrv, err := withEditor(apiSrv, corsConfig.Origins)
+	if err != nil {
+		panic(err)
+	}
+
 	// Wrap the API server with CORS middleware
 	corsMiddlware, err := cors.NewMiddleware(corsConfig)
 	if err != nil {
