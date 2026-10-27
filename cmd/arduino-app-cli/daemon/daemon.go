@@ -54,9 +54,8 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 			}
 
 			// start the default app in the background
-			go func() {
-				slog.Info("Starting default app")
-				err := orchestrator.StartDefaultApp(
+			go startDefaultApp(cmd.Context(), func() error {
+				return orchestrator.StartDefaultApp(
 					cmd.Context(),
 					servicelocator.GetDockerClient(),
 					servicelocator.GetProvisioner(),
@@ -67,12 +66,7 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 					cfg,
 					servicelocator.GetPlatform(),
 				)
-				if err != nil {
-					slog.Error("Failed to start default app", slog.String("error", err.Error()))
-				} else {
-					slog.Info("Default app started")
-				}
-			}()
+			})
 
 			httpHandler(cmd.Context(), cfg, daemonPort, version)
 		},
@@ -169,4 +163,45 @@ func stopArduinoContainers(ctx context.Context, docker command.Cli) error {
 	stopped, err := dockerhelper.StopContainers(ctx, docker.Client(), orchestrator.DockerAppLabel+"=true")
 	slog.Debug("stopped the containers of the apps", slog.Int("containers", stopped))
 	return err
+}
+
+// startDefaultApp starts the default app, and starts it again when a start fails. The
+// board is usually powered off by disconnecting it, so at boot the network may not be
+// up yet and the docker engine may still be removing what the power loss left.
+// 10s, 20s, 40s, 80s, 160s, then give up.
+func startDefaultApp(ctx context.Context, start func() error) {
+	const (
+		minBackoff = 10 * time.Second
+		maxBackoff = 160 * time.Second
+	)
+	slog.Info("Starting default app")
+	for backoff := minBackoff; ; backoff *= 2 {
+		err := start()
+		if err == nil {
+			slog.Info("Default app started")
+			return
+		}
+
+		// The daemon is stopping: the start failed for that.
+		if ctx.Err() != nil {
+			return
+		}
+
+		// An app started meanwhile is the one the user wants: it is not stopped for this.
+		if errors.Is(err, orchestrator.ErrAppRunning) {
+			slog.Info("Default app not started", slog.String("error", err.Error()))
+			return
+		}
+		if backoff > maxBackoff {
+			slog.Error("Failed to start default app", slog.String("error", err.Error()))
+			return
+		}
+		slog.Error("Failed to start default app, trying again", slog.String("error", err.Error()), slog.Duration("delay", backoff))
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff):
+		}
+	}
 }

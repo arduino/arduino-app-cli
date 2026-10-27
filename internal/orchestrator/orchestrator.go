@@ -52,6 +52,20 @@ var (
 	ErrAppRunning       = fmt.Errorf("app is running")
 )
 
+// AppRunningError states that a start found another app running: one app runs at a
+// time. It is an ErrAppRunning that names the app.
+type AppRunningError struct {
+	Name string
+}
+
+func (e *AppRunningError) Error() string {
+	return fmt.Sprintf("app %q is running", e.Name)
+}
+
+func (e *AppRunningError) Is(target error) bool {
+	return target == ErrAppRunning
+}
+
 type AppStreamMessage struct {
 	Type string `json:"type"`
 	Data any    `json:"data"`
@@ -158,7 +172,7 @@ func StartApp(
 			if err != nil {
 				return fmt.Errorf("failed to load running app: %w", err)
 			}
-			return fmt.Errorf("app %q is running", runningApp.Name)
+			return &AppRunningError{Name: runningApp.Name}
 		case StatusFailed:
 			if s.AppPath.EqualsTo(appToStart.FullPath) {
 				continue
