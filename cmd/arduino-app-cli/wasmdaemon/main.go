@@ -117,7 +117,7 @@ func serve(handler http.Handler, request, sink js.Value) js.Func {
 }
 
 // sinkWriter hands the response to the page as it is written: the head once, then each
-// write as a chunk. It flushes by itself, which is what an event stream asks for.
+// write as a chunk, with nothing buffered, which is what an event stream asks for.
 type sinkWriter struct {
 	sink        js.Value
 	header      http.Header
@@ -148,7 +148,8 @@ func (w *sinkWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-func (w *sinkWriter) Flush() {}
+// Flush sends the head, as a server's flush commits it: an event stream flushes before its first event.
+func (w *sinkWriter) Flush() { w.WriteHeader(http.StatusOK) }
 
 // The deadlines a server stream sets on its connection: a page has no connection to time out.
 func (w *sinkWriter) SetWriteDeadline(time.Time) error { return nil }
