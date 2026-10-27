@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/docker/cli/cli/command"
@@ -56,6 +57,9 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 			// start the default app in the background
 			go func() {
 				slog.Info("Starting default app")
+				// No one follows a start at boot: what it says is kept, as its error alone
+				// says little of what went wrong.
+				var output startOutput
 				err := orchestrator.StartDefaultApp(
 					cmd.Context(),
 					servicelocator.GetDockerClient(),
@@ -66,9 +70,14 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 					servicelocator.GetAppIDProvider(),
 					cfg,
 					servicelocator.GetPlatform(),
+					func(msg orchestrator.StreamMessage) {
+						if msg.IsData() {
+							output.add(msg.GetData())
+						}
+					},
 				)
 				if err != nil {
-					slog.Error("Failed to start default app", slog.String("error", err.Error()))
+					slog.Error("Failed to start default app", slog.String("error", err.Error()), slog.String("output", output.String()))
 				} else {
 					slog.Info("Default app started")
 				}
@@ -169,4 +178,25 @@ func stopArduinoContainers(ctx context.Context, docker command.Cli) error {
 	stopped, err := dockerhelper.StopContainers(ctx, docker.Client(), orchestrator.DockerAppLabel+"=true")
 	slog.Debug("stopped the containers of the apps", slog.Int("containers", stopped))
 	return err
+}
+
+// startOutputLines is what is kept of the output of a start. A start that fails says
+// why at its end: in the compose events of the app, a line for each step of its
+// network and of each of its containers, or in the last lines of the sketch upload.
+const startOutputLines = 20
+
+// startOutput keeps the last lines that a start reports.
+type startOutput struct {
+	lines []string
+}
+
+func (o *startOutput) add(line string) {
+	o.lines = append(o.lines, line)
+	if len(o.lines) > startOutputLines {
+		o.lines = o.lines[1:]
+	}
+}
+
+func (o *startOutput) String() string {
+	return strings.Join(o.lines, "\n")
 }
