@@ -1,0 +1,33 @@
+[Unit]
+Description=Arduino App CLI default app
+# The daemon notifies it is ready once it stopped the leftover app containers.
+After=arduino-app-cli.service
+# A restart of the daemon, after an update too, stops the app containers: start the default app again.
+PartOf=arduino-app-cli.service
+# 6 attempts, then the unit fails: a default app that can never start is not rebuilt forever.
+# The 6 attempts must fall in the interval: with the 310s of delays, each can take up to ~8min.
+StartLimitIntervalSec=1h
+StartLimitBurst=6
+
+[Service]
+Type=oneshot
+# Stays active after a start, so that a restart of the daemon re-runs it.
+RemainAfterExit=yes
+ExecStart=/usr/bin/arduino-app-cli app start --default
+User=1000
+Group=arduino
+StandardOutput=journal
+StandardError=journal
+# No deadline, as the daemon had none: a first start can pull images and download
+# models for longer than any fixed timeout, and a killed start would begin from scratch.
+TimeoutStartSec=infinity
+# A start at boot can fail for a transient reason, as the network not up yet: try again
+# after 10s, 20s, 40s, 80s, 160s.
+Restart=on-failure
+RestartSec=10s
+RestartSteps=4
+RestartMaxDelaySec=160s
+
+[Install]
+# Not multi-user.target: the boot would wait for the retries.
+WantedBy=arduino-app-cli.service
