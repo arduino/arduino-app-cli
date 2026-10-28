@@ -4,7 +4,7 @@ version: v1.20.3
 type: go
 summary: Package regmask provides masks for variable shift counts.
 homepage: https://pkg.go.dev/github.com/klauspost/compress/internal/regmask
-license: other
+license: bsd-3-clause
 licenses:
 - sources: compress@v1.20.3/LICENSE
   text: |
