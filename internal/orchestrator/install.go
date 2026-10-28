@@ -116,6 +116,16 @@ func InstallRelease(
 	if err := stagingDir.Rename(releasePath); err != nil {
 		return InstallReleaseResult{}, fmt.Errorf("failed to install the release: %w", err)
 	}
+	installed := false
+	defer func() {
+		if installed {
+			return
+		}
+		// We need to remove the release folder because currently there is no command to delete a release.
+		if err := releasePath.RemoveAll(); err != nil {
+			slog.Warn("cannot remove the release that failed to install", slog.String("path", releasePath.String()), slog.String("error", err.Error()))
+		}
+	}()
 
 	appID, err := idProvider.IDFromPath(releasePath)
 	if err != nil {
@@ -132,6 +142,7 @@ func InstallRelease(
 	if err != nil {
 		return InstallReleaseResult{}, err
 	}
+	installed = true
 	fatomic.Sync()
 	if prepare {
 		// The release is installed either way: what failed is a download a start does
