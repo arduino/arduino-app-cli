@@ -30,13 +30,9 @@ const appHomeRef = "${APP_HOME}"
 const appRuntimeDirVar = "APP_RUNTIME_DIR"
 const appRuntimeDirRef = "${" + appRuntimeDirVar + "}"
 
-// appUserExpr is the user of the services of an app other than main that do not set
-// their own: a fixed uid 1000, with the arduino group as gid when the host has it.
-// The main service does not use it, see mainUserExpr.
+// The main service runs as the cli's uid:gid,
+// while all other services default to the fixed uid 1000.
 const appUserExpr = exprPrefix + `{{ with groupID "arduino" }}1000:{{ . }}{{ else }}1000{{ end }}`
-
-// image: the uid:gid the cli runs as, instead of the fixed one of appUserExpr
-// The arduino group is added to it, as to every service, through group_add.
 const mainUserExpr = exprPrefix + `{{ currentUser }}`
 
 // hostVariables are what a template references as ${VAR}: the name is the reference the
