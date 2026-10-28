@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
 
@@ -93,7 +94,7 @@ func PrepareInstalledRelease(
 		return fmt.Errorf("%w: %q is not installed from a release", ErrBadRequest, arduinoApp.Name)
 	}
 
-	prj, err := renderRelease(ctx, docker, provisioner, arduinoApp, cfg, plat)
+	prj, err := renderRelease(ctx, docker, provisioner, arduinoApp, arduinoApp.FullPath, cfg, plat)
 	if err != nil {
 		return err
 	}
@@ -157,12 +158,14 @@ func prepareModels(
 }
 
 // renderRelease writes the compose file docker is given, from the templates the release
-// froze. It runs once the release is in place: the paths it resolves are absolute.
+// froze. appPath is where it runs from, which differs from arduinoApp.FullPath while it
+// is being installed
 func renderRelease(
 	ctx context.Context,
 	docker command.Cli,
 	provisioner *Provision,
 	arduinoApp app.ArduinoApp,
+	appPath *paths.Path,
 	cfg config.Configuration,
 	plat platform.Platform,
 ) (*types.Project, error) {
@@ -178,8 +181,8 @@ func renderRelease(
 	// The secrets are empty until they are set on this board, which the render does not
 	// need: an image name is frozen and no host fact depends on one.
 	appEnv := appEnvironment(ctx, arduinoApp, bricksIndex, modelsIndex, plat)
-	env := hostEnvironment(ctx, arduinoApp.FullPath, cfg).Merge(appEnv)
-	prj, err := provisioner.Render(ctx, &arduinoApp, env, arduinoApp.Secrets(bricksIndex))
+	env := hostEnvironment(ctx, appPath, cfg).Merge(appEnv)
+	prj, err := provisioner.Render(ctx, &arduinoApp, appPath, env, arduinoApp.Secrets(bricksIndex))
 	if err != nil {
 		return nil, fmt.Errorf("failed to render the compose file of the release: %w", err)
 	}

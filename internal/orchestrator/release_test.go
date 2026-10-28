@@ -153,7 +153,7 @@ func TestInstallReleaseRemovesAFailedInstall(t *testing.T) {
 	}))
 	write("name: my-app\n", "src", "app.yaml")
 	write("", "src", "python", "main.py")
-	// An unreadable bricks list: the render of the installed release fails on it.
+	// An unreadable bricks list: the render of the staged release fails on it.
 	write("bricks: [\n", release.BricksListFileName)
 	write("models: []\n", release.ModelsListFileName)
 
