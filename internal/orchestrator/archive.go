@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"syscall"
 
@@ -21,7 +20,6 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
-	"github.com/shirou/gopsutil/v4/disk"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -192,15 +190,7 @@ func ImportAppFromZip(
 		finalDestPath, _ = findAppPathByName(newName, cfg)
 	}
 
-	if err := checkFreeSpace(&r.Reader, rootPrefix, finalDestPath.Parent()); err != nil {
-		return appid.ID{}, err
-	}
-
 	tempDestDir, err := cfg.MkStagingDir()
-	if err != nil {
-		return appid.ID{}, fmt.Errorf("failed to create the staging dir: %w", err)
-	}
-
 	if err != nil {
 		return appid.ID{}, fmt.Errorf("failed to create the staging dir: %w", err)
 	}
@@ -308,34 +298,6 @@ func entryName(f *zip.File, rootPrefix string) string {
 		return ""
 	}
 	return name
-}
-
-func checkFreeSpace(r *zip.Reader, rootPrefix string, dest *paths.Path) error {
-	var needed uint64
-	for _, f := range r.File {
-		if f.FileInfo().IsDir() || entryName(f, rootPrefix) == "" {
-			continue
-		}
-		needed += f.UncompressedSize64
-		if needed < f.UncompressedSize64 {
-			needed = math.MaxUint64
-		}
-	}
-
-	usage, err := disk.Usage(dest.String())
-	if err != nil {
-		return fmt.Errorf("unable to read the free space: %w", err)
-	}
-	free := usage.Free
-	if needed > free {
-		const mb = 1024 * 1024
-		neededMB := needed / mb
-		if needed%mb != 0 {
-			neededMB++
-		}
-		return fmt.Errorf("%w: the app needs %d MB, only %d MB available on the board", ErrBadRequest, neededMB, free/mb)
-	}
-	return nil
 }
 
 func readAppDescriptorFromZip(r *zip.Reader, rootPrefix string) (app.AppDescriptor, error) {

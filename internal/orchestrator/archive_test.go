@@ -366,25 +366,6 @@ func TestImportAppFromZipSize(t *testing.T) {
 			},
 		},
 		{
-			name: "declared size over the free space",
-			entries: []zipEntry{
-				{name: "app.yaml", content: "name: test"},
-				{name: "python/main.py", content: "pass"},
-				{name: "models/model.bin", declared: 1 << 60},
-			},
-			wantErr: "MB available on the board",
-		},
-		{
-			name: "declared sizes overflowing their sum",
-			entries: []zipEntry{
-				{name: "app.yaml", content: "name: test"},
-				{name: "python/main.py", content: "pass"},
-				{name: "a.bin", declared: 1 << 63},
-				{name: "b.bin", declared: 1 << 63},
-			},
-			wantErr: "MB available on the board",
-		},
-		{
 			name: "file writing more than declared",
 			entries: []zipEntry{
 				{name: "app.yaml", content: "name: test"},
@@ -403,7 +384,7 @@ func TestImportAppFromZipSize(t *testing.T) {
 			wantErr: "checksum",
 		},
 		{
-			name: "files outside the app root are not counted",
+			name: "files outside the app root are skipped",
 			entries: []zipEntry{
 				{name: "my-app/app.yaml", content: "name: test"},
 				{name: "my-app/python/main.py", content: "pass"},
