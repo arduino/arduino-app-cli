@@ -7,7 +7,9 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -23,11 +25,18 @@ import (
 func newStartCmd(cfg config.Configuration) *cobra.Command {
 	var verbose bool
 	var noPrepare bool
+	var startDefault bool
 	cmd := &cobra.Command{
 		Use:   "start app_path",
 		Short: "Start an Arduino App",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if startDefault {
+				if len(args) > 0 {
+					return fmt.Errorf("--default does not take an app path")
+				}
+				return startDefaultHandler(cmd.Context(), cfg)
+			}
 			if len(args) == 0 {
 				return cmd.Help()
 			}
@@ -45,14 +54,15 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	cmd.Flags().BoolVar(&noPrepare, "no-prepare", false, "Start the app without preparing it first, failing if its containers or models are not already on the board")
+	cmd.Flags().BoolVar(&startDefault, "default", false, "Start the default app, if one is set and no other app is running")
+	cmd.MarkFlagsMutuallyExclusive("default", "no-prepare")
+	cmd.MarkFlagsMutuallyExclusive("default", "verbose")
 
 	return cmd
 }
 
-func startHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, verbose bool, prepare bool) error {
-	out, _, getResult := feedback.OutputStreams()
-
-	streamCb := func(message orchestrator.StreamMessage) {
+func newStreamCb(out io.Writer) func(orchestrator.StreamMessage) {
+	return func(message orchestrator.StreamMessage) {
 		switch message.GetType() {
 		case orchestrator.ProgressType:
 			fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)
@@ -60,6 +70,11 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 			fmt.Fprintln(out, "[INFO]", message.GetData())
 		}
 	}
+}
+
+func startHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, verbose bool, prepare bool) error {
+	out, _, getResult := feedback.OutputStreams()
+	streamCb := newStreamCb(out)
 
 	// A release is prepared apart, by the wrapper of a prepare, before it is started.
 	// An editable app is prepared by its own start instead.
@@ -102,6 +117,46 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 		Output:  outputResult,
 	})
 
+	return nil
+}
+
+// startDefaultHandler starts the default app, as the board does at boot. It succeeds
+// when there is nothing to start, so that a caller retrying on failure, such as the
+// systemd unit, stops: no default app set, the default app already running, or another
+// app running, which is the one the user wants.
+func startDefaultHandler(ctx context.Context, cfg config.Configuration) error {
+	out, _, getResult := feedback.OutputStreams()
+
+	defaultApp, err := orchestrator.StartDefaultApp(
+		ctx,
+		servicelocator.GetDockerClient(),
+		servicelocator.GetProvisioner(),
+		servicelocator.GetModelsIndex(),
+		servicelocator.GetBricksIndex(),
+		servicelocator.GetServicesIndex(),
+		servicelocator.GetAppIDProvider(),
+		cfg,
+		servicelocator.GetPlatform(),
+		newStreamCb(out),
+	)
+	switch {
+	case defaultApp == nil && err != nil:
+		feedback.Fatal(fmt.Sprintf("[ERROR] %s", err), feedback.ErrGeneric)
+	case defaultApp == nil:
+		feedback.PrintResult(startDefaultAppResult{Status: "not-set"})
+		return nil
+	case errors.Is(err, orchestrator.ErrAppRunning):
+		feedback.PrintResult(startDefaultAppResult{AppName: defaultApp.Name, Status: "skipped", Reason: err.Error()})
+		return nil
+	case err != nil:
+		feedback.Fatal(decorateErrorMessage(err, defaultApp.FullPath.String()), feedback.ErrGeneric)
+	}
+
+	feedback.PrintResult(startDefaultAppResult{
+		AppName: defaultApp.Name,
+		Status:  "running",
+		Output:  getResult(),
+	})
 	return nil
 }
 
@@ -160,5 +215,27 @@ func (r startAppResult) String() string {
 }
 
 func (r startAppResult) Data() any {
+	return r
+}
+
+type startDefaultAppResult struct {
+	AppName string                        `json:"appName,omitempty"`
+	Status  string                        `json:"status"`
+	Reason  string                        `json:"reason,omitempty"`
+	Output  *feedback.OutputStreamsResult `json:"output,omitempty"`
+}
+
+func (r startDefaultAppResult) String() string {
+	switch r.Status {
+	case "not-set":
+		return "No default app set"
+	case "skipped":
+		return fmt.Sprintf("Default app %q not started: %s", r.AppName, r.Reason)
+	default:
+		return fmt.Sprintf("✓ Default app %q is running", r.AppName)
+	}
+}
+
+func (r startDefaultAppResult) Data() any {
 	return r
 }
