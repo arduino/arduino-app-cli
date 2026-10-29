@@ -95,7 +95,7 @@ func checkSudoRules(ctx context.Context) (string, error) {
 // requiredGroups are what an app may need of the host: the hardware and privileges its
 // containers reach through a bind mount or a socket the current user must belong to.
 var requiredGroups = []string{
-	"arduino", "adm", "dialout", "audio", "video", "users",
+	"arduino", "adm", "dialout", "sudo", "audio", "video", "users",
 	"bluetooth", "netdev", "fastrpc", "docker", "sysupgrade", "gpiod",
 	"render", "input",
 }
