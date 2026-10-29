@@ -37,6 +37,8 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			daemonPort, _ := cmd.Flags().GetString("port")
 
+			go apt.FinishPendingRestarts(cmd.Context(), cfg.DataDir())
+
 			err := stopArduinoContainers(cmd.Context(), servicelocator.GetDockerClient())
 			if err != nil {
 				slog.Warn("Failed to stop containers", slog.String("error", err.Error()))

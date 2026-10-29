@@ -280,6 +280,81 @@ func TestManagerUpgradePackages(t *testing.T) {
 	}
 }
 
+func TestManagerUpgradePackagesSelfRestart(t *testing.T) {
+	tests := []struct {
+		name          string
+		packages      []UpgradablePackage
+		debErr        error
+		expectEvts    []EventType
+		expectRestart bool
+	}{
+		{
+			name:          "self-upgrade ends with restarting only",
+			packages:      []UpgradablePackage{{Type: Debian, Name: selfPackageName, ToVersion: "0.14.1"}},
+			expectEvts:    []EventType{ProgressEvent, RestartEvent},
+			expectRestart: true,
+		},
+		{
+			name:       "upgrade of other packages ends with done",
+			packages:   []UpgradablePackage{{Type: Debian, Name: "arduino-router", ToVersion: "0.9.1"}},
+			expectEvts: []EventType{ProgressEvent, DoneEvent},
+		},
+		{
+			name:       "failed self-upgrade ends with done",
+			packages:   []UpgradablePackage{{Type: Debian, Name: selfPackageName, ToVersion: "0.14.1"}},
+			debErr:     errors.New("deb upgrade failed"),
+			expectEvts: []EventType{ErrorEvent, ProgressEvent, DoneEvent},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			deb := &mockServiceUpdater{
+				applyFn: func(ctx context.Context, pkgs []PackageInfo, cb EventCallback) error {
+					return tc.debErr
+				},
+			}
+			arduino := &mockServiceUpdater{
+				applyFn: func(ctx context.Context, pkgs []PackageInfo, cb EventCallback) error {
+					return nil
+				},
+			}
+			m := newTestManager(deb, arduino).WithSelfRestart()
+			restarted := make(chan struct{})
+			m.restartProcess = func() { close(restarted) }
+
+			ch := m.Subscribe()
+			defer m.Unsubscribe(ch)
+
+			require.NoError(t, m.UpgradePackages(context.Background(), tc.packages))
+
+			// Collect until a terminal event, then wait a little for a second one.
+			var events []EventType
+			timeout := time.After(1 * time.Second)
+		loop:
+			for {
+				select {
+				case ev := <-ch:
+					events = append(events, ev.Type)
+					if ev.Type == DoneEvent || ev.Type == RestartEvent {
+						timeout = time.After(100 * time.Millisecond)
+					}
+				case <-timeout:
+					break loop
+				}
+			}
+			assert.Equal(t, tc.expectEvts, events, "unexpected event sequence")
+
+			select {
+			case <-restarted:
+				assert.True(t, tc.expectRestart, "the process restarted without a self-upgrade")
+			default:
+				assert.False(t, tc.expectRestart, "the process did not restart after a self-upgrade")
+			}
+		})
+	}
+}
+
 func TestManagerUpgradePackagesConcurrentUpgradeReturnsError(t *testing.T) {
 	started := make(chan struct{})
 	svc1 := &mockServiceUpdater{

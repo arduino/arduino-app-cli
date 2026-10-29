@@ -59,6 +59,8 @@ type Manager struct {
 	selfRestart                  bool
 	// Overridden by the tests to avoid real network I/O.
 	connected func() bool
+	// Overridden by the tests, which must not signal their own process.
+	restartProcess func()
 
 	mu   sync.RWMutex
 	subs map[chan Event]struct{}
@@ -69,6 +71,7 @@ func NewManager(debUpdateService ServiceUpdater, arduinoPlatformUpdateService Se
 		debUpdateService:             debUpdateService,
 		arduinoPlatformUpdateService: arduinoPlatformUpdateService,
 		connected:                    isConnected,
+		restartProcess:               signalSelf,
 		subs:                         make(map[chan Event]struct{}),
 	}
 }
@@ -182,30 +185,38 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		}); err != nil {
 			m.broadcast(NewErrorEvent(NewLockHeldError(fmt.Errorf("failed to upgrade APT packages: %w", err))))
 			// continue: errors are reported to the subscribers but do not end the
-			// operation, DoneEvent is always broadcast as the only terminal event.
+			// operation, a single terminal event is always broadcast.
 			debUpdateErr = true
 		}
 
 		restartSelf := !debUpdateErr && m.selfRestart && slices.ContainsFunc(debPkgs, func(p PackageInfo) bool { return p.Name == selfPackageName })
-		if restartSelf {
-			m.broadcast(NewDataEvent(RestartEvent, fmt.Sprintf("Upgrade completed. Restarting (pid %d) ...", os.Getpid())))
-		}
 
 		m.broadcast(NewProgressEvent("upgrade", 100.0))
 
-		m.broadcast(NewDataEvent(DoneEvent, "Update completed"))
-
-		if restartSelf {
-			// needrestart skips its caller's cgroup, so we signal ourselves to let
-			// systemd respawn us on the new binary. DoneEvent stays the last event.
-			if p, err := os.FindProcess(os.Getpid()); err == nil {
-				if err := p.Signal(syscall.SIGTERM); err != nil {
-					slog.Error("failed to send SIGTERM to self after upgrade", slog.String("error", err.Error()))
-				}
-			}
+		if !restartSelf {
+			m.broadcast(NewDataEvent(DoneEvent, "Update completed"))
+			return
 		}
+
+		// RestartEvent replaces DoneEvent: a client must get one terminal event.
+		// App Lab up to 0.11.0 starts its own update on both, and runs it twice
+		// when it gets the two.
+		m.broadcast(NewDataEvent(RestartEvent, fmt.Sprintf("Upgrade completed. Restarting (pid %d) ...", os.Getpid())))
+		m.restartProcess()
 	}()
 	return nil
+}
+
+// needrestart skips its caller's cgroup, so the daemon signals itself to let
+// systemd respawn it on the new binary.
+func signalSelf() {
+	p, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		return
+	}
+	if err := p.Signal(syscall.SIGTERM); err != nil {
+		slog.Error("failed to send SIGTERM to self after upgrade", slog.String("error", err.Error()))
+	}
 }
 
 // Subscribe creates a new channel for receiving APT events.

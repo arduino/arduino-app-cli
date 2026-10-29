@@ -16,6 +16,11 @@ chown -R "$USER_NAME":arduino /var/lib/arduino-app-cli \
 
 chmod -R 775 /var/lib/arduino-app-cli
 
+# Read and removed by the daemon at startup: see FinishPendingRestarts.
+if [ "$1" = "configure" ] && [ -n "$2" ]; then
+    touch /var/lib/arduino-app-cli/restart-services.pending
+fi
+
 if [ "$1" = "configure" ] && [ -n "$USER_HOME" ]; then
     rm -rf "$USER_HOME/.local/share/arduino-app-cli"
 fi

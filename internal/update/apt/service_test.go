@@ -6,9 +6,11 @@
 package apt
 
 import (
+	"context"
 	"strings"
 	"testing"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
@@ -215,4 +217,25 @@ func TestImagesDownloadBand(t *testing.T) {
 	// the progress outside of the band.
 	require.Equal(t, imagesDownloadProgress, imagesDownloadBand(-10))
 	require.Equal(t, imagesCleanupProgress, imagesDownloadBand(300))
+}
+
+func TestFinishPendingRestarts(t *testing.T) {
+	calls := 0
+	orig := runNeedrestart
+	runNeedrestart = func(ctx context.Context) ([]byte, error) {
+		calls++
+		return nil, nil
+	}
+	t.Cleanup(func() { runNeedrestart = orig })
+
+	dataDir := paths.New(t.TempDir())
+
+	FinishPendingRestarts(t.Context(), dataDir)
+	require.Equal(t, 0, calls, "needrestart ran without the marker")
+
+	marker := dataDir.Join(restartPendingMarker)
+	require.NoError(t, marker.WriteFile(nil))
+	FinishPendingRestarts(t.Context(), dataDir)
+	require.Equal(t, 1, calls, "needrestart did not run with the marker")
+	require.False(t, marker.Exist(), "the marker was not removed")
 }
