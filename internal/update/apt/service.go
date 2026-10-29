@@ -163,6 +163,41 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	return nil
 }
 
+// The postinst of the package writes this file in the data directory. A daemon
+// older than 0.14.0 that installs the package is restarted by its own needrestart
+// run, which lives in the daemon's cgroup and dies with it: the services later in
+// its list keep running the old binaries. The new daemon restarts them at startup.
+const restartPendingMarker = "restart-services.pending"
+
+// Overridden by the tests, which must not run sudo.
+var runNeedrestart = func(ctx context.Context) ([]byte, error) {
+	cmd, err := sudo.Needrestart.Process()
+	if err != nil {
+		return nil, err
+	}
+	return cmd.RunAndCaptureCombinedOutput(ctx)
+}
+
+// FinishPendingRestarts restarts the services an update left on old binaries.
+// needrestart skips the unit of the daemon, which runs on the new binary already.
+func FinishPendingRestarts(ctx context.Context, dataDir *paths.Path) {
+	marker := dataDir.Join(restartPendingMarker)
+	if !marker.Exist() {
+		return
+	}
+	// Removed first: should needrestart restart this daemon too, a marker left
+	// behind would make every start restart it again.
+	if err := marker.Remove(); err != nil {
+		slog.Error("failed to remove the restart marker", slog.String("error", err.Error()))
+		return
+	}
+	if out, err := runNeedrestart(ctx); err != nil {
+		slog.Error("failed to restart the services after an upgrade", slog.String("error", err.Error()), slog.String("output", string(out)))
+	} else {
+		slog.Debug("needrestart output", slog.String("output", string(out)))
+	}
+}
+
 // runDpkgConfigureCommand is need in case an upgrade was interrupted in the middle
 // and the dpkg database is in an inconsistent state.
 func runDpkgConfigureCommand(ctx context.Context) error {

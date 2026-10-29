@@ -1703,9 +1703,10 @@ paths:
                 type: string
           description: |
             A stream of Server-Sent Events (SSE) that notifies the progress of the update process.
-            The 'done' and 'restarting' events are the only terminal event: an 'error' reports a step that failed but does
-            not end the operation, so the client should collect the errors received during the stream and
-            present a final summary once 'done' arrives.
+            A stream ends with exactly one terminal event: 'restarting' when the update replaced arduino-app-cli
+            and the daemon restarts, 'done' otherwise. An 'error' reports a step that failed but does not end
+            the operation, so the client should collect the errors received during the stream and present a
+            final summary once the terminal event arrives.
             The client will receive events formatted as follows:
 
             **Event 'log'**:

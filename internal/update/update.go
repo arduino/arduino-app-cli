@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -48,9 +47,6 @@ type ServiceUpdater interface {
 	UpgradePackages(ctx context.Context, packages []PackageInfo, eventCB EventCallback) error
 }
 
-// The deb package of this very program: upgrading it needs a process restart.
-const selfPackageName = "arduino-app-cli"
-
 type Manager struct {
 	lock                         sync.Mutex
 	isUpgrading                  atomic.Bool
@@ -59,6 +55,9 @@ type Manager struct {
 	selfRestart                  bool
 	// Overridden by the tests to avoid real network I/O.
 	connected func() bool
+	// Overridden by the tests, which must not signal their own process.
+	restartProcess func()
+	selfReplaced   func() bool
 
 	mu   sync.RWMutex
 	subs map[chan Event]struct{}
@@ -69,6 +68,8 @@ func NewManager(debUpdateService ServiceUpdater, arduinoPlatformUpdateService Se
 		debUpdateService:             debUpdateService,
 		arduinoPlatformUpdateService: arduinoPlatformUpdateService,
 		connected:                    isConnected,
+		restartProcess:               signalSelf,
+		selfReplaced:                 executableReplaced,
 		subs:                         make(map[chan Event]struct{}),
 	}
 }
@@ -170,7 +171,6 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 			// continue with deb packages upgrade.
 		}
 
-		debUpdateErr := false
 		if err := m.debUpdateService.UpgradePackages(ctx, debPkgs, func(e Event) {
 			if e.Type == ProgressEvent {
 				progress := e.GetProgress()
@@ -182,30 +182,47 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		}); err != nil {
 			m.broadcast(NewErrorEvent(NewLockHeldError(fmt.Errorf("failed to upgrade APT packages: %w", err))))
 			// continue: errors are reported to the subscribers but do not end the
-			// operation, DoneEvent is always broadcast as the only terminal event.
-			debUpdateErr = true
+			// operation, a single terminal event is always broadcast.
 		}
 
-		restartSelf := !debUpdateErr && m.selfRestart && slices.ContainsFunc(debPkgs, func(p PackageInfo) bool { return p.Name == selfPackageName })
-		if restartSelf {
-			m.broadcast(NewDataEvent(RestartEvent, fmt.Sprintf("Upgrade completed. Restarting (pid %d) ...", os.Getpid())))
-		}
+		// Decided by the binary, not by the apt result: apt can fail after it
+		// replaced the binary (apt clean, the image pull), and needrestart skipped
+		// this daemon, so only this restart moves it to the new binary.
+		restartSelf := m.selfRestart && m.selfReplaced()
 
 		m.broadcast(NewProgressEvent("upgrade", 100.0))
 
-		m.broadcast(NewDataEvent(DoneEvent, "Update completed"))
-
-		if restartSelf {
-			// needrestart skips its caller's cgroup, so we signal ourselves to let
-			// systemd respawn us on the new binary. DoneEvent stays the last event.
-			if p, err := os.FindProcess(os.Getpid()); err == nil {
-				if err := p.Signal(syscall.SIGTERM); err != nil {
-					slog.Error("failed to send SIGTERM to self after upgrade", slog.String("error", err.Error()))
-				}
-			}
+		if !restartSelf {
+			m.broadcast(NewDataEvent(DoneEvent, "Update completed"))
+			return
 		}
+
+		// RestartEvent replaces DoneEvent: a client must get one terminal event.
+		// App Lab starts its own update on both, and runs it twice when it gets
+		// the two.
+		m.broadcast(NewDataEvent(RestartEvent, fmt.Sprintf("Upgrade completed. Restarting (pid %d) ...", os.Getpid())))
+		m.restartProcess()
 	}()
 	return nil
+}
+
+// needrestart skips its caller's cgroup, so the daemon signals itself to let
+// systemd respawn it on the new binary.
+func signalSelf() {
+	p, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		return
+	}
+	if err := p.Signal(syscall.SIGTERM); err != nil {
+		slog.Error("failed to send SIGTERM to self after upgrade", slog.String("error", err.Error()))
+	}
+}
+
+// dpkg installs the new binary under a new inode, and Linux then shows the
+// running one as deleted.
+func executableReplaced() bool {
+	exe, err := os.Readlink("/proc/self/exe")
+	return err == nil && strings.HasSuffix(exe, " (deleted)")
 }
 
 // Subscribe creates a new channel for receiving APT events.

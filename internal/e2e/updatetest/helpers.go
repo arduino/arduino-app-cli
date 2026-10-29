@@ -505,7 +505,9 @@ func waitForRestart(t *testing.T, host string) {
 	}
 }
 
-func waitForDone(t *testing.T, host string) {
+// A stream ends with one terminal event: 'restarting' when the update replaced
+// arduino-app-cli, 'done' otherwise.
+func waitForUpdateEnd(t *testing.T, host string) {
 	t.Helper()
 
 	url := fmt.Sprintf("http://%s/v1/system/update/events", host)
@@ -514,7 +516,7 @@ func waitForDone(t *testing.T, host string) {
 	for event, err := range itr {
 		require.NoError(t, err)
 		t.Logf("Received event: ID=%s, Event=%s, Data=%s\n", event.ID, event.Event, string(event.Data))
-		if event.Event == "done" {
+		if event.Event == "done" || event.Event == "restarting" {
 			break
 		}
 	}

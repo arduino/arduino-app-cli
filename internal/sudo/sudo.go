@@ -59,7 +59,7 @@ var (
 	})
 	Needrestart = add(Command{
 		Args: []string{"needrestart", "-r", "a"},
-		Env:  []string{"NEEDRESTART_MODE=a"},
+		Env:  []string{debianFrontend, "NEEDRESTART_MODE=a"},
 	})
 )
 
