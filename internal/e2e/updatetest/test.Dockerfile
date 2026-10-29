@@ -18,6 +18,17 @@ RUN apt update && apt install -y /tmp/stable.deb /tmp/router.deb \
     && mkdir -p /var/www/html/myrepo/dists/local/main/binary-${ARCH} \
     && mv /tmp/unstable.deb /var/www/html/myrepo/dists/local/main/binary-${ARCH}/
 
+# A real board comes with the arduino user already in every group `system check`
+# looks for (requiredGroups in cmd/arduino-app-cli/system/check.go): some from the
+# base OS (adm, dialout, sudo, audio, video, users), others from board-specific
+# packages this generic container never installs (bluetooth, netdev, fastrpc,
+# gpiod, render, input). Recreate that provisioning so the test sees the group
+# membership the daemon expects on real hardware.
+RUN for GROUP in bluetooth netdev fastrpc gpiod render input; do \
+      getent group "$GROUP" >/dev/null 2>&1 || groupadd --system "$GROUP"; \
+    done \
+    && usermod -aG adm,dialout,sudo,audio,video,users,bluetooth,netdev,fastrpc,gpiod,render,input arduino
+
 # Fixture packages for the three plans the apt resolver can report: a package it
 # holds back, an upgrade that needs a new package, and a pinned downgrade.
 ARG EXTRA_PACKAGES=0

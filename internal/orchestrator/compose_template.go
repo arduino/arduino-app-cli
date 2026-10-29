@@ -218,6 +218,7 @@ func generateComposeTemplate(
 		runtimeGroupNames,              // access to the required runtime sockets
 		[]string{"fastrpc", "dmaheap"}, // support for NPU
 		[]string{"gpiod"},              // support GPIO access
+		[]string{"arduino"},
 	)
 
 	// A service with a healthcheck is waited for, the others only have to be started.
@@ -248,7 +249,7 @@ func generateComposeTemplate(
 		Ports:             slices.Collect(maps.Keys(ports)),
 		Entrypoint:        "/run.sh",
 		DependsOn:         dependsOn,
-		User:              appUserExpr,
+		User:              mainUserExpr,
 		GroupAdd:          groupExprs(groupNames),
 		DeviceCgroupRules: cgroupRules,
 		ExtraHosts:        []string{"msgpack-rpc-router:host-gateway"},

@@ -8,6 +8,7 @@ package system
 import (
 	"context"
 	"fmt"
+	"os/user"
 	"strings"
 
 	"github.com/docker/cli/cli/command"
@@ -45,6 +46,7 @@ func checkPlatform(ctx context.Context, docker command.Cli) []check {
 	}{
 		{"docker engine", func() (string, error) { return checkDockerEngine(ctx, docker) }},
 		{"sudo rules", func() (string, error) { return checkSudoRules(ctx) }},
+		{"user groups", checkUserGroups},
 	}
 
 	results := make([]check, 0, len(checks))
@@ -88,6 +90,44 @@ func checkSudoRules(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("the sudoers file does not allow without a password: %s", strings.Join(missing, "; "))
 	}
 	return "every command of the cli is allowed without a password", nil
+}
+
+// requiredGroups are what an app may need of the host: the hardware and privileges its
+// containers reach through a bind mount or a socket the current user must belong to.
+var requiredGroups = []string{
+	"arduino", "adm", "dialout", "sudo", "audio", "video", "users",
+	"bluetooth", "netdev", "fastrpc", "docker", "sysupgrade", "gpiod",
+	"render", "input",
+}
+
+// checkUserGroups reports the groups of requiredGroups the current user does not
+// belong to, whether because the group does not exist on this board or because the
+// user was never added to it.
+func checkUserGroups() (string, error) {
+	current, err := user.Current()
+	if err != nil {
+		return "", fmt.Errorf("cannot determine the current user: %w", err)
+	}
+
+	groupIDs, err := current.GroupIds()
+	if err != nil {
+		return "", fmt.Errorf("cannot list the groups of %s: %w", current.Username, err)
+	}
+	memberOf := make(map[string]bool, len(groupIDs))
+	for _, gid := range groupIDs {
+		memberOf[gid] = true
+	}
+
+	var missing []string
+	for _, name := range requiredGroups {
+		if group, err := user.LookupGroup(name); err != nil || !memberOf[group.Gid] {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) > 0 {
+		return "", fmt.Errorf("run ` usermod -aG %s %s` and start a new session", strings.Join(missing, ","), current.Username)
+	}
+	return fmt.Sprintf("%s belongs to every required group", current.Username), nil
 }
 
 // check is what one requirement of a board turned out to be.
