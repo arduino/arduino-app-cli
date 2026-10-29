@@ -6,9 +6,19 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
+
+	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 func TestGenerateBrickID(t *testing.T) {
@@ -198,4 +208,81 @@ func TestGenerateBrickID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandleAppLocalBrickCreate(t *testing.T) {
+	tmpDir := paths.New(t.TempDir())
+	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", tmpDir.Join("apps").String())
+	t.Setenv("ARDUINO_APP_CLI__CONFIG_DIR", tmpDir.Join("config").String())
+	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", tmpDir.Join("data").String())
+	cfg, err := config.NewFromEnv()
+	require.NoError(t, err)
+
+	idProvider := appid.NewAppProvider(cfg, platform.Platform{BoardName: "unoq"})
+
+	testAppDir := cfg.AppsDir().Join("test-app")
+	srcApp := paths.New("../../orchestrator/app/testdata/AppWithLocalBricks")
+	require.NoError(t, srcApp.CopyDirTo(testAppDir))
+
+	// In AppWithLocalBricks, folder is "bricks/my-first-brick".
+	// Rename id in brick_config.yaml to "my_test" without renaming the folder.
+	configPath := testAppDir.Join("bricks", "my-first-brick", "brick_config.yaml")
+	require.NoError(t, configPath.WriteFile([]byte("id: my_test\nname: My Test\n")))
+
+	appID, err := idProvider.IDFromPath(testAppDir)
+	require.NoError(t, err)
+
+	handler := HandleAppLocalBrickCreate(idProvider)
+
+	t.Run("fails when local brick already exists with the same ID even if folder differs", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"name": "my_test"}`)
+		req := httptest.NewRequest(http.MethodPost, "/v1/apps/"+appID.String()+"/bricks", body)
+		req.SetPathValue("appID", appID.String())
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusConflict, w.Code)
+		var errResp models.ErrorResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&errResp))
+		require.Equal(t, "a brick with the same id 'my_test' already exists", errResp.Details)
+		require.False(t, testAppDir.Join("bricks", "my_test").Exist())
+	})
+
+	t.Run("successfully creates local brick when ID is unique", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"name": "unique_brick"}`)
+		req := httptest.NewRequest(http.MethodPost, "/v1/apps/"+appID.String()+"/bricks", body)
+		req.SetPathValue("appID", appID.String())
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusCreated, w.Code)
+		var resp AppLocalBrickCreateResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+		require.Equal(t, "unique_brick", resp.ID)
+		require.True(t, testAppDir.Join("bricks", "unique_brick").Exist())
+	})
+
+	t.Run("fails when brick name is empty", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"name": ""}`)
+		req := httptest.NewRequest(http.MethodPost, "/v1/apps/"+appID.String()+"/bricks", body)
+		req.SetPathValue("appID", appID.String())
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("fails when brick name contains invalid characters", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"name": "invalid.brick"}`)
+		req := httptest.NewRequest(http.MethodPost, "/v1/apps/"+appID.String()+"/bricks", body)
+		req.SetPathValue("appID", appID.String())
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusBadRequest, w.Code)
+	})
 }
