@@ -128,10 +128,12 @@ func (p *Provision) Resolve(
 }
 
 // Render evaluates the templates against the board the app is being started on and
-// writes the single compose file docker is given.
+// writes the single compose file docker is given. appPath is where the app runs from,
+// which is not where it is read from while a release is installed.
 func (p *Provision) Render(
 	ctx context.Context,
 	arduinoApp *app.ArduinoApp,
+	appPath *paths.Path,
 	env types.Mapping,
 	secrets types.Mapping,
 ) (*types.Project, error) {
@@ -145,7 +147,7 @@ func (p *Provision) Render(
 
 	// The docker project names what docker creates, so it is the app installed here and
 	// not the version of it: an upgrade must replace the containers of the one before.
-	projectName := composeProjectName(arduinoApp.FullPath, p.appsDir)
+	projectName := composeProjectName(appPath, p.appsDir)
 
 	prj, err := renderComposeFile(ctx, arduinoApp, env, secrets, projectName)
 	if err != nil {
