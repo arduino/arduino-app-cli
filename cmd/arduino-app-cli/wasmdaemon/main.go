@@ -30,6 +30,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -118,7 +119,7 @@ func serve(handler http.Handler, request, sink js.Value) js.Func {
 		w := &sinkWriter{sink: sink, header: http.Header{}}
 		handler.ServeHTTP(w, req)
 		w.WriteHeader(http.StatusOK)
-		sink.Call("end")
+		_ = w.call("end")
 	}()
 	return cancelFunc
 }
@@ -129,6 +130,25 @@ type sinkWriter struct {
 	sink        js.Value
 	header      http.Header
 	wroteHeader bool
+	gone        error
+}
+
+// call calls one of the sink's methods. What the page throws, such as a chunk for a stream
+// it has already cancelled, comes back as an error for the handler, not as a panic that
+// ends the daemon; no chunk goes to the sink after it.
+func (w *sinkWriter) call(method string, args ...any) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			thrown, ok := r.(js.Error)
+			if !ok {
+				panic(r)
+			}
+			w.gone = fmt.Errorf("the page took no more of the response: %w", thrown)
+			err = w.gone
+		}
+	}()
+	w.sink.Call(method, args...)
+	return nil
 }
 
 func (w *sinkWriter) Header() http.Header { return w.header }
@@ -144,14 +164,19 @@ func (w *sinkWriter) WriteHeader(status int) {
 			pairs = append(pairs, []any{name, value})
 		}
 	}
-	w.sink.Call("head", status, js.ValueOf(pairs))
+	_ = w.call("head", status, js.ValueOf(pairs))
 }
 
 func (w *sinkWriter) Write(b []byte) (int, error) {
+	if w.gone != nil {
+		return 0, w.gone
+	}
 	w.WriteHeader(http.StatusOK)
 	chunk := js.Global().Get("Uint8Array").New(len(b))
 	js.CopyBytesToJS(chunk, b)
-	w.sink.Call("chunk", chunk)
+	if err := w.call("chunk", chunk); err != nil {
+		return 0, err
+	}
 	return len(b), nil
 }
 
