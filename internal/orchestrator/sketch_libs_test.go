@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 func TestListSketchLibraries(t *testing.T) {
@@ -34,7 +35,7 @@ func TestListSketchLibraries(t *testing.T) {
 		editable, err := pythonApp.GetAsEditable()
 		require.NoError(t, err)
 
-		libs, err := AddSketchLibrary(context.Background(), editable, LibraryReleaseID{}, false)
+		libs, err := AddSketchLibrary(context.Background(), platform.Platform{}, editable, LibraryReleaseID{}, false)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot add a library. Missing sketch folder")
 		assert.Empty(t, libs)

@@ -8,7 +8,9 @@ package orchestrator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/arduino/arduino-cli/commands"
@@ -16,6 +18,7 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 const indexUpdateInterval = 10 * time.Minute
@@ -23,7 +26,9 @@ const indexUpdateInterval = 10 * time.Minute
 // IndexMaxAge is the age after which system init and the platform upgrade download an index again.
 const IndexMaxAge = 20 * time.Minute
 
-func AddSketchLibrary(ctx context.Context, arduinoApp app.Editable, libRef LibraryReleaseID, addDeps bool) ([]LibraryReleaseID, error) {
+var ErrPlatformProvidedLibrary = errors.New("library is provided by the platform")
+
+func AddSketchLibrary(ctx context.Context, platform platform.Platform, arduinoApp app.Editable, libRef LibraryReleaseID, addDeps bool) ([]LibraryReleaseID, error) {
 	sketchPath, ok := arduinoApp.GetSketchPath()
 	if !ok {
 		return nil, errors.New("cannot add a library. Missing sketch folder")
@@ -48,6 +53,15 @@ func AddSketchLibrary(ctx context.Context, arduinoApp app.Editable, libRef Libra
 		return nil
 	})); err != nil {
 		return nil, err
+	}
+
+	// Pinning a library the platform provides would stop it from following the platform updates.
+	platformLibs, err := platformProvidedLibraries(ctx, srv, inst, platform, sketchPath)
+	if err != nil {
+		return nil, err
+	}
+	if slices.Contains(platformLibs, libRef.Name) {
+		return nil, fmt.Errorf("%w: %s", ErrPlatformProvidedLibrary, libRef.Name)
 	}
 
 	stream, _ := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, func(curr *rpc.DownloadProgress) {
