@@ -493,7 +493,8 @@ paths:
     put:
       description: Adds a library to the App' sketch. The library will be added to
         the sketch project file. The dependencies of the library may be optionally
-        added as well.
+        added as well. A library provided by the platform cannot be added, unless
+        the sketch project pins the platform version.
       operationId: appSketchAddLibrary
       parameters:
       - description: if set to "true", the library's dependencies will be added as
@@ -527,6 +528,8 @@ paths:
           description: Successful response
         "400":
           $ref: '#/components/responses/BadRequest'
+        "409":
+          $ref: '#/components/responses/Conflict'
         "412":
           $ref: '#/components/responses/PreconditionFailed'
         "500":

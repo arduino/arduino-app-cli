@@ -6,6 +6,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -13,12 +14,13 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/render"
 
 	"go.bug.st/f"
 )
 
-func HandleSketchAddLibrary(idProvider *appid.Provider) http.HandlerFunc {
+func HandleSketchAddLibrary(idProvider *appid.Provider, platform platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
@@ -42,7 +44,11 @@ func HandleSketchAddLibrary(idProvider *appid.Provider) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to parse library reference"})
 			return
 		}
-		if addedLibs, err := orchestrator.AddSketchLibrary(r.Context(), app, libRef, addDeps); err != nil {
+		if addedLibs, err := orchestrator.AddSketchLibrary(r.Context(), platform, app, libRef, addDeps); err != nil {
+			if errors.Is(err, orchestrator.ErrPlatformProvidedLibrary) {
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
+				return
+			}
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to add sketch library: " + err.Error()})
 			return
 		} else {
