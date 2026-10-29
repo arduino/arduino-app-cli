@@ -37,7 +37,13 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			daemonPort, _ := cmd.Flags().GetString("port")
 
-			go apt.FinishPendingRestarts(cmd.Context(), cfg.DataDir())
+			// Before any app starts: an app container mounts the router socket only
+			// if it exists when the container starts. The timeout keeps the HTTP
+			// server inside App Lab's version poll after an update (about 20 s);
+			// systemd finishes a restart job even when needrestart is stopped.
+			restartCtx, cancel := context.WithTimeout(cmd.Context(), 10*time.Second)
+			apt.FinishPendingRestarts(restartCtx, cfg.DataDir())
+			cancel()
 
 			err := stopArduinoContainers(cmd.Context(), servicelocator.GetDockerClient())
 			if err != nil {

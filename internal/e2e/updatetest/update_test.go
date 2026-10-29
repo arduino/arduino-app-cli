@@ -226,7 +226,7 @@ func TestUpdatePackage(t *testing.T) {
 			require.Equal(t, "v"+preUpdateVersion, minorTag)
 
 			putUpdateRequest(t, daemonHost)
-			waitForDone(t, daemonHost)
+			waitForUpdateEnd(t, daemonHost)
 
 			postUpdateVersion := getAppCliVersion(t, containerName)
 			require.Equal(t, "v"+postUpdateVersion, tagAppCli)

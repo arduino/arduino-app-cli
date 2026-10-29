@@ -41,6 +41,8 @@ func newTestManager(deb, arduino ServiceUpdater) *Manager {
 		debUpdateService:             deb,
 		arduinoPlatformUpdateService: arduino,
 		connected:                    func() bool { return true },
+		restartProcess:               func() {},
+		selfReplaced:                 func() bool { return false },
 		subs:                         make(map[chan Event]struct{}),
 	}
 }
@@ -281,16 +283,19 @@ func TestManagerUpgradePackages(t *testing.T) {
 }
 
 func TestManagerUpgradePackagesSelfRestart(t *testing.T) {
+	self := []UpgradablePackage{{Type: Debian, Name: "arduino-app-cli", ToVersion: "0.14.1"}}
 	tests := []struct {
 		name          string
 		packages      []UpgradablePackage
 		debErr        error
+		replaced      bool
 		expectEvts    []EventType
 		expectRestart bool
 	}{
 		{
 			name:          "self-upgrade ends with restarting only",
-			packages:      []UpgradablePackage{{Type: Debian, Name: selfPackageName, ToVersion: "0.14.1"}},
+			packages:      self,
+			replaced:      true,
 			expectEvts:    []EventType{ProgressEvent, RestartEvent},
 			expectRestart: true,
 		},
@@ -300,10 +305,18 @@ func TestManagerUpgradePackagesSelfRestart(t *testing.T) {
 			expectEvts: []EventType{ProgressEvent, DoneEvent},
 		},
 		{
-			name:       "failed self-upgrade ends with done",
-			packages:   []UpgradablePackage{{Type: Debian, Name: selfPackageName, ToVersion: "0.14.1"}},
+			name:       "self-upgrade that did not replace the binary ends with done",
+			packages:   self,
 			debErr:     errors.New("deb upgrade failed"),
 			expectEvts: []EventType{ErrorEvent, ProgressEvent, DoneEvent},
+		},
+		{
+			name:          "self-upgrade that failed after replacing the binary restarts",
+			packages:      self,
+			debErr:        errors.New("image pull failed"),
+			replaced:      true,
+			expectEvts:    []EventType{ErrorEvent, ProgressEvent, RestartEvent},
+			expectRestart: true,
 		},
 	}
 
@@ -322,6 +335,7 @@ func TestManagerUpgradePackagesSelfRestart(t *testing.T) {
 			m := newTestManager(deb, arduino).WithSelfRestart()
 			restarted := make(chan struct{})
 			m.restartProcess = func() { close(restarted) }
+			m.selfReplaced = func() bool { return tc.replaced }
 
 			ch := m.Subscribe()
 			defer m.Unsubscribe(ch)

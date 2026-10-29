@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -48,9 +47,6 @@ type ServiceUpdater interface {
 	UpgradePackages(ctx context.Context, packages []PackageInfo, eventCB EventCallback) error
 }
 
-// The deb package of this very program: upgrading it needs a process restart.
-const selfPackageName = "arduino-app-cli"
-
 type Manager struct {
 	lock                         sync.Mutex
 	isUpgrading                  atomic.Bool
@@ -61,6 +57,7 @@ type Manager struct {
 	connected func() bool
 	// Overridden by the tests, which must not signal their own process.
 	restartProcess func()
+	selfReplaced   func() bool
 
 	mu   sync.RWMutex
 	subs map[chan Event]struct{}
@@ -72,6 +69,7 @@ func NewManager(debUpdateService ServiceUpdater, arduinoPlatformUpdateService Se
 		arduinoPlatformUpdateService: arduinoPlatformUpdateService,
 		connected:                    isConnected,
 		restartProcess:               signalSelf,
+		selfReplaced:                 executableReplaced,
 		subs:                         make(map[chan Event]struct{}),
 	}
 }
@@ -173,7 +171,6 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 			// continue with deb packages upgrade.
 		}
 
-		debUpdateErr := false
 		if err := m.debUpdateService.UpgradePackages(ctx, debPkgs, func(e Event) {
 			if e.Type == ProgressEvent {
 				progress := e.GetProgress()
@@ -186,10 +183,12 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 			m.broadcast(NewErrorEvent(NewLockHeldError(fmt.Errorf("failed to upgrade APT packages: %w", err))))
 			// continue: errors are reported to the subscribers but do not end the
 			// operation, a single terminal event is always broadcast.
-			debUpdateErr = true
 		}
 
-		restartSelf := !debUpdateErr && m.selfRestart && slices.ContainsFunc(debPkgs, func(p PackageInfo) bool { return p.Name == selfPackageName })
+		// Decided by the binary, not by the apt result: apt can fail after it
+		// replaced the binary (apt clean, the image pull), and needrestart skipped
+		// this daemon, so only this restart moves it to the new binary.
+		restartSelf := m.selfRestart && m.selfReplaced()
 
 		m.broadcast(NewProgressEvent("upgrade", 100.0))
 
@@ -199,8 +198,8 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		}
 
 		// RestartEvent replaces DoneEvent: a client must get one terminal event.
-		// App Lab up to 0.11.0 starts its own update on both, and runs it twice
-		// when it gets the two.
+		// App Lab starts its own update on both, and runs it twice when it gets
+		// the two.
 		m.broadcast(NewDataEvent(RestartEvent, fmt.Sprintf("Upgrade completed. Restarting (pid %d) ...", os.Getpid())))
 		m.restartProcess()
 	}()
@@ -217,6 +216,13 @@ func signalSelf() {
 	if err := p.Signal(syscall.SIGTERM); err != nil {
 		slog.Error("failed to send SIGTERM to self after upgrade", slog.String("error", err.Error()))
 	}
+}
+
+// dpkg installs the new binary under a new inode, and Linux then shows the
+// running one as deleted.
+func executableReplaced() bool {
+	exe, err := os.Readlink("/proc/self/exe")
+	return err == nil && strings.HasSuffix(exe, " (deleted)")
 }
 
 // Subscribe creates a new channel for receiving APT events.
