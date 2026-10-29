@@ -44,3 +44,4 @@ GPL-3.0-or-later
 [contributor guide]: docs/CONTRIBUTING.md
 [security policy]: https://github.com/arduino/arduino-app-cli/security/policy
 [contributors]: https://github.com/arduino/arduino-app-cli/graphs/contributors
+
