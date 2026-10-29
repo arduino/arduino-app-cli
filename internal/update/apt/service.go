@@ -185,13 +185,16 @@ func FinishPendingRestarts(ctx context.Context, dataDir *paths.Path) {
 	if !marker.Exist() {
 		return
 	}
+	// Removed first: should needrestart restart this daemon too, a marker left
+	// behind would make every start restart it again.
+	if err := marker.Remove(); err != nil {
+		slog.Error("failed to remove the restart marker", slog.String("error", err.Error()))
+		return
+	}
 	if out, err := runNeedrestart(ctx); err != nil {
 		slog.Error("failed to restart the services after an upgrade", slog.String("error", err.Error()), slog.String("output", string(out)))
 	} else {
 		slog.Debug("needrestart output", slog.String("output", string(out)))
-	}
-	if err := marker.Remove(); err != nil {
-		slog.Error("failed to remove the restart marker", slog.String("error", err.Error()))
 	}
 }
 
