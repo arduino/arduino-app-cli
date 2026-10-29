@@ -7,6 +7,7 @@ package editor
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -121,6 +122,40 @@ func TestReadPath_HonoursBaseEtagAndRange(t *testing.T) {
 	require.Nil(t, jerr)
 	assert.False(t, changed.NotModified)
 	assert.Equal(t, "0123456789", changed.Content)
+}
+
+func TestReadPath_EmptyFileSendsEmptyContent(t *testing.T) {
+	dir := t.TempDir()
+	file := paths.New(filepath.Join(dir, "empty.txt"))
+	require.NoError(t, file.WriteFile(nil))
+
+	res, jerr := readPath(file, readParams{Encoding: "auto"})
+	require.Nil(t, jerr)
+
+	wire, err := json.Marshal(res)
+	require.NoError(t, err)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(wire, &got))
+	assert.Equal(t, "", got["content"], "an empty file must send content, or the client reads undefined")
+	assert.Equal(t, "utf-8", got["encoding"])
+}
+
+func TestReadPath_NotModifiedSendsOnlyTheFlagAndEtag(t *testing.T) {
+	dir := t.TempDir()
+	file := paths.New(filepath.Join(dir, "f.txt"))
+	require.NoError(t, file.WriteFile([]byte("hello")))
+
+	full, jerr := readPath(file, readParams{})
+	require.Nil(t, jerr)
+	res, jerr := readPath(file, readParams{BaseETag: &full.ETag})
+	require.Nil(t, jerr)
+
+	wire, err := json.Marshal(res)
+	require.NoError(t, err)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(wire, &got))
+	assert.Equal(t, map[string]any{"notModified": true, "etag": full.ETag}, got,
+		"a not-modified reply carries no payload, so it cannot be read as an empty file")
 }
 
 func TestWritePath_CreatesAndOverwrites(t *testing.T) {

@@ -8,6 +8,7 @@ package editor
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -44,11 +45,22 @@ type readParams struct {
 }
 
 type readResult struct {
-	Encoding    string `json:"encoding,omitempty"`
-	Content     string `json:"content,omitempty"`
+	Encoding    string `json:"encoding"`
+	Content     string `json:"content"`
 	ETag        string `json:"etag"`
 	Size        int64  `json:"size"`
-	NotModified bool   `json:"notModified,omitempty"`
+	NotModified bool   `json:"-"`
+}
+
+func (r readResult) MarshalJSON() ([]byte, error) {
+	if r.NotModified {
+		return json.Marshal(struct {
+			NotModified bool   `json:"notModified"`
+			ETag        string `json:"etag"`
+		}{true, r.ETag})
+	}
+	type plain readResult
+	return json.Marshal(plain(r))
 }
 
 type writeParams struct {
