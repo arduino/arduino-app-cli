@@ -27,6 +27,7 @@ The following environment variables are used to configure Arduino App CLI:
 | `ARDUINO_APP_CLI__REQUIRED_RUNTIMES`           | `arduino-router:arduino-router,arduino-cloud-connector` | Comma separated list of host units whose socket is bind-mounted into the App containers, each in the form `<unit>[:<group>]` where the optional group is added to the container to access the socket |
 | `ARDUINO_APP_CLI__PLATFORM_VERSION_CONSTRAINT` | `<2.0.0-0`                                              | Semver constraint that limits the version of the Arduino platform installed and offered as an update                                                                                                 |
 | `LIBRARIES_API_URL`                            | `https://api2.arduino.cc/libraries/v1/libraries`        | URL of the external service used to search Arduino libraries                                                                                                                                         |
+| `ARDUINO_APP_CLI__BRICKS_INDEX_URL`            | none (required by `brick update-index`)                 | URL of the index of the third-party bricks, downloaded by `arduino-app-cli brick update-index`                                                                                                       |
 | `DOCKER_REGISTRY_BASE`                         | `ghcr.io/arduino/`                                      | Docker registry used to pull docker images                                                                                                                                                           |
 | `DOCKER_PYTHON_BASE_IMAGE`                     | `app-bricks/python-apps-base:<RUNNER_VERSION>`          | Tag of the Docker image for the Python runner                                                                                                                                                        |
 
@@ -60,6 +61,8 @@ Examples of the `assets` and the builtin `examples` stored under the `ARDUINO_AP
 │       ├── models-list.yaml  # Available models
 │       └── ...
 ├── bootloader_burned.flag
+├── bricks-index
+│   └── brick-index.json      # Third-party bricks index, from `brick update-index`
 ├── default.app               # Default App
 ├── pipewire_linger.timestamp # PipeWire linger record
 ├── properties.msgpack        # Variable values

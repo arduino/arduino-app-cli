@@ -11,7 +11,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func NewBrickCmd(cfg config.Configuration) *cobra.Command {
+func NewBrickCmd(cfg config.Configuration, version string) *cobra.Command {
 	appCmd := &cobra.Command{
 		Use:   "brick",
 		Short: "Manage Arduino Bricks",
@@ -19,6 +19,7 @@ func NewBrickCmd(cfg config.Configuration) *cobra.Command {
 
 	appCmd.AddCommand(newBricksListCmd())
 	appCmd.AddCommand(newBricksDetailsCmd(cfg))
+	appCmd.AddCommand(newUpdateIndexCmd(cfg, version))
 
 	return appCmd
 }

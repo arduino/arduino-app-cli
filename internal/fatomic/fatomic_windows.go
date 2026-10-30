@@ -14,7 +14,7 @@ import (
 // on Linux this function is only used to allow dev that runs on windows to test
 // other part of the program.
 func WriteFile(filename string, data []byte, perm os.FileMode, opts ...any) error {
-	f, err := os.OpenFile(filename, os.O_TRUNC|os.O_WRONLY, perm)
+	f, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, perm)
 	if err != nil {
 		return err
 	}

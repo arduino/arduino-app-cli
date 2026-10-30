@@ -39,6 +39,7 @@ type Configuration struct {
 	AllowRoot                        bool
 	LibrariesAPIURL                  *url.URL
 	EdgeImpulseAPIURL                *url.URL
+	BricksIndexURL                   *url.URL
 	ArduinoPlatformVersionConstraint semver.Constraint
 }
 
@@ -145,6 +146,15 @@ func NewFromEnv() (Configuration, error) {
 		return Configuration{}, fmt.Errorf("invalid EDGE_IMPULSE_API_URL: %w", err)
 	}
 
+	// TODO: set the default URL of the bricks index once it is final.
+	var parsedBricksIndexURL *url.URL
+	if bricksIndexURL := os.Getenv("ARDUINO_APP_CLI__BRICKS_INDEX_URL"); bricksIndexURL != "" {
+		parsedBricksIndexURL, err = url.Parse(bricksIndexURL)
+		if err != nil {
+			return Configuration{}, fmt.Errorf("invalid ARDUINO_APP_CLI__BRICKS_INDEX_URL: %w", err)
+		}
+	}
+
 	constraint, err := semver.ParseConstraint(constraintStr)
 	if err != nil {
 		return Configuration{}, fmt.Errorf("invalid version constraint: %w", err)
@@ -166,6 +176,7 @@ func NewFromEnv() (Configuration, error) {
 		AllowRoot:                        allowRoot,
 		LibrariesAPIURL:                  parsedLibrariesURL,
 		EdgeImpulseAPIURL:                parsedEdgeImpulseURL,
+		BricksIndexURL:                   parsedBricksIndexURL,
 		ArduinoPlatformVersionConstraint: constraint,
 	}
 
@@ -193,6 +204,9 @@ func (c *Configuration) EnsureFolders() error {
 	if err := c.ReleasesDir().MkdirAll(); err != nil {
 		return err
 	}
+	if err := c.BricksIndexDir().MkdirAll(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -209,6 +223,11 @@ func (c *Configuration) DataDir() *paths.Path {
 // run as is a copy of it, in the apps dir.
 func (c *Configuration) ReleasesDir() *paths.Path {
 	return c.releasesDir
+}
+
+// BricksIndexDir holds the bricks index, as downloaded from BricksIndexURL.
+func (c *Configuration) BricksIndexDir() *paths.Path {
+	return c.dataDir.Join("bricks-index")
 }
 
 func (c *Configuration) ExamplesBaseDir() *paths.Path {
