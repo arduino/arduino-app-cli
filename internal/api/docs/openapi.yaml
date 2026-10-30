@@ -493,9 +493,8 @@ paths:
     put:
       description: Adds a library to the App' sketch. The library will be added to
         the sketch project file. The dependencies of the library may be optionally
-        added as well. A library provided by the platform cannot be added, unless
-        the sketch project pins the platform version; the same applies to its dependencies,
-        which are skipped.
+        added as well. Libraries provided by the platform, including dependencies,
+        are rejected or skipped unless the sketch project pins the platform version.
       operationId: appSketchAddLibrary
       parameters:
       - description: if set to "true", the library's dependencies will be added as

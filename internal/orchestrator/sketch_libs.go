@@ -15,6 +15,7 @@ import (
 
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
+	"github.com/arduino/go-paths-helper"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -87,24 +88,16 @@ func AddSketchLibrary(ctx context.Context, platform platform.Platform, arduinoAp
 		return nil, err
 	}
 
-	// The dependencies the platform provides must not be pinned either.
 	var addedLibs []LibraryReleaseID
 	for _, lib := range f.Map(resp.GetAddedLibraries(), rpcProfileLibReferenceToLibReleaseID) {
 		if !slices.Contains(platformLibs, lib.Name) {
 			addedLibs = append(addedLibs, lib)
 			continue
 		}
-		if _, err := srv.ProfileLibRemove(ctx, &rpc.ProfileLibRemoveRequest{
-			Instance: inst,
-			Library: &rpc.ProfileLibraryReference{
-				Library: &rpc.ProfileLibraryReference_IndexLibrary_{
-					IndexLibrary: &rpc.ProfileLibraryReference_IndexLibrary{Name: lib.Name},
-				},
-			},
-			RemoveDependencies: new(false),
-			SketchPath:         sketchPath.String(),
-		}); err != nil {
-			return nil, err
+		// The library is already added: on failure the next start removes the dependency.
+		if _, err := profileLibRemove(ctx, srv, inst, sketchPath, LibraryReleaseID{Name: lib.Name}, false); err != nil {
+			slog.Warn("failed to remove a platform-provided dependency from the sketch profile", "library", lib.Name, "error", err)
+			addedLibs = append(addedLibs, lib)
 		}
 	}
 	return addedLibs, nil
@@ -136,6 +129,10 @@ func RemoveSketchLibrary(ctx context.Context, arduinoApp app.Editable, libRef Li
 		return nil, err
 	}
 
+	return profileLibRemove(ctx, srv, inst, sketchPath, libRef, removeDeps)
+}
+
+func profileLibRemove(ctx context.Context, srv rpc.ArduinoCoreServiceServer, inst *rpc.Instance, sketchPath *paths.Path, libRef LibraryReleaseID, removeDeps bool) ([]LibraryReleaseID, error) {
 	resp, err := srv.ProfileLibRemove(ctx, &rpc.ProfileLibRemoveRequest{
 		Instance: inst,
 		Library: &rpc.ProfileLibraryReference{
