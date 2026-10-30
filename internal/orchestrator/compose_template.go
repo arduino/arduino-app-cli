@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"maps"
 	"os"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -310,12 +311,8 @@ func frozenComposeIncludes(composeFiles paths.PathList, genPath *paths.Path, cfg
 		relPath, err := composeFile.RelFrom(cfg.AssetDir())
 		if inside, _ := composeFile.IsInsideDir(cfg.AssetDir()); err != nil || !inside {
 			relPath = paths.New(composeFile.Parent().Base(), composeFile.Base())
-			// The relative paths of a local brick, as a build context, stay in its folder.
-			brickDir, err := composeFile.Parent().RelFrom(genPath)
-			if err != nil {
-				return nil, fmt.Errorf("failed to resolve the folder of %s: %w", composeFile, err)
-			}
-			projectDir = brickDir.String()
+			// The relative paths of a local brick stay in its folder, wherever the app is.
+			projectDir = path.Join(appHomeRef, "bricks", composeFile.Parent().Base())
 		}
 
 		frozen, err := frozenCompose(composeFile, lookup)
