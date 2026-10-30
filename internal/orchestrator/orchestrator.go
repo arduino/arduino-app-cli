@@ -442,6 +442,7 @@ func StartDefaultApp(
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 	platform platform.Platform,
+	cb func(StreamMessage),
 ) error {
 	app, err := GetDefaultApp(cfg)
 	if err != nil {
@@ -461,7 +462,7 @@ func StartDefaultApp(
 	}
 
 	// TODO: we need to stop all other running app before starting the default app.
-	if err := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, *app, cfg, platform, false, !app.IsRelease(), func(sm StreamMessage) {}); err != nil {
+	if err := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, *app, cfg, platform, false, !app.IsRelease(), cb); err != nil {
 		return fmt.Errorf("failed to start app: %w", err)
 	}
 
