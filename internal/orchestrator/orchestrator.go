@@ -52,6 +52,20 @@ var (
 	ErrAppRunning       = fmt.Errorf("app is running")
 )
 
+// AppRunningError states that a start found another app running: one app runs at a
+// time. It is an ErrAppRunning that names the app.
+type AppRunningError struct {
+	Name string
+}
+
+func (e *AppRunningError) Error() string {
+	return fmt.Sprintf("app %q is running", e.Name)
+}
+
+func (e *AppRunningError) Is(target error) bool {
+	return target == ErrAppRunning
+}
+
 type AppStreamMessage struct {
 	Type string `json:"type"`
 	Data any    `json:"data"`
@@ -158,7 +172,7 @@ func StartApp(
 			if err != nil {
 				return fmt.Errorf("failed to load running app: %w", err)
 			}
-			return fmt.Errorf("app %q is running", runningApp.Name)
+			return &AppRunningError{Name: runningApp.Name}
 		case StatusFailed:
 			if s.AppPath.EqualsTo(appToStart.FullPath) {
 				continue
@@ -432,6 +446,8 @@ func RestartApp(
 	return StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, !appToStart.IsRelease(), cb)
 }
 
+// StartDefaultApp starts the default app, unless it is already running. It returns the
+// default app, nil when none is set, so that the caller can report on it.
 func StartDefaultApp(
 	ctx context.Context,
 	docker command.Cli,
@@ -442,30 +458,31 @@ func StartDefaultApp(
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 	platform platform.Platform,
-) error {
+	cb func(StreamMessage),
+) (*app.ArduinoApp, error) {
 	app, err := GetDefaultApp(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to get default app: %w", err)
+		return nil, fmt.Errorf("failed to get default app: %w", err)
 	}
 	if app == nil {
 		// default app not set.
-		return nil
+		return nil, nil
 	}
 
 	status, err := AppDetails(ctx, docker, *app, bricksIndex, idProvider, cfg)
 	if err != nil {
-		return fmt.Errorf("failed to get app details: %w", err)
+		return app, fmt.Errorf("failed to get app details: %w", err)
 	}
 	if status.Status == "running" {
-		return nil
+		return app, nil
 	}
 
 	// TODO: we need to stop all other running app before starting the default app.
-	if err := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, *app, cfg, platform, false, !app.IsRelease(), func(sm StreamMessage) {}); err != nil {
-		return fmt.Errorf("failed to start app: %w", err)
+	if err := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, *app, cfg, platform, false, !app.IsRelease(), cb); err != nil {
+		return app, fmt.Errorf("failed to start app: %w", err)
 	}
 
-	return nil
+	return app, nil
 }
 
 type ListAppResult struct {

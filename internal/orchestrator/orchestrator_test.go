@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -1152,4 +1153,11 @@ func mustEdit(t *testing.T, a *app.ArduinoApp) app.Editable {
 	editable, err := a.GetAsEditable()
 	require.NoError(t, err)
 	return editable
+}
+
+func TestAppRunningError(t *testing.T) {
+	err := fmt.Errorf("failed to start app: %w", &AppRunningError{Name: "other"})
+
+	require.ErrorIs(t, err, ErrAppRunning)
+	require.EqualError(t, err, `failed to start app: app "other" is running`)
 }

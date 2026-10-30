@@ -4,6 +4,7 @@ After=network-online.target docker.service arduino-router.service
 Wants=network-online.target docker.service arduino-router.service
 
 [Service]
+Type=notify
 ExecStart=/usr/bin/arduino-app-cli daemon --port 8800 --log-level error
 User=1000
 Group=arduino
@@ -11,6 +12,8 @@ StandardOutput=journal
 StandardError=journal
 Restart=always
 RestartSec=3
+# Stopping the leftover app containers at boot comes before the notification.
+TimeoutStartSec=5min
 
 [Install]
 WantedBy=multi-user.target
