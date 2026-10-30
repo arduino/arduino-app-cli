@@ -87,7 +87,27 @@ func AddSketchLibrary(ctx context.Context, platform platform.Platform, arduinoAp
 		return nil, err
 	}
 
-	return f.Map(resp.GetAddedLibraries(), rpcProfileLibReferenceToLibReleaseID), nil
+	// The dependencies the platform provides must not be pinned either.
+	var addedLibs []LibraryReleaseID
+	for _, lib := range f.Map(resp.GetAddedLibraries(), rpcProfileLibReferenceToLibReleaseID) {
+		if !slices.Contains(platformLibs, lib.Name) {
+			addedLibs = append(addedLibs, lib)
+			continue
+		}
+		if _, err := srv.ProfileLibRemove(ctx, &rpc.ProfileLibRemoveRequest{
+			Instance: inst,
+			Library: &rpc.ProfileLibraryReference{
+				Library: &rpc.ProfileLibraryReference_IndexLibrary_{
+					IndexLibrary: &rpc.ProfileLibraryReference_IndexLibrary{Name: lib.Name},
+				},
+			},
+			RemoveDependencies: new(false),
+			SketchPath:         sketchPath.String(),
+		}); err != nil {
+			return nil, err
+		}
+	}
+	return addedLibs, nil
 }
 
 func RemoveSketchLibrary(ctx context.Context, arduinoApp app.Editable, libRef LibraryReleaseID, removeDeps bool) ([]LibraryReleaseID, error) {

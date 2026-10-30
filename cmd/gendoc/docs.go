@@ -1573,7 +1573,7 @@ also when 'error' events were received.
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
-			Description: "Adds a library to the App' sketch. The library will be added to the sketch project file. The dependencies of the library may be optionally added as well. A library provided by the platform cannot be added, unless the sketch project pins the platform version.",
+			Description: "Adds a library to the App' sketch. The library will be added to the sketch project file. The dependencies of the library may be optionally added as well. A library provided by the platform cannot be added, unless the sketch project pins the platform version; the same applies to its dependencies, which are skipped.",
 			Summary:     "Adds a library to the App' sketch.",
 			Tags:        []Tag{ApplicationTag},
 			PossibleErrors: []ErrorResponse{
