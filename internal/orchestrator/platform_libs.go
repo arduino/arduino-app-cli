@@ -19,8 +19,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
-// removePlatformProvidedLibraries removes from the sketch profile the libraries the platform
-// already provides, so that they follow the platform updates. It returns the removed libraries.
+// removePlatformProvidedLibraries unpins the platform-provided libraries, so they follow the platform updates.
 func removePlatformProvidedLibraries(ctx context.Context, platform platform.Platform, arduinoApp app.Editable) ([]string, error) {
 	sketchPath, ok := arduinoApp.GetSketchPath()
 	if !ok {
@@ -66,7 +65,7 @@ func removePlatformProvidedLibraries(ctx context.Context, platform platform.Plat
 		if !slices.Contains(platformLibs, lib.Name) || slices.Contains(removed, lib.Name) {
 			continue
 		}
-		removedLibs, err := RemoveSketchLibrary(ctx, arduinoApp, LibraryReleaseID{Name: lib.Name}, true)
+		removedLibs, err := profileLibRemove(ctx, srv, inst, sketchPath, LibraryReleaseID{Name: lib.Name}, true)
 		if err != nil {
 			return removed, err
 		}
@@ -98,15 +97,13 @@ func platformProvidedLibraries(ctx context.Context, srv rpc.ArduinoCoreServiceSe
 	return installedPlatformLibraries(searchResp.GetSearchOutput(), platform.PlatformID), nil
 }
 
-// isPlatformPinned reports whether the profile platforms fix a version for platformID.
 func isPlatformPinned(platforms []*rpc.ProfilePlatformReference, platformID string) bool {
 	return slices.ContainsFunc(platforms, func(p *rpc.ProfilePlatformReference) bool {
 		return p.GetId() == platformID && p.GetVersion() != ""
 	})
 }
 
-// installedPlatformLibraries returns the names of the libraries declared by the installed
-// release of platformID, or nil if the platform is not installed.
+// installedPlatformLibraries returns the libraries declared by the installed release of platformID.
 func installedPlatformLibraries(summaries []*rpc.PlatformSummary, platformID string) []string {
 	idx := slices.IndexFunc(summaries, func(s *rpc.PlatformSummary) bool {
 		return s.GetMetadata().GetId() == platformID
