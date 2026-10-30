@@ -8,19 +8,25 @@ package orchestrator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
+	"github.com/arduino/go-paths-helper"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 const indexUpdateInterval = 10 * time.Minute
 
-func AddSketchLibrary(ctx context.Context, arduinoApp app.Editable, libRef LibraryReleaseID, addDeps bool) ([]LibraryReleaseID, error) {
+var ErrPlatformProvidedLibrary = errors.New("library is provided by the platform")
+
+func AddSketchLibrary(ctx context.Context, platform platform.Platform, arduinoApp app.Editable, libRef LibraryReleaseID, addDeps bool) ([]LibraryReleaseID, error) {
 	sketchPath, ok := arduinoApp.GetSketchPath()
 	if !ok {
 		return nil, errors.New("cannot add a library. Missing sketch folder")
@@ -45,6 +51,15 @@ func AddSketchLibrary(ctx context.Context, arduinoApp app.Editable, libRef Libra
 		return nil
 	})); err != nil {
 		return nil, err
+	}
+
+	// Pinning a library the platform provides would stop it from following the platform updates.
+	platformLibs, err := platformProvidedLibraries(ctx, srv, inst, platform, sketchPath)
+	if err != nil {
+		return nil, err
+	}
+	if slices.Contains(platformLibs, libRef.Name) {
+		return nil, fmt.Errorf("%w: %s", ErrPlatformProvidedLibrary, libRef.Name)
 	}
 
 	stream, _ := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, func(curr *rpc.DownloadProgress) {
@@ -73,7 +88,19 @@ func AddSketchLibrary(ctx context.Context, arduinoApp app.Editable, libRef Libra
 		return nil, err
 	}
 
-	return f.Map(resp.GetAddedLibraries(), rpcProfileLibReferenceToLibReleaseID), nil
+	var addedLibs []LibraryReleaseID
+	for _, lib := range f.Map(resp.GetAddedLibraries(), rpcProfileLibReferenceToLibReleaseID) {
+		if !slices.Contains(platformLibs, lib.Name) {
+			addedLibs = append(addedLibs, lib)
+			continue
+		}
+		// The library is already added: on failure the next start removes the dependency.
+		if _, err := profileLibRemove(ctx, srv, inst, sketchPath, LibraryReleaseID{Name: lib.Name}, false); err != nil {
+			slog.Warn("failed to remove a platform-provided dependency from the sketch profile", "library", lib.Name, "error", err)
+			addedLibs = append(addedLibs, lib)
+		}
+	}
+	return addedLibs, nil
 }
 
 func RemoveSketchLibrary(ctx context.Context, arduinoApp app.Editable, libRef LibraryReleaseID, removeDeps bool) ([]LibraryReleaseID, error) {
@@ -102,6 +129,10 @@ func RemoveSketchLibrary(ctx context.Context, arduinoApp app.Editable, libRef Li
 		return nil, err
 	}
 
+	return profileLibRemove(ctx, srv, inst, sketchPath, libRef, removeDeps)
+}
+
+func profileLibRemove(ctx context.Context, srv rpc.ArduinoCoreServiceServer, inst *rpc.Instance, sketchPath *paths.Path, libRef LibraryReleaseID, removeDeps bool) ([]LibraryReleaseID, error) {
 	resp, err := srv.ProfileLibRemove(ctx, &rpc.ProfileLibRemoveRequest{
 		Instance: inst,
 		Library: &rpc.ProfileLibraryReference{
