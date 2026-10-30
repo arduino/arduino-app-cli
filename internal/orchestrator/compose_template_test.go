@@ -99,11 +99,20 @@ func TestFrozenComposeIncludes(t *testing.T) {
 
 	includes, err := frozenComposeIncludes(paths.NewPathList(assetCompose.String(), localCompose.String()), genPath, cfg, types.Mapping{})
 	require.NoError(t, err)
-	assert.Equal(t, []string{
-		"compose/compose/arduino/asset_brick/brick_compose.yaml",
-		"compose/local_brick/brick_compose.yaml",
+	assert.Equal(t, []composeInclude{
+		{Path: "compose/compose/arduino/asset_brick/brick_compose.yaml"},
+		{Path: "compose/local_brick/brick_compose.yaml", ProjectDirectory: "${APP_HOME}/bricks/local_brick"},
 	}, includes)
 	for _, include := range includes {
-		assert.FileExists(t, genPath.Join(include).String())
+		assert.FileExists(t, genPath.Join(include.Path).String())
 	}
+
+	// A release generates in its prebuild dir, installed as the .cache of the app.
+	prebuildDir := paths.New(t.TempDir()).Join("my-app-release", "prebuild")
+	require.NoError(t, prebuildDir.MkdirAll())
+	includes, err = frozenComposeIncludes(paths.NewPathList(localCompose.String()), prebuildDir, cfg, types.Mapping{})
+	require.NoError(t, err)
+	assert.Equal(t, []composeInclude{
+		{Path: "compose/local_brick/brick_compose.yaml", ProjectDirectory: "${APP_HOME}/bricks/local_brick"},
+	}, includes)
 }
