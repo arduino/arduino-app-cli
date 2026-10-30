@@ -13,6 +13,7 @@ import (
 	"net/http"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/render"
@@ -51,7 +52,7 @@ func HandleAppLocalBrickRename(brickService *bricks.Service, idProvider *appid.P
 			return
 		}
 
-		newID, err := generateBrickID(req.Name)
+		newID, err := generator.BrickIDFromName(req.Name)
 		if err != nil {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
 			return
