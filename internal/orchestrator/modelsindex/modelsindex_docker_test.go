@@ -13,6 +13,7 @@ import (
 	"io"
 	"iter"
 	"net"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -558,4 +559,71 @@ func TestDownloadRefusesAModelWithNothingToDownload(t *testing.T) {
 	require.True(t, ok)
 	_, err = idx.runDownload(t.Context(), cli, *preLoaded, platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
 	require.ErrorIs(t, err, ErrNoHandler)
+}
+
+// TestGetModelsReadsTheListingFile covers the models.yaml the downloader materializes in
+// the models root: when it lists the catalog it is the listing, and no container runs.
+func TestGetModelsReadsTheListingFile(t *testing.T) {
+	dir := paths.New("testdata/with-handlers")
+	// A copy, as written by the list action of models-downloader on this catalog.
+	modelsRoot := paths.New("testdata/models-root")
+	newIndex := func(t *testing.T, modelsDir *paths.Path, cli client.APIClient) *ModelsIndex {
+		t.Helper()
+		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, modelsDir, dir.Join("custom-models"), cli, config.Configuration{})
+		require.NoError(t, err)
+		return idx
+	}
+	byID := func(t *testing.T, models []AIModel, id string) *AIModel {
+		t.Helper()
+		i := slices.IndexFunc(models, func(m AIModel) bool { return m.ID == id })
+		require.NotEqual(t, -1, i, "model %q missing from the index", id)
+		return &models[i]
+	}
+
+	// The container answers with the same models but the ei model installed, so which
+	// of the two answered shows in its status.
+	listedByContainer := func(listings *atomic.Int64) *fakeDockerClient {
+		return newFakeDockerClient(func(_ string, cmd []string) (string, int) {
+			if len(cmd) > 0 && cmd[0] == listModelsCmd {
+				listings.Add(1)
+			}
+			return listingWith(`{"id":"ei:efficientnet-b4","installed":true,"model_size_mb":89}`), 0
+		})
+	}
+
+	t.Run("the file is the listing, with no container run", func(t *testing.T) {
+		var listings atomic.Int64
+		models, err := newIndex(t, modelsRoot, listedByContainer(&listings)).NewLookup().All(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), listings.Load())
+
+		assert.Equal(t, InstalledStatus, byID(t, models, "piper-tts-en").Status)
+		ei := byID(t, models, "ei:efficientnet-b4")
+		assert.Equal(t, NotInstalledStatus, ei.Status)
+		assert.Equal(t, uint64(89*1024*1024), ei.Size)
+
+		user := byID(t, models, "llamacpp:unsloth/Qwen3-0.6B-GGUF/Qwen3-0.6B-Q4_0")
+		assert.Equal(t, UserOrigin, user.Origin)
+		assert.Equal(t, InstalledStatus, user.Status)
+		assert.Equal(t, "hf-handler", user.Deployment.Handler)
+		assert.Equal(t, "unsloth/Qwen3-0.6B-GGUF:Q4_0", user.Metadata["source-model-url"])
+	})
+
+	for name, content := range map[string]string{
+		"no file":                        "",
+		"a file that does not parse":     "models: [\n",
+		"a file missing a catalog model": "models:\n- id: piper-tts-en\n  installed: true\n",
+	} {
+		t.Run(name+": the list action runs", func(t *testing.T) {
+			modelsDir := paths.New(t.TempDir())
+			if content != "" {
+				require.NoError(t, modelsDir.Join(listingFileName).WriteFile([]byte(content)))
+			}
+			var listings atomic.Int64
+			models, err := newIndex(t, modelsDir, listedByContainer(&listings)).NewLookup().All(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, int64(1), listings.Load())
+			assert.Equal(t, InstalledStatus, byID(t, models, "ei:efficientnet-b4").Status)
+		})
+	}
 }
