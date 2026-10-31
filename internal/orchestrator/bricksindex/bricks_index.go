@@ -14,6 +14,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
@@ -296,6 +297,7 @@ func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 		return nil, err
 	}
 
+	var ports sync.WaitGroup
 	for i := range yamlIndex.Bricks {
 		namespace, brickName, err := ParseBrickID(yamlIndex.Bricks[i].ID)
 		if err != nil {
@@ -320,13 +322,19 @@ func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 			yamlIndex.Bricks[i].ComposeFile = baseCompose
 		}
 
-		// Extract ports from the compose file if it exists
+		// Extract ports from the compose file if it exists. A compose file takes a few ms
+		// to parse and there are tens of them: they are parsed together, and the slice
+		// is left alone until every brick has its ports.
 		if composeFile, ok := yamlIndex.Bricks[i].GetComposeFile(); ok {
-			if ports, err := composefile.ExtractPorts(composeFile); err == nil {
-				yamlIndex.Bricks[i].containerPorts = ports
-			} else {
-				slog.Warn("cannot extract ports from compose file, skipping", "brick_id", yamlIndex.Bricks[i].ID, "error", err)
-			}
+			ports.Add(1)
+			go func(brick *Brick) {
+				defer ports.Done()
+				if ports, err := composefile.ExtractPorts(composeFile); err == nil {
+					brick.containerPorts = ports
+				} else {
+					slog.Warn("cannot extract ports from compose file, skipping", "brick_id", brick.ID, "error", err)
+				}
+			}(&yamlIndex.Bricks[i])
 		}
 
 		// Resolve the board-specific model name, if any.
@@ -339,6 +347,8 @@ func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 			}
 		}
 	}
+
+	ports.Wait()
 
 	yamlIndex.Bricks = slices.DeleteFunc(yamlIndex.Bricks, func(brick Brick) bool {
 		return platform.BoardName != "" &&
