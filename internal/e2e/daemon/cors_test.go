@@ -41,7 +41,7 @@ func TestCors(t *testing.T) {
 				req.Header.Set("origin", tc.origin)
 				return nil
 			}
-			resp, err := httpClient.GetVersions(t.Context(), addHeaders)
+			resp, err := httpClient.GetConfig(t.Context(), addHeaders)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
