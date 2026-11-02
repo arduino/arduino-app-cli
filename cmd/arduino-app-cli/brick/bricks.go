@@ -20,6 +20,7 @@ func NewBrickCmd(cfg config.Configuration, version string) *cobra.Command {
 	appCmd.AddCommand(newBricksListCmd())
 	appCmd.AddCommand(newBricksDetailsCmd(cfg))
 	appCmd.AddCommand(newUpdateIndexCmd(cfg, version))
+	appCmd.AddCommand(newSearchCmd(cfg))
 
 	return appCmd
 }

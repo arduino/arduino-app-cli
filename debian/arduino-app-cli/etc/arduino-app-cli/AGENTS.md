@@ -96,7 +96,7 @@ applications are excluded.
 > confirm with the user first.
 
 **Read-only / safe to run anytime:** `app list`, `app details`, `app ps`, `app logs`,
-`brick list`, `brick details`, `config get`, `version`, `properties get`.
+`brick list`, `brick details`, `brick search`, `config get`, `version`, `properties get`.
 
 **State-changing / confirm with the user first:** `app start|stop|restart|new|
 destroy|clean-cache|import`, `model delete`, `brick update-index`, `system *`,
