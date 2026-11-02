@@ -270,6 +270,29 @@ tasks:
       - adb push ./build/arduino-app-cli_*_arm64.deb /tmp/
       - ./scripts/run-remote-sudo.sh "DEBIAN_FRONTEND=noninteractive dpkg -i /tmp/arduino-app-cli*_arm64.deb && DEBIAN_FRONTEND=noninteractive needrestart -r a"
 
+  board:repo:install:
+    desc: Push arduino-app-cli into the board apt repo, VERSION sets its version, REPO_DIR the repo dir
+    interactive: true
+    cmds:
+      - rm ./build/*.deb || true
+      - task: build-deb
+      - |
+          deb=$(cd build && echo arduino-app-cli_*_arm64.deb)
+          adb push ./scripts/local-apt-repo.sh ./build/$deb /tmp/
+          ./scripts/run-remote-sudo.sh "install /tmp/local-apt-repo.sh /usr/local/bin/ && REPO_DIR={{.REPO_DIR}} local-apt-repo.sh update /tmp/$deb"
+
+  board:repo:update:
+    desc: Rebuild the board apt repo index after a manual change, REPO_DIR the repo dir
+    interactive: true
+    cmds:
+      - ./scripts/run-remote-sudo.sh "REPO_DIR={{.REPO_DIR}} local-apt-repo.sh update"
+
+  board:repo:teardown:
+    desc: Remove the board apt repo, REPO_DIR the repo dir
+    interactive: true
+    cmds:
+      - ./scripts/run-remote-sudo.sh "REPO_DIR={{.REPO_DIR}} local-apt-repo.sh teardown && rm /usr/local/bin/local-apt-repo.sh"
+
   bump:runner-version:
     desc: Update the RunnerVersion constant in config.go to match RUNNER_VERSION.
     vars:
