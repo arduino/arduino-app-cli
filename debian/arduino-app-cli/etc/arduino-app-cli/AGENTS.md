@@ -99,7 +99,7 @@ applications are excluded.
 `brick list`, `brick details`, `brick search`, `config get`, `version`, `properties get`.
 
 **State-changing / confirm with the user first:** `app start|stop|restart|new|
-destroy|clean-cache|import`, `model delete`, `brick update-index`, `system *`,
+destroy|clean-cache|import`, `model delete`, `brick update-index|install`, `system *`,
 `properties set default …` (sets the app that auto-runs on boot).
 
 If a sketch build acts stale after edits:
