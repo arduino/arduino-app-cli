@@ -4,6 +4,7 @@ USER_ID=1000
 
 systemctl enable arduino-app-cli
 systemctl enable arduino-avahi-serial.service
+systemctl restart apparmor.service
 
 mkdir -p /etc/bash_completion.d/
 export ARDUINO_APP_CLI__ALLOW_ROOT=true && arduino-app-cli completion bash > /etc/bash_completion.d/arduino-app-cli.bash || true

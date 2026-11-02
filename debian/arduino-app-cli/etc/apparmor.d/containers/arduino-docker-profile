@@ -1,0 +1,78 @@
+# SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# AppArmor profile for the arduino-app-cli "main" app container.
+#
+# This is docker's built-in "docker-default" profile, statically rendered
+# for this package instead of letting dockerd generate it.
+# Overriding docker-default itself via /etc/docker/daemon.json's
+# "apparmor-profile" option requires Docker Engine 29.8+, not yet available on arduino boards.
+# We rely on `security_opt: ["apparmor=arduino-docker-profile"]` in the generated
+# compose file, instead of the implicit docker-default.
+#
+# Upstream reference: the unmodified rules below are docker's own
+# baseTemplate, at https://github.com/moby/profiles/blob/main/apparmor/template.go sha a218728
+
+abi <abi/3.0>,
+
+#include <tunables/global>
+
+profile arduino-docker-profile flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  network,
+  # Disallow obsolete socket families removed from the Linux kernel.
+  deny network ax25,
+  deny network ipx,
+  deny network appletalk,
+  deny network netrom,
+  deny network rose,
+  deny network econet,
+  deny network atmsvc,
+  deny network irda,
+  deny network wanpipe,
+  deny network isdn,
+  deny network caif,
+  # Disallow AF_ALG (Linux kernel crypto API).
+  deny network alg,
+  # Disallow AF_VSOCK to prevent host/guest communication.
+  deny network vsock,
+  capability,
+  file,
+  umount,
+  # Host (privileged) processes may send signals to container processes.
+  signal (receive) peer=unconfined,
+  # runc may send signals to container processes (for "docker stop").
+  signal (receive) peer=runc,
+  # crun may send signals to container processes (for "docker stop" when used with crun OCI runtime).
+  signal (receive) peer=crun,
+  # Container processes may send signals amongst themselves.
+  signal (send,receive) peer="arduino-docker-profile",
+
+  deny @{PROC}/* w,   # deny write for all files directly in /proc (not in a subdir)
+  # deny write to files not in /proc/<number>/** or /proc/sys/**
+  deny @{PROC}/{[^1-9/],[^1-9/][^0-9/],[^1-9s/][^0-9y/][^0-9s/],[^1-9/][^0-9/][^0-9/][^0-9/]*}/** w,
+  deny @{PROC}/sys/[^k]** w,  # deny /proc/sys except /proc/sys/k* (effectively /proc/sys/kernel)
+  deny @{PROC}/sys/kernel/{?,??,[^s][^h][^m]**} w,  # deny everything except shm* in /proc/sys/kernel/
+  deny @{PROC}/sysrq-trigger rwklx,
+  deny @{PROC}/kcore rwklx,
+
+  deny mount,
+
+  deny /sys/f[^s]*/** wklx,
+  deny /sys/fs/[^c]*/** wklx,
+  deny /sys/fs/c[^g]*/** wklx,
+  deny /sys/fs/cg[^r]*/** wklx,
+  deny /sys/firmware/** rwklx,
+  deny /sys/devices/virtual/powercap/** rwklx,
+  deny /sys/kernel/security/** rwklx,
+
+  # Arduino customization: narrows docker-default's /sys deny so
+  # /sys/devices/platform stays accessible
+  deny /sys/{block,bus,class,dev,hypervisor,kernel,module,power}/** wklx,
+  deny /sys/devices/{p,pl,pla,plat,platf,platfo,platfor,[^p]*,p[^l]*,pl[^a]*,pla[^t]*,plat[^f]*,platf[^o]*,platfo[^r]*,platfor[^m]*,platform[^/]*}/** wklx,
+
+  # allow processes within the container to trace each other,
+  # provided all other LSM and yama setting allow it.
+  ptrace (trace,tracedby,read,readby) peer="arduino-docker-profile",
+}
