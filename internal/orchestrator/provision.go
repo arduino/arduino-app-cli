@@ -50,6 +50,7 @@ type service struct {
 	User              string                        `yaml:"user"`
 	GroupAdd          []string                      `yaml:"group_add,omitempty"`
 	DeviceCgroupRules []string                      `yaml:"device_cgroup_rules,omitempty"`
+	SecurityOpt       []string                      `yaml:"security_opt,omitempty"`
 	Entrypoint        string                        `yaml:"entrypoint"`
 	ExtraHosts        []string                      `yaml:"extra_hosts,omitempty"`
 	Labels            map[string]string             `yaml:"labels,omitempty"`
@@ -172,6 +173,8 @@ const (
 	DockerAppMainLabel = "cc.arduino.app.main"
 	DockerAppPathLabel = "cc.arduino.app.path"
 )
+
+const dockerApparmorProfile = "arduino-docker-profile"
 
 type serviceInfo struct {
 	name           string
