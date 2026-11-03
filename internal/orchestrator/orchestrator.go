@@ -22,14 +22,13 @@ import (
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/types"
-	"github.com/docker/cli/cli/command"
 	"github.com/goccy/go-yaml"
 	"github.com/gosimple/slug"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
 	semver "go.bug.st/relaxed-semver"
 
-	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -92,7 +91,7 @@ func (p *StreamMessage) GetType() MessageType {
 
 func StartApp(
 	ctx context.Context,
-	docker command.Cli,
+	docker engine.Engine,
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
@@ -144,7 +143,7 @@ func StartApp(
 		}
 	}
 
-	appsStatus, err := getAppsStatus(ctx, docker.Client())
+	appsStatus, err := getAppsStatus(ctx, docker)
 	if err != nil {
 		return fmt.Errorf("failed to list apps status: %w", err)
 	}
@@ -271,7 +270,7 @@ func StartApp(
 
 		cb(StreamMessage{data: "python downloading"})
 
-		if err := dockerhelper.PullImages(ctx, docker.Client(), dockerhelper.ComposeImages(prj),
+		if err := docker.PullImages(ctx, engine.ComposeImages(prj),
 			func(line string) { cb(StreamMessage{data: line}) },
 			func(label string, curr, total int64) {
 				// Downloading the images is from 20% to 80% of the start of an app.
@@ -282,21 +281,21 @@ func StartApp(
 
 		slog.Debug("starting app", slog.String("project", prj.Name))
 		line := func(line string) { cb(StreamMessage{data: line}) }
-		err = dockerhelper.ComposeUp(ctx, docker, prj, line)
-		if errors.Is(err, dockerhelper.ErrNetwork) {
+		err = docker.ComposeUp(ctx, prj, line)
+		if errors.Is(err, engine.ErrNetwork) {
 			// The board is likely out of subnets: the apps give up the networks they
 			// keep, and this app is started once more.
 			cb(StreamMessage{data: "Could not create the network, freeing the ones the apps keep"})
-			appContainers, pruneErr := dockerhelper.Containers(ctx, docker.Client(), DockerAppLabel+"=true")
+			appContainers, pruneErr := docker.Containers(ctx, DockerAppLabel+"=true")
 			if pruneErr != nil {
 				slog.Warn("failed to list the app containers", slog.String("error", pruneErr.Error()))
 			}
-			freed, pruneErr := dockerhelper.PruneNetworks(ctx, docker.Client(), ourNetworks(appContainers))
+			freed, pruneErr := docker.PruneNetworks(ctx, ourNetworks(appContainers))
 			if pruneErr != nil {
 				slog.Warn("failed to free the networks of the apps", slog.String("error", pruneErr.Error()))
 			}
 			slog.Debug("freed app networks", slog.Int("count", freed))
-			err = dockerhelper.ComposeUp(ctx, docker, prj, line)
+			err = docker.ComposeUp(ctx, prj, line)
 		}
 		if err != nil {
 			return err
@@ -306,7 +305,7 @@ func StartApp(
 	return nil
 }
 
-func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cmd string, cb func(StreamMessage)) error {
+func stopAppWithCmd(ctx context.Context, docker engine.Engine, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cmd string, cb func(StreamMessage)) error {
 	if cb == nil {
 		cb = func(StreamMessage) {}
 	}
@@ -328,7 +327,7 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 
 	if _, ok := app.GetSketchPath(); ok {
 		// Before stopping the microcontroller we want to make sure that the app was running.
-		running, err := getRunningApp(ctx, docker.Client())
+		running, err := getRunningApp(ctx, docker)
 		if err != nil {
 			return err
 		}
@@ -353,9 +352,9 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 		var err error
 		switch cmd {
 		case "down":
-			err = dockerhelper.ComposeDown(ctx, docker, projectName, line)
+			err = docker.ComposeDown(ctx, projectName, line)
 		default:
-			err = dockerhelper.ComposeStop(ctx, docker, projectName, line)
+			err = docker.ComposeStop(ctx, projectName, line)
 		}
 		if err != nil {
 			return err
@@ -365,11 +364,11 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 	return nil
 }
 
-func StopApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cb func(StreamMessage)) error {
+func StopApp(ctx context.Context, dockerClient engine.Engine, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cb func(StreamMessage)) error {
 	return stopAppWithCmd(ctx, dockerClient, platform, app, cfg, "stop", cb)
 }
 
-func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cb func(StreamMessage)) error {
+func StopAndDestroyApp(ctx context.Context, dockerClient engine.Engine, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cb func(StreamMessage)) error {
 	if err := stopAppWithCmd(ctx, dockerClient, platform, app, cfg, "down", cb); err != nil {
 		return err
 	}
@@ -408,7 +407,7 @@ func cleanAppCacheFiles(app app.ArduinoApp, cb func(StreamMessage)) error {
 
 func RestartApp(
 	ctx context.Context,
-	docker command.Cli,
+	docker engine.Engine,
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
@@ -419,7 +418,7 @@ func RestartApp(
 	verbose bool,
 	cb func(StreamMessage),
 ) error {
-	runningApp, err := getRunningApp(ctx, docker.Client())
+	runningApp, err := getRunningApp(ctx, docker)
 	if err != nil {
 		return err
 	}
@@ -439,7 +438,7 @@ func RestartApp(
 
 func StartDefaultApp(
 	ctx context.Context,
-	docker command.Cli,
+	docker engine.Engine,
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
@@ -509,7 +508,7 @@ type ListAppRequest struct {
 
 func ListApps(
 	ctx context.Context,
-	docker command.Cli,
+	docker engine.Engine,
 	req ListAppRequest,
 	idProvider *appid.Provider,
 	bricksIndex *bricksindex.BricksIndex,
@@ -523,7 +522,7 @@ func ListApps(
 	}
 
 	// Get the status of all apps (it will return only the apps that have been started at least once)
-	appsStatus, err := getAppsStatus(ctx, docker.Client())
+	appsStatus, err := getAppsStatus(ctx, docker)
 	if err != nil {
 		slog.Error("unable to get running app", slog.String("error", err.Error()))
 	}
@@ -567,7 +566,10 @@ func ListApps(
 		}
 
 		// Retrieve the app status if available
-		status := StatusUninitialized
+		var status Status // no engine: unknown, omitted
+		if docker != nil {
+			status = StatusUninitialized
+		}
 		if idx := slices.IndexFunc(appsStatus, func(a AppStatusInfo) bool {
 			return a.AppPath.EqualsTo(app.FullPath)
 		}); idx != -1 {
@@ -618,12 +620,12 @@ func ListApps(
 // The result is sorted by app path.
 func ListActiveApps(
 	ctx context.Context,
-	docker command.Cli,
+	docker engine.Engine,
 	idProvider *appid.Provider,
 ) ([]AppInfo, error) {
 	// The statuses returned by getAppsStatus come only from Docker containers that have
 	// been started, so StatusUninitialized is never present.
-	appsStatus, err := getAppsStatus(ctx, docker.Client())
+	appsStatus, err := getAppsStatus(ctx, docker)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list apps status: %w", err)
 	}
@@ -685,7 +687,7 @@ type AppDetailedInfo struct {
 	Path         string             `json:"path"`
 	Description  string             `json:"description"`
 	Icon         string             `json:"icon"`
-	Status       Status             `json:"status" required:"true"`
+	Status       Status             `json:"status,omitempty"`
 	Example      bool               `json:"example"`
 	Default      bool               `json:"default"`
 	Release      bool               `json:"release"`
@@ -705,7 +707,7 @@ type AppDetailedBrick struct {
 
 func AppDetails(
 	ctx context.Context,
-	docker command.Cli,
+	docker engine.Engine,
 	userApp app.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
 	idProvider *appid.Provider,
@@ -718,7 +720,7 @@ func AppDetails(
 	var status Status
 	go func() {
 		defer wg.Done()
-		app, err := getAppStatus(ctx, docker.Client(), userApp)
+		app, err := getAppStatus(ctx, docker, userApp)
 		if err != nil {
 			slog.Warn("unable to get app status", slog.String("error", err.Error()), slog.String("path", userApp.FullPath.String()))
 			status = StatusStopped
@@ -942,9 +944,11 @@ func CloneApp(
 	return CloneAppResponse{ID: id}, nil
 }
 
-func DeleteApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration) error {
+func DeleteApp(ctx context.Context, dockerClient engine.Engine, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration) error {
 	// We try to remove docker related resources at best effort
-	_ = StopAndDestroyApp(ctx, dockerClient, platform, app, cfg, func(StreamMessage) {})
+	if dockerClient != nil {
+		_ = StopAndDestroyApp(ctx, dockerClient, platform, app, cfg, func(StreamMessage) {})
+	}
 	// TODO: Shall we report stop error?
 
 	if err := app.FullPath.RemoveAll(); err != nil {
@@ -1011,7 +1015,7 @@ type AppEditRequest struct {
 
 func EditApp(
 	ctx context.Context,
-	docker command.Cli,
+	docker engine.Engine,
 	req AppEditRequest,
 	editApp *app.ArduinoApp,
 	cfg config.Configuration,
@@ -1022,7 +1026,7 @@ func EditApp(
 
 	if req.Name != nil {
 		// Containers keep the old app path in their labels: renaming a running app breaks them.
-		status, err := getAppStatus(ctx, docker.Client(), *editApp)
+		status, err := getAppStatus(ctx, docker, *editApp)
 		if err != nil {
 			return fmt.Errorf("failed to get app status: %w", err)
 		}

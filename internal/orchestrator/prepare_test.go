@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
@@ -51,10 +52,10 @@ func TestCheckImages(t *testing.T) {
 		{name: "daemon failure", inspectErr: daemonError, wantErr: daemonError},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			docker := preparedImageCLI{docker: preparedImageClient{inspect: func(image string) error {
+			docker := dockerhelper.EngineOfClient(preparedImageClient{inspect: func(image string) error {
 				require.Equal(t, "viktoruj/ping_pong", image)
 				return tc.inspectErr
-			}}}
+			}})
 			prj := &types.Project{Services: types.Services{
 				"main": {Image: "viktoruj/ping_pong"},
 			}}

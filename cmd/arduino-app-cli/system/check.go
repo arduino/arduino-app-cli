@@ -10,17 +10,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/docker/cli/cli/command"
 	"github.com/moby/moby/client/pkg/versions"
 	"github.com/spf13/cobra"
 
-	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/sudo"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 )
 
-func newCheckCmd(docker command.Cli) *cobra.Command {
+func newCheckCmd(docker engine.Engine) *cobra.Command {
 	return &cobra.Command{
 		Use:   "check",
 		Short: "Verify the board provides what the apps need of it",
@@ -38,7 +37,7 @@ func newCheckCmd(docker command.Cli) *cobra.Command {
 
 // checkPlatform reports what this board provides of what an app needs of it. A new
 // requirement is a new entry here, and the command reports it without knowing it.
-func checkPlatform(ctx context.Context, docker command.Cli) []check {
+func checkPlatform(ctx context.Context, docker engine.Engine) []check {
 	checks := []struct {
 		name string
 		run  func() (string, error)
@@ -65,8 +64,8 @@ const minEngineAPI = "1.44"
 
 // checkDockerEngine is the only thing that states the engine we need: the client
 // negotiates whatever version the board offers, older ones included.
-func checkDockerEngine(ctx context.Context, docker command.Cli) (string, error) {
-	version, apiVersion, err := dockerhelper.EngineVersion(ctx, docker)
+func checkDockerEngine(ctx context.Context, docker engine.Engine) (string, error) {
+	version, apiVersion, err := docker.Version(ctx)
 	if err != nil {
 		return "", err
 	}

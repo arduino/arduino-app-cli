@@ -25,12 +25,11 @@ import (
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/types"
-	"github.com/docker/cli/cli/command"
 	yaml "github.com/goccy/go-yaml"
 	"github.com/gosimple/slug"
 	"go.bug.st/f"
 
-	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -81,7 +80,7 @@ type ReleaseModel = release.ReleaseModel
 // environment into a release archive, without touching the app folder.
 func BuildRelease(
 	ctx context.Context,
-	docker command.Cli,
+	docker engine.Engine,
 	provisioner *Provision,
 	appToBuild app.ArduinoApp,
 	req BuildReleaseRequest,
@@ -354,7 +353,7 @@ func releaseLibraries(ctx context.Context, arduinoApp app.ArduinoApp) []string {
 
 // targetIndexes are the indexes of the board the release is built for: which bricks and
 // services exist, and which compose variant they use, depend on it.
-func targetIndexes(cfg config.Configuration, docker command.Cli, target string) (platform.Platform, *bricksindex.BricksIndex, *servicesindex.ServicesIndex, *modelsindex.ModelsIndex, error) {
+func targetIndexes(cfg config.Configuration, docker engine.Engine, target string) (platform.Platform, *bricksindex.BricksIndex, *servicesindex.ServicesIndex, *modelsindex.ModelsIndex, error) {
 	plat := platform.GetPlatform(cfg.DataDir())
 	if target != "" {
 		targetPlatform, ok := platform.ForBoard(target)
@@ -372,7 +371,7 @@ func targetIndexes(cfg config.Configuration, docker command.Cli, target string) 
 	if err != nil {
 		return platform.Platform{}, nil, nil, nil, fmt.Errorf("failed to load the services index of %s: %w", plat.BoardName, err)
 	}
-	modelsIndex, err := modelsindex.Load(plat, cfg.AssetDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), docker.Client(), cfg)
+	modelsIndex, err := modelsindex.Load(plat, cfg.AssetDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), docker, cfg)
 	if err != nil {
 		return platform.Platform{}, nil, nil, nil, fmt.Errorf("failed to load the models index of %s: %w", plat.BoardName, err)
 	}
@@ -446,7 +445,7 @@ func stageReleaseSrc(appToBuild app.ArduinoApp, srcDir *paths.Path, bricksIndex 
 
 // buildPythonEnv builds the python environment in the runner image, as run.sh would do
 // at the first start, and leaves it in the prebuild dir.
-func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string, srcDir *paths.Path, prebuildDir *paths.Path, cb func(StreamMessage)) error {
+func buildPythonEnv(ctx context.Context, docker engine.Engine, pythonImage string, srcDir *paths.Path, prebuildDir *paths.Path, cb func(StreamMessage)) error {
 	if err := prebuildDir.MkdirAll(); err != nil {
 		return fmt.Errorf("failed to create the prebuild dir: %w", err)
 	}
@@ -465,7 +464,7 @@ func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string,
 	output := NewCallbackWriter(func(line string) {
 		cb(StreamMessage{data: line})
 	})
-	err := dockerhelper.Run(ctx, docker.Client(), dockerhelper.RunOptions{
+	err := docker.Run(ctx, engine.RunOptions{
 		Image: pythonImage,
 		Cmd:   []string{"prepare"},
 		Binds: []string{

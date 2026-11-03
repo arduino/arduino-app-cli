@@ -24,6 +24,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -433,7 +435,7 @@ func TestListApp(t *testing.T) {
 			}
 		}
 
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowApps: true, ShowReleases: true}, idProvider, nil, cfg, unoQPlatform)
+		res, err := ListApps(t.Context(), dockerhelper.EngineOf(dockerCli), ListAppRequest{ShowApps: true, ShowReleases: true}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
 		require.Empty(t, res.BrokenApps)
 		require.Len(t, res.Apps, 4)
@@ -455,7 +457,7 @@ func TestListApp(t *testing.T) {
 	})
 
 	t.Run("list all apps", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
+		res, err := ListApps(t.Context(), dockerhelper.EngineOf(dockerCli), ListAppRequest{
 			ShowApps:     true,
 			ShowExamples: true,
 			StatusFilter: "",
@@ -494,7 +496,7 @@ func TestListApp(t *testing.T) {
 	})
 
 	t.Run("list only apps", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
+		res, err := ListApps(t.Context(), dockerhelper.EngineOf(dockerCli), ListAppRequest{
 			ShowApps:     true,
 			ShowExamples: false,
 			StatusFilter: "",
@@ -524,7 +526,7 @@ func TestListApp(t *testing.T) {
 	})
 
 	t.Run("list only examples", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
+		res, err := ListApps(t.Context(), dockerhelper.EngineOf(dockerCli), ListAppRequest{
 			ShowApps:     false,
 			ShowExamples: true,
 			StatusFilter: "",
@@ -554,7 +556,7 @@ func TestListApp(t *testing.T) {
 		_, err = os.Create(tmpAppPath.Join("app.yaml").String())
 		require.NoError(t, err)
 
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
+		res, err := ListApps(t.Context(), dockerhelper.EngineOf(dockerCli), ListAppRequest{
 			ShowApps: true,
 		}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
@@ -585,7 +587,7 @@ func TestListApp(t *testing.T) {
 		t.Cleanup(func() { _ = nestedAppDir.RemoveAll() })
 		require.NoError(t, outsideAppDir.Rename(nestedAppDir.Join("inside")))
 
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
+		res, err := ListApps(t.Context(), dockerhelper.EngineOf(dockerCli), ListAppRequest{
 			ShowApps: true,
 		}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
@@ -641,14 +643,14 @@ bricks:
 	require.NoError(t, err)
 
 	t.Run("compatible example is listed", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, idx, cfg, unoQPlatform)
+		res, err := ListApps(t.Context(), dockerhelper.EngineOf(dockerCli), ListAppRequest{ShowExamples: true}, idProvider, idx, cfg, unoQPlatform)
 		require.NoError(t, err)
 		require.Len(t, res.Apps, 1)
 		assert.Equal(t, compatibleExID, res.Apps[0].ID)
 	})
 
 	t.Run("incompatible example is excluded", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, idx, cfg, unoQPlatform)
+		res, err := ListApps(t.Context(), dockerhelper.EngineOf(dockerCli), ListAppRequest{ShowExamples: true}, idProvider, idx, cfg, unoQPlatform)
 		require.NoError(t, err)
 		for _, a := range res.Apps {
 			assert.NotEqual(t, incompatibleExID, a.ID, "incompatible example should be filtered out")
@@ -656,14 +658,14 @@ bricks:
 	})
 
 	t.Run("user app with incompatible brick is still listed", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowApps: true}, idProvider, idx, cfg, unoQPlatform)
+		res, err := ListApps(t.Context(), dockerhelper.EngineOf(dockerCli), ListAppRequest{ShowApps: true}, idProvider, idx, cfg, unoQPlatform)
 		require.NoError(t, err)
 		require.Len(t, res.Apps, 1)
 		assert.Equal(t, userAppID, res.Apps[0].ID)
 	})
 
 	t.Run("nil bricks index disables filtering", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, nil, cfg, unoQPlatform)
+		res, err := ListApps(t.Context(), dockerhelper.EngineOf(dockerCli), ListAppRequest{ShowExamples: true}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
 		assert.Len(t, res.Apps, 2)
 	})
@@ -704,7 +706,7 @@ func TestListAppsLocalBricksCompatibility(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("example with only local bricks is listed even when index is empty", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, idx, cfg, unoQPlatform)
+		res, err := ListApps(t.Context(), dockerhelper.EngineOf(dockerCli), ListAppRequest{ShowExamples: true}, idProvider, idx, cfg, unoQPlatform)
 		require.NoError(t, err)
 		require.Len(t, res.Apps, 1)
 		assert.Equal(t, exampleID, res.Apps[0].ID)
@@ -733,14 +735,14 @@ func (f *fakeContainerClient) Ping(_ context.Context, _ dockerClient.PingOptions
 	return dockerClient.PingResult{}, errors.New("docker daemon not reachable")
 }
 
-func newFakeDockerCli(t *testing.T, containers []container.Summary) command.Cli {
+func newFakeDockerCli(t *testing.T, containers []container.Summary) engine.Engine {
 	cli, err := command.NewDockerCli(
 		command.WithAPIClient(&fakeContainerClient{containers: containers}),
 		command.WithBaseContext(t.Context()),
 	)
 	require.NoError(t, err)
 	require.NoError(t, cli.Initialize(&flags.ClientOptions{}))
-	return cli
+	return dockerhelper.EngineOf(cli)
 }
 
 func TestListActiveApps(t *testing.T) {
@@ -751,7 +753,7 @@ func TestListActiveApps(t *testing.T) {
 	app2ID := createApp(t, "app2", false, idProvider, cfg)
 	exampleID := createApp(t, "example1", true, idProvider, cfg)
 
-	newDockerCli := func(containers []container.Summary) command.Cli {
+	newDockerCli := func(containers []container.Summary) engine.Engine {
 		return newFakeDockerCli(t, containers)
 	}
 
@@ -888,7 +890,7 @@ func TestListActiveApps(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, cli.Initialize(&flags.ClientOptions{}))
 
-		_, err = ListActiveApps(t.Context(), cli, idProvider)
+		_, err = ListActiveApps(t.Context(), dockerhelper.EngineOf(cli), idProvider)
 		require.ErrorContains(t, err, "failed to list apps status")
 	})
 }

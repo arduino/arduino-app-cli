@@ -13,9 +13,8 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
-	"github.com/docker/cli/cli/command"
 
-	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -58,13 +57,13 @@ type service struct {
 }
 
 type Provision struct {
-	docker      command.Cli
+	docker      engine.Engine
 	pythonImage string
 	appsDir     *paths.Path
 }
 
 func NewProvision(
-	docker command.Cli,
+	docker engine.Engine,
 	cfg config.Configuration,
 ) (*Provision, error) {
 	provision := &Provision{
@@ -157,7 +156,10 @@ func (p *Provision) Render(
 }
 
 func (p *Provision) init(srcPath string) error {
-	return dockerhelper.Run(context.Background(), p.docker.Client(), dockerhelper.RunOptions{
+	if p.docker == nil {
+		return engine.ErrNeedsBoard
+	}
+	return p.docker.Run(context.Background(), engine.RunOptions{
 		Image: p.pythonImage,
 		Entrypoint: []string{"/bin/bash", "-c", fmt.Sprintf("%s && %s",
 			"arduino-bricks-list-modules -o /app/bricks-list.yaml -m /app/models-list.yaml",

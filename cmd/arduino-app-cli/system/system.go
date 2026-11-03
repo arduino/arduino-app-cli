@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/docker/cli/cli/command"
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/cmdutil"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -156,7 +156,7 @@ func getFilterFunc(onlyArduino bool) func(p update.UpgradablePackage) bool {
 	return update.MatchAllPackages
 }
 
-func newCleanUpCmd(cfg config.Configuration, docker command.Cli) *cobra.Command {
+func newCleanUpCmd(cfg config.Configuration, docker engine.Engine) *cobra.Command {
 	var opts orchestrator.SystemCleanupOptions
 	cmd := &cobra.Command{
 		Use:   "cleanup",

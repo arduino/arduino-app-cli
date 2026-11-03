@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/streams"
@@ -28,15 +29,7 @@ const stopTimeout = 5 * time.Second
 
 // ComposeImages is every image the project names, which is what a pull is given. An
 // image a service builds is not: the registry does not have it.
-func ComposeImages(prj *types.Project) []string {
-	images := make([]string, 0, len(prj.Services))
-	for _, service := range prj.Services {
-		if service.Image != "" && service.Build == nil {
-			images = append(images, service.Image)
-		}
-	}
-	return images
-}
+func ComposeImages(prj *types.Project) []string { return engine.ComposeImages(prj) }
 
 // ComposeUp starts the app the project states, reporting to line what it does. The
 // compose of the board takes no part: the sdk this binary links talks to the engine.
@@ -79,7 +72,7 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 
 // ErrNetwork states that the network of the app was not created. A pool with no
 // subnet left is one of the reasons, worded by the daemon.
-var ErrNetwork = errors.New("failed to create the network of the app")
+var ErrNetwork = engine.ErrNetwork
 
 // ComposeStop leaves the containers of the app where they are, stopped.
 func ComposeStop(ctx context.Context, docker command.Cli, projectName string, line func(string)) error {

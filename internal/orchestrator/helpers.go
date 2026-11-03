@@ -15,10 +15,9 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/gosimple/slug"
 	"github.com/moby/moby/api/types/container"
-	dockerClient "github.com/moby/moby/client"
 	"go.bug.st/f"
 
-	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -95,9 +94,12 @@ func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 
 func getAppsStatus(
 	ctx context.Context,
-	docker dockerClient.APIClient,
+	docker engine.Engine,
 ) ([]AppStatusInfo, error) {
-	containers, err := dockerhelper.Containers(ctx, docker, DockerAppLabel+"=true")
+	if docker == nil {
+		return nil, nil
+	}
+	containers, err := docker.Containers(ctx, DockerAppLabel+"=true")
 	if err != nil {
 		return nil, err
 	}
@@ -109,10 +111,14 @@ func getAppsStatus(
 
 func getAppStatus(
 	ctx context.Context,
-	docker dockerClient.APIClient,
+	docker engine.Engine,
 	app app.ArduinoApp,
 ) (AppStatusInfo, error) {
-	containers, err := dockerhelper.Containers(ctx, docker, DockerAppPathLabel+"="+app.FullPath.String())
+	// No engine, no board: nothing runs, and the status is not known.
+	if docker == nil {
+		return AppStatusInfo{AppPath: app.FullPath}, nil
+	}
+	containers, err := docker.Containers(ctx, DockerAppPathLabel+"="+app.FullPath.String())
 	if err != nil {
 		return AppStatusInfo{}, err
 	}
@@ -133,7 +139,7 @@ func getAppStatus(
 
 func getRunningApp(
 	ctx context.Context,
-	docker dockerClient.APIClient,
+	docker engine.Engine,
 ) (*app.ArduinoApp, error) {
 	apps, err := getAppsStatus(ctx, docker)
 	if err != nil {
@@ -154,8 +160,8 @@ func getRunningApp(
 
 // getAppServicesFromContainers reads the services of an app from its containers. The
 // compose file is not a source: an update removes the brick files that it includes.
-func getAppServicesFromContainers(ctx context.Context, docker dockerClient.APIClient, app app.ArduinoApp) ([]string, error) {
-	containers, err := dockerhelper.Containers(ctx, docker, DockerAppPathLabel+"="+app.FullPath.String())
+func getAppServicesFromContainers(ctx context.Context, docker engine.Engine, app app.ArduinoApp) ([]string, error) {
+	containers, err := docker.Containers(ctx, DockerAppPathLabel+"="+app.FullPath.String())
 	if err != nil {
 		return nil, err
 	}
