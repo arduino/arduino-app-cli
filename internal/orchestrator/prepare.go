@@ -12,6 +12,7 @@ import (
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
+	"github.com/docker/compose/v5/pkg/api"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -106,7 +107,14 @@ func checkImages(
 	docker command.Cli,
 	prj *types.Project,
 ) error {
-	for _, image := range dockerhelper.ComposeImages(prj) {
+	images := dockerhelper.ComposeImages(prj)
+	for _, service := range prj.Services {
+		// A built image is on the board once a start with a prepare built it.
+		if service.Build != nil {
+			images = append(images, api.GetImageNameOrDefault(service, prj.Name))
+		}
+	}
+	for _, image := range images {
 		present, err := dockerhelper.HasImage(ctx, docker.Client(), image)
 		if err != nil {
 			return err
