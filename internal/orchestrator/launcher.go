@@ -45,8 +45,8 @@ const (
 
 	// launcherRequestTimeout bounds a request the launcher answers at once.
 	launcherRequestTimeout = 2 * time.Second
-	// launcherPingTimeout bounds one ping, a local socket round trip.
-	launcherPingTimeout = 500 * time.Millisecond
+	// launcherStatusTimeout bounds one status request, a local socket round trip.
+	launcherStatusTimeout = 500 * time.Millisecond
 	// launcherStartTimeout covers a start that stops the running app first, which the
 	// launcher gives 5 s before SIGKILL.
 	launcherStartTimeout = 20 * time.Second
@@ -198,7 +198,7 @@ func parentPID(pid int) (int, error) {
 
 // appProjectUp tells whether the project of the app runs as rendered: the compose file written
 // now is the one written before, byte for byte, and every service of the project has a running
-// container. The main container is the one answering the launcher socket, so no ping is needed.
+// container. The main container is the one answering the launcher socket, so no status request is needed.
 func appProjectUp(ctx context.Context, docker dockerClient.APIClient, appPath *paths.Path, prj *types.Project, previous, current []byte) (bool, error) {
 	if len(previous) == 0 || !bytes.Equal(previous, current) {
 		return false, nil
@@ -263,15 +263,15 @@ func startThroughLauncher(ctx context.Context, docker dockerClient.APIClient, ap
 	return nil
 }
 
-// waitLauncherReady polls ping until the launcher answers, which follows the dependency install
+// waitLauncherReady polls status until the launcher answers, which follows the dependency install
 // of a fresh container. It fails early when the container stops, and restarts the container
 // once when something other than the launcher answers on the socket path.
 func waitLauncherReady(ctx context.Context, docker dockerClient.APIClient, client *launcher.Client, containerID string) error {
-	client = client.WithTimeout(launcherPingTimeout)
+	client = client.WithTimeout(launcherStatusTimeout)
 	deadline := time.Now().Add(launcherReadyTimeout)
 	restarted := false
 	for {
-		_, err := client.Ping(ctx)
+		_, err := client.Status(ctx)
 		if err == nil {
 			return nil
 		}
@@ -319,7 +319,7 @@ func restartMainContainer(ctx context.Context, docker dockerClient.APIClient, co
 // launcher, which the state of the container does not tell: the container stays up when the
 // app ends on its own. The container state stands when the launcher does not answer.
 func launcherStatus(ctx context.Context, docker dockerClient.APIClient, c container.Summary) (Status, bool) {
-	resp, err := launcherClient(ctx, docker, c).WithTimeout(launcherPingTimeout).Status(ctx)
+	resp, err := launcherClient(ctx, docker, c).WithTimeout(launcherStatusTimeout).Status(ctx)
 	if err != nil {
 		slog.Debug("the app launcher does not answer, the container state stands", slog.String("app", c.Labels[DockerAppPathLabel]), slog.String("error", err.Error()))
 		return "", false

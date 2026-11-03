@@ -75,17 +75,11 @@ type Child struct {
 	Stopping  bool      `json:"stopping"`
 }
 
-type PingResponse struct {
-	// Stale tells the dependencies of the app changed since the container prepared them.
-	Stale bool `json:"stale"`
-}
-
 type StatusResponse struct {
 	// Child is the app the launcher runs, nil when none.
 	Child *Child `json:"child"`
 	// Last is how the previous app process ended, nil when none ran.
 	Last    *Ended         `json:"last"`
-	Stale   bool           `json:"stale"`
 	Preload map[string]any `json:"preload"`
 	Version string         `json:"version"`
 	UptimeS float64        `json:"uptime_s"`
@@ -127,7 +121,6 @@ func (c *Client) Socket() string {
 
 // Commands of the launcher protocol.
 const (
-	cmdPing   = "ping"
 	cmdStart  = "start"
 	cmdStop   = "stop"
 	cmdStatus = "status"
@@ -138,12 +131,6 @@ type request struct {
 	App string `json:"app,omitempty"`
 	// Env is the app environment, which the child runs with over the container one.
 	Env map[string]string `json:"env,omitempty"`
-}
-
-func (c *Client) Ping(ctx context.Context) (PingResponse, error) {
-	var resp PingResponse
-	err := c.do(ctx, request{Cmd: cmdPing}, &resp)
-	return resp, err
 }
 
 // Start runs the app with its environment in place of the running one.

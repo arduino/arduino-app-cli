@@ -85,13 +85,6 @@ func TestClientRequests(t *testing.T) {
 	client := New(fake.socket, time.Second)
 	ctx := context.Background()
 
-	t.Run("ping", func(t *testing.T) {
-		resp, err := client.Ping(ctx)
-		require.NoError(t, err)
-		assert.True(t, resp.Stale)
-		assert.Equal(t, request{Cmd: cmdPing}, <-fake.requests)
-	})
-
 	t.Run("start with the app environment", func(t *testing.T) {
 		resp, err := client.Start(ctx, testApp, map[string]string{"FOO": "bar"})
 		require.NoError(t, err)
@@ -127,7 +120,6 @@ func TestClientRequests(t *testing.T) {
 		assert.Equal(t, 41, resp.Last.PID)
 		assert.Equal(t, 1, *resp.Last.ExitCode)
 		assert.Nil(t, resp.Last.Signal)
-		assert.False(t, resp.Stale)
 		assert.Equal(t, "1.0", resp.Version)
 		assert.InDelta(t, 3.5, resp.UptimeS, 0)
 	})
@@ -163,7 +155,7 @@ func TestClientErrors(t *testing.T) {
 	})
 
 	t.Run("no socket", func(t *testing.T) {
-		_, err := New(filepath.Join(t.TempDir(), "missing.sock"), time.Second).Ping(context.Background())
+		_, err := New(filepath.Join(t.TempDir(), "missing.sock"), time.Second).Status(context.Background())
 		require.ErrorContains(t, err, "cannot reach the app launcher")
 		assert.False(t, IsCode(err, CodeInternal))
 	})
@@ -174,14 +166,14 @@ func TestClientErrors(t *testing.T) {
 			return ""
 		})
 		started := time.Now()
-		_, err := New(fake.socket, 100*time.Millisecond).Ping(context.Background())
+		_, err := New(fake.socket, 100*time.Millisecond).Status(context.Background())
 		require.ErrorContains(t, err, "no answer from the app launcher")
 		assert.Less(t, time.Since(started), 500*time.Millisecond)
 	})
 
 	t.Run("invalid answer", func(t *testing.T) {
 		fake := newFakeLauncher(t, func(string) string { return "not json" })
-		_, err := New(fake.socket, time.Second).Ping(context.Background())
+		_, err := New(fake.socket, time.Second).Status(context.Background())
 		require.ErrorContains(t, err, "invalid answer")
 	})
 }
@@ -194,7 +186,7 @@ func TestClientAcceptsOnlyTheApprovedPeer(t *testing.T) {
 
 	var seen int
 	approve := func(pid int) error { seen = pid; return nil }
-	_, err := New(fake.socket, time.Second).WithPeer(approve).Ping(context.Background())
+	_, err := New(fake.socket, time.Second).WithPeer(approve).Status(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, 4242, seen, "the check sees the peer pid")
 	<-fake.requests
