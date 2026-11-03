@@ -39,7 +39,7 @@ func CleanAppCache(
 		return ErrCleanCacheReleaseApp
 	}
 
-	return withAppsLock(ctx, cfg, func() error {
+	return runExclusive(ctx, cfg, app, "clean", func() error {
 		runningApp, err := getRunningApp(ctx, docker.Client())
 		if err != nil {
 			return err
