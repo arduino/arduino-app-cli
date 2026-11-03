@@ -104,7 +104,7 @@ func TestComposeUpPrunesReplacedBuilds(t *testing.T) {
 		return ids
 	}
 	t.Cleanup(func() {
-		// t.Context() is already cancelled when cleanups run.
+		// t.Context() is already canceled when cleanups run.
 		ctx := context.Background()
 		_ = ComposeDown(ctx, docker, projectName, nil)
 		for _, id := range builtImages(ctx, false) {
