@@ -494,7 +494,7 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 
 	// Download libraries used in each example app
 	for _, appPath := range exampleAppsPath {
-		if err := downloadSketchLibsUsedInApp(ctx, appPath, platform, cli, cliInstance, downloadProgressCB); err != nil {
+		if err := downloadSketchLibsUsedInApp(ctx, appPath, cli, cliInstance, downloadProgressCB); err != nil {
 			return fmt.Errorf("could not download libs in app %s: %w", appPath, err)
 		}
 	}
@@ -546,20 +546,11 @@ func platformVersionToInstall(
 	return best.String(), nil
 }
 
-func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platform platform.Platform, cli rpc.ArduinoCoreServiceServer, cliInstance *rpc.Instance, downloadProgressCB func(*rpc.DownloadProgress)) error {
+func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, cli rpc.ArduinoCoreServiceServer, cliInstance *rpc.Instance, downloadProgressCB func(*rpc.DownloadProgress)) error {
 	// Open the app to get the sketch path
 	app, err := app.Load(appPath)
 	if err != nil {
 		return err
-	}
-
-	// A release ships a frozen sketch profile, so there is nothing to migrate.
-	if editable, err := app.GetAsEditable(); err == nil {
-		if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, editable); err != nil {
-			slog.Warn("Failed to migrate app to remove router bridge", "app", appPath, "error", err)
-		} else if ok {
-			slog.Info("App migrated, RouterBridge has been removed successfully", "app", appPath)
-		}
 	}
 
 	sketchPath, ok := app.GetSketchPath()
