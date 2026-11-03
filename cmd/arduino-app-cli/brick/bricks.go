@@ -17,7 +17,7 @@ func NewBrickCmd(cfg config.Configuration, version string) *cobra.Command {
 		Short: "Manage Arduino Bricks",
 	}
 
-	appCmd.AddCommand(newBricksListCmd())
+	appCmd.AddCommand(newBricksListCmd(cfg))
 	appCmd.AddCommand(newBricksDetailsCmd(cfg))
 	appCmd.AddCommand(newUpdateIndexCmd(cfg, version))
 	appCmd.AddCommand(newSearchCmd(cfg))
