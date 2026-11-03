@@ -159,7 +159,7 @@ func generateComposeTemplate(
 		},
 	}}
 
-	includes, err := frozenComposeIncludes(composeFiles, genPath, cfg, appEnv)
+	includes, err := frozenComposeIncludes(composeFiles, arduinoApp.FullPath, genPath, cfg, appEnv)
 	if err != nil {
 		return err
 	}
@@ -293,7 +293,7 @@ func generateComposeTemplate(
 // included by, substituted, and is the include: list of that template. What a copy states
 // no longer depends on the asset dir it came from, nor on the environment of whoever
 // starts the app: only the host facts are left for the render step to answer.
-func frozenComposeIncludes(composeFiles paths.PathList, genPath *paths.Path, cfg config.Configuration, appEnv types.Mapping) ([]composeInclude, error) {
+func frozenComposeIncludes(composeFiles paths.PathList, appDir *paths.Path, genPath *paths.Path, cfg config.Configuration, appEnv types.Mapping) ([]composeInclude, error) {
 	composesDir := genPath.Join("compose")
 	// A leftover copy from a previous resolve would be included again if a brick that
 	// was removed is added back with a compose of its own.
@@ -305,14 +305,19 @@ func frozenComposeIncludes(composeFiles paths.PathList, genPath *paths.Path, cfg
 
 	includes := make([]composeInclude, 0, len(composeFiles))
 	for _, composeFile := range composeFiles {
-		// Keep the layout of the asset dir: it makes the copied names unique. A local
-		// brick is outside it, where RelFrom answers a ../ chain and not an error.
+		// Keep the layout of the asset dir, or of the app for a local brick: it makes the
+		// copied names unique. A local brick is outside the asset dir, where RelFrom
+		// answers a ../ chain and not an error.
 		var projectDir string
 		relPath, err := composeFile.RelFrom(cfg.AssetDir())
 		if inside, _ := composeFile.IsInsideDir(cfg.AssetDir()); err != nil || !inside {
-			relPath = paths.New(composeFile.Parent().Base(), composeFile.Base())
+			brickDir, err := composeFile.Parent().RelFrom(appDir)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve the folder of %s: %w", composeFile, err)
+			}
+			relPath = brickDir.Join(composeFile.Base())
 			// The relative paths of a local brick stay in its folder, wherever the app is.
-			projectDir = path.Join(appHomeRef, "bricks", composeFile.Parent().Base())
+			projectDir = path.Join(appHomeRef, brickDir.String())
 		}
 
 		frozen, err := frozenCompose(composeFile, lookup)
