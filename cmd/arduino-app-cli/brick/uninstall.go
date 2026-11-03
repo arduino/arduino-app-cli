@@ -6,6 +6,7 @@
 package brick
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -24,28 +25,32 @@ func newUninstallCmd(cfg config.Configuration) *cobra.Command {
 		Example: "  arduino-app-cli brick uninstall acme:camera\n  arduino-app-cli brick uninstall acme:camera@1.0.0 acme:camera@1.1.0",
 		Args:    cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			var res uninstallResult
-			for _, ref := range parseBrickReferences(args) {
-				uninstalled, err := remotebricksindex.Uninstall(cmd.Context(), cfg.BricksDir(), ref.id, ref.version)
-				if err != nil {
-					if len(res.Bricks) > 0 {
-						feedback.PrintResult(res)
-					}
-					feedback.Fatal(err.Error(), feedback.ErrGeneric)
-				}
-				versions := uninstalled.Versions
-				if versions == nil {
-					versions = []string{}
-				}
-				res.Bricks = append(res.Bricks, uninstalledBrick{
-					ID:               ref.id,
-					RequestedVersion: ref.version,
-					Versions:         versions,
-				})
-			}
-			feedback.PrintResult(res)
+			uninstallHandler(cmd.Context(), args, cfg)
 		},
 	}
+}
+
+func uninstallHandler(ctx context.Context, args []string, cfg config.Configuration) {
+	var res uninstallResult
+	for _, ref := range parseBrickReferences(args) {
+		uninstalled, err := remotebricksindex.Uninstall(ctx, cfg.BricksDir(), ref.id, ref.version)
+		if err != nil {
+			if len(res.Bricks) > 0 {
+				feedback.PrintResult(res)
+			}
+			feedback.Fatal(err.Error(), feedback.ErrGeneric)
+		}
+		versions := uninstalled.Versions
+		if versions == nil {
+			versions = []string{}
+		}
+		res.Bricks = append(res.Bricks, uninstalledBrick{
+			ID:               ref.id,
+			RequestedVersion: ref.version,
+			Versions:         versions,
+		})
+	}
+	feedback.PrintResult(res)
 }
 
 type uninstalledBrick struct {

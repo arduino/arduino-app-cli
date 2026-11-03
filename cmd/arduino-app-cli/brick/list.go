@@ -23,33 +23,37 @@ func newBricksListCmd(cfg config.Configuration) *cobra.Command {
 		Short: "List all available bricks",
 		Long:  "List all available bricks: the built-in ones and those installed from the bricks index.",
 		Run: func(cmd *cobra.Command, args []string) {
-			res := brickListResult{Bricks: []brickListItem{}}
-			for _, b := range servicelocator.GetBrickService().List().Bricks {
-				res.Bricks = append(res.Bricks, brickListItem{BrickListItem: b})
-			}
-
-			installed, err := remotebricksindex.ListInstalled(cfg.BricksDir())
-			if err != nil {
-				feedback.Warnf("Cannot list the bricks installed from the bricks index: %v", err)
-			}
-			platform := servicelocator.GetPlatform()
-			for _, b := range installed {
-				res.Bricks = append(res.Bricks, brickListItem{
-					BrickListItem: bricks.BrickListItem{
-						ID:           b.Brick.ID,
-						Name:         b.Brick.Name,
-						Author:       b.Namespace,
-						Description:  b.Brick.Description,
-						Category:     b.Brick.Category,
-						Status:       "installed",
-						RequireModel: b.Brick.IsAIBrick(platform),
-					},
-					Version: b.Version,
-				})
-			}
-			feedback.PrintResult(res)
+			bricksListHandler(cfg)
 		},
 	}
+}
+
+func bricksListHandler(cfg config.Configuration) {
+	res := brickListResult{Bricks: []brickListItem{}}
+	for _, b := range servicelocator.GetBrickService().List().Bricks {
+		res.Bricks = append(res.Bricks, brickListItem{BrickListItem: b})
+	}
+
+	installed, err := remotebricksindex.ListInstalled(cfg.BricksDir())
+	if err != nil {
+		feedback.Warnf("Cannot list the bricks installed from the bricks index: %v", err)
+	}
+	platform := servicelocator.GetPlatform()
+	for _, b := range installed {
+		res.Bricks = append(res.Bricks, brickListItem{
+			BrickListItem: bricks.BrickListItem{
+				ID:           b.Brick.ID,
+				Name:         b.Brick.Name,
+				Author:       b.Namespace,
+				Description:  b.Brick.Description,
+				Category:     b.Brick.Category,
+				Status:       "installed",
+				RequireModel: b.Brick.IsAIBrick(platform),
+			},
+			Version: b.Version,
+		})
+	}
+	feedback.PrintResult(res)
 }
 
 // brickListItem adds the version, which only the bricks installed from the bricks index have.

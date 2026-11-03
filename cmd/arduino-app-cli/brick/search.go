@@ -26,18 +26,22 @@ func newSearchCmd(cfg config.Configuration) *cobra.Command {
 		Example: "  arduino-app-cli brick search camera usb --all",
 		Args:    cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			index, err := remotebricksindex.Load(cfg.BricksIndexDir())
-			if err != nil {
-				feedback.Fatal(err.Error(), feedback.ErrGeneric)
-			}
-			feedback.PrintResult(searchResult{
-				Bricks:      index.Search(strings.Join(args, " ")),
-				allVersions: allVersions,
-			})
+			searchHandler(args, allVersions, cfg)
 		},
 	}
 	cmd.Flags().BoolVarP(&allVersions, "all", "a", false, "Show all the versions of the bricks")
 	return cmd
+}
+
+func searchHandler(keywords []string, allVersions bool, cfg config.Configuration) {
+	index, err := remotebricksindex.Load(cfg.BricksIndexDir())
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrGeneric)
+	}
+	feedback.PrintResult(searchResult{
+		Bricks:      index.Search(strings.Join(keywords, " ")),
+		allVersions: allVersions,
+	})
 }
 
 type searchResult struct {

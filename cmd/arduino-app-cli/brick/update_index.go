@@ -6,6 +6,7 @@
 package brick
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -22,17 +23,21 @@ func newUpdateIndexCmd(cfg config.Configuration, version string) *cobra.Command 
 		Short: "Download the latest bricks index",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			res, err := remotebricksindex.Update(cmd.Context(), http.DefaultClient, cfg.BricksIndexURL,
-				cfg.BricksIndexDir(), "arduino-app-cli/"+version)
-			if err != nil {
-				feedback.Fatal(err.Error(), feedback.ErrGeneric)
-			}
-			feedback.PrintResult(updateIndexResult{
-				Updated: res.Updated,
-				Bricks:  len(res.Index.Bricks),
-			})
+			updateIndexHandler(cmd.Context(), cfg, version)
 		},
 	}
+}
+
+func updateIndexHandler(ctx context.Context, cfg config.Configuration, version string) {
+	res, err := remotebricksindex.Update(ctx, http.DefaultClient, cfg.BricksIndexURL,
+		cfg.BricksIndexDir(), "arduino-app-cli/"+version)
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrGeneric)
+	}
+	feedback.PrintResult(updateIndexResult{
+		Updated: res.Updated,
+		Bricks:  len(res.Index.Bricks),
+	})
 }
 
 type updateIndexResult struct {
