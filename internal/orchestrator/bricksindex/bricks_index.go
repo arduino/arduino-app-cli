@@ -268,7 +268,8 @@ type YamlBricksIndex struct {
 
 func unmarshalBricksIndex(content io.Reader) (*YamlBricksIndex, error) {
 	var index YamlBricksIndex
-	if err := yaml.NewDecoder(content).Decode(&index); err != nil {
+	// An empty file yields io.EOF: treat it as an index with no bricks.
+	if err := yaml.NewDecoder(content).Decode(&index); err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
 	return &index, nil
@@ -285,7 +286,22 @@ func WriteBricksList(dir *paths.Path, bricks []Brick) error {
 	return dir.Join(bricksListFileName).WriteFile(data)
 }
 
+// ensureBricksListFile creates an empty bricks list in dir if it does not exist.
+func ensureBricksListFile(dir *paths.Path) error {
+	file := dir.Join(bricksListFileName)
+	if file.Exist() {
+		return nil
+	}
+	if err := dir.MkdirAll(); err != nil {
+		return err
+	}
+	return file.WriteFile([]byte{})
+}
+
 func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
+	if err := ensureBricksListFile(path); err != nil {
+		return nil, err
+	}
 	content, err := path.Join(bricksListFileName).Open()
 	if err != nil {
 		return nil, err
