@@ -38,6 +38,9 @@ func HandleAppInstall(
 	cfg config.Configuration,
 	plat platform.Platform,
 ) http.HandlerFunc {
+	if dockerClient == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		file, _, err := r.FormFile("file")
 		if err != nil {

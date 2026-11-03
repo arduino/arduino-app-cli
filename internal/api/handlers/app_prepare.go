@@ -36,6 +36,9 @@ func HandleAppPrepare(
 	cfg config.Configuration,
 	plat platform.Platform,
 ) http.HandlerFunc {
+	if dockerClient == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {

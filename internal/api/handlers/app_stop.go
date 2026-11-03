@@ -25,6 +25,9 @@ func HandleAppStop(
 	platform platform.Platform,
 	cfg config.Configuration,
 ) http.HandlerFunc {
+	if dockerClient == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {

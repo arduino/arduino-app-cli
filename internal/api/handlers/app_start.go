@@ -33,6 +33,9 @@ func HandleAppStart(
 	cfg config.Configuration,
 	platform platform.Platform,
 ) http.HandlerFunc {
+	if dockerCli == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {

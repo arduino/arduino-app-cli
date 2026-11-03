@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
@@ -166,7 +167,7 @@ func TestHandleInstallModel(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/v1/models/"+unknown, nil)
 		req.SetPathValue("modelID", unknown)
 
-		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
+		HandleInstallModel(unusedEngine{}, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
 
 		assert.Equal(t, http.StatusNotFound, rec.Code)
 		assert.NotContains(t, rec.Header().Get("Content-Type"), "text/event-stream")
@@ -180,7 +181,7 @@ func TestHandleInstallModel(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/v1/models/"+models.EncodeModelID("a-preloaded-model"), nil)
 		req.SetPathValue("modelID", models.EncodeModelID("a-preloaded-model"))
 
-		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
+		HandleInstallModel(unusedEngine{}, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
 
 		assert.Contains(t, rec.Header().Get("Content-Type"), "text/event-stream")
 		body := rec.Body.String()
@@ -196,7 +197,7 @@ func TestHandleInstallModel(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/v1/models/"+models.EncodeModelID("a-preloaded-model"), nil)
 		req.SetPathValue("modelID", models.EncodeModelID("a-preloaded-model"))
 
-		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
+		HandleInstallModel(unusedEngine{}, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
 
 		body := rec.Body.String()
 		assert.Contains(t, body, "event: done")
@@ -210,7 +211,7 @@ func TestHandleInstallModel(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/v1/models/x", nil)
 		req.SetPathValue("modelID", "llamacpp:owner/repo")
 
-		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
+		HandleInstallModel(unusedEngine{}, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
 
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 		assert.Contains(t, rec.Body.String(), "base64url")
@@ -221,7 +222,7 @@ func TestHandleInstallModel(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/v1/models/x", nil)
 		req.SetPathValue("modelID", models.EncodeModelID("no-such-model"))
 
-		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
+		HandleInstallModel(unusedEngine{}, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
 
 		assert.Equal(t, http.StatusNotFound, rec.Code)
 	})
@@ -244,7 +245,7 @@ func TestHandleDownloadModel(t *testing.T) {
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/v1/models", strings.NewReader(tc.body))
 
-			HandleDownloadModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
+			HandleDownloadModel(unusedEngine{}, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
 
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
 			assert.NotContains(t, rec.Header().Get("Content-Type"), "text/event-stream")
@@ -336,3 +337,6 @@ func TestDecodeRequestModel(t *testing.T) {
 		assert.Contains(t, err.Error(), "base64url")
 	})
 }
+
+// unusedEngine is an engine these paths must not call: any call panics.
+type unusedEngine struct{ engine.Engine }

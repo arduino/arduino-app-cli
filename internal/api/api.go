@@ -46,14 +46,6 @@ func NewHTTPRouter(
 	mux := http.NewServeMux()
 	mux.Handle("GET /debug/", http.DefaultServeMux) // pprof endpoints
 
-	// What runs apps needs an engine: with none, as without a board, it answers 501.
-	boardOnly := func(h http.Handler) http.Handler {
-		if dockerClient == nil {
-			return handlers.NeedsBoard()
-		}
-		return h
-	}
-
 	mux.Handle("GET /v1/version", handlers.HandlerVersion(version))
 	mux.Handle("GET /v1/config", handlers.HandleConfig(cfg))
 	mux.Handle("GET /v1/examples", handlers.HandleExamples(cfg, bricksIndex, idProvider))
@@ -72,24 +64,24 @@ func NewHTTPRouter(
 
 	mux.Handle("GET /v1/models", handlers.HandleModelsList(modelsIndex))
 	mux.Handle("GET /v1/models/{modelID}", handlers.HandlerModelByID(modelsIndex))
-	mux.Handle("PUT /v1/models/ei/projects/{projectID}", boardOnly(handlers.HandleInstallEIModel(cfg, bricksIndex, modelsIndex, dockerClient, platform)))
-	mux.Handle("PUT /v1/models/{modelID}", boardOnly(handlers.HandleInstallModel(dockerClient, modelsIndex, platform)))
-	mux.Handle("POST /v1/models", boardOnly(handlers.HandleDownloadModel(dockerClient, modelsIndex, platform)))
-	mux.Handle("DELETE /v1/models/{modelID}", boardOnly(handlers.HandlerDeleteModelByID(dockerClient, cfg, modelsIndex, bricksIndex, idProvider, platform)))
+	mux.Handle("PUT /v1/models/ei/projects/{projectID}", handlers.HandleInstallEIModel(cfg, bricksIndex, modelsIndex, dockerClient, platform))
+	mux.Handle("PUT /v1/models/{modelID}", handlers.HandleInstallModel(dockerClient, modelsIndex, platform))
+	mux.Handle("POST /v1/models", handlers.HandleDownloadModel(dockerClient, modelsIndex, platform))
+	mux.Handle("DELETE /v1/models/{modelID}", handlers.HandlerDeleteModelByID(dockerClient, cfg, modelsIndex, bricksIndex, idProvider, platform))
 
 	mux.Handle("GET /v1/apps", handlers.HandleAppList(dockerClient, idProvider, bricksIndex, cfg, platform))
 	mux.Handle("POST /v1/apps", handlers.HandleAppCreate(bricksIndex, idProvider, cfg))
-	mux.Handle("GET /v1/apps/events", boardOnly(handlers.HandlerAppStatus(dockerClient, idProvider, bricksIndex, cfg, platform)))
+	mux.Handle("GET /v1/apps/events", handlers.HandlerAppStatus(dockerClient, idProvider, bricksIndex, cfg, platform))
 	mux.Handle("GET /v1/apps/{appID}", handlers.HandleAppDetails(dockerClient, bricksIndex, idProvider, cfg))
 	mux.Handle("PATCH /v1/apps/{appID}", handlers.HandleAppDetailsEdits(dockerClient, bricksIndex, idProvider, cfg))
-	mux.Handle("GET /v1/apps/{appID}/logs", boardOnly(handlers.HandleAppLogs(dockerClient, idProvider, bricksIndex, servicesIndex, cfg)))
-	mux.Handle("POST /v1/apps/{appID}/start", boardOnly(handlers.HandleAppStart(dockerClient, provisioner, modelsIndex, bricksIndex, servicesIndex, idProvider, cfg, platform)))
-	mux.Handle("POST /v1/apps/{appID}/stop", boardOnly(handlers.HandleAppStop(dockerClient, idProvider, platform, cfg)))
-	mux.Handle("POST /v1/apps/{appID}/build", boardOnly(handlers.HandleAppBuild(dockerClient, provisioner, idProvider, cfg, buildEvents)))
+	mux.Handle("GET /v1/apps/{appID}/logs", handlers.HandleAppLogs(dockerClient, idProvider, bricksIndex, servicesIndex, cfg))
+	mux.Handle("POST /v1/apps/{appID}/start", handlers.HandleAppStart(dockerClient, provisioner, modelsIndex, bricksIndex, servicesIndex, idProvider, cfg, platform))
+	mux.Handle("POST /v1/apps/{appID}/stop", handlers.HandleAppStop(dockerClient, idProvider, platform, cfg))
+	mux.Handle("POST /v1/apps/{appID}/build", handlers.HandleAppBuild(dockerClient, provisioner, idProvider, cfg, buildEvents))
 	mux.Handle("GET /v1/apps/build/events", handlers.HandleAppBuildEvents(buildEvents))
 	mux.Handle("POST /v1/apps/{appID}/clone", handlers.HandleAppClone(idProvider, cfg))
-	mux.Handle("PUT /v1/apps/install", boardOnly(handlers.HandleAppInstall(dockerClient, provisioner, idProvider, cfg, platform)))
-	mux.Handle("PUT /v1/apps/{appID}/prepare", boardOnly(handlers.HandleAppPrepare(dockerClient, provisioner, idProvider, cfg, platform)))
+	mux.Handle("PUT /v1/apps/install", handlers.HandleAppInstall(dockerClient, provisioner, idProvider, cfg, platform))
+	mux.Handle("PUT /v1/apps/{appID}/prepare", handlers.HandleAppPrepare(dockerClient, provisioner, idProvider, cfg, platform))
 	mux.Handle("DELETE /v1/apps/{appID}", handlers.HandleAppDelete(dockerClient, idProvider, platform, cfg))
 	mux.Handle("GET /v1/apps/{appID}/export", handlers.HandleAppExport(idProvider, bricksIndex))
 	mux.Handle("POST /v1/apps/import", handlers.HandleAppImport(cfg, idProvider))

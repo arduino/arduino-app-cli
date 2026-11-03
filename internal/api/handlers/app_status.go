@@ -26,6 +26,9 @@ func HandlerAppStatus(
 	cfg config.Configuration,
 	platform platform.Platform,
 ) http.HandlerFunc {
+	if dockerCli == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {
