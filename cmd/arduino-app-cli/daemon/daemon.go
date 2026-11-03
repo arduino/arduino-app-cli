@@ -23,7 +23,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/httprecover"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
 	"github.com/arduino/arduino-app-cli/internal/releasebuild"
 	"github.com/arduino/arduino-app-cli/internal/update"
 	"github.com/arduino/arduino-app-cli/internal/update/apt"
@@ -48,9 +47,6 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 			}
 			if app == nil {
 				slog.Debug("app is not set")
-				if err := pipewire.StopIfNotNeeded(cmd.Context(), cfg); err != nil {
-					slog.Warn("Failed to reconcile leftover audio service linger", slog.String("error", err.Error()))
-				}
 			}
 
 			// start the default app in the background
