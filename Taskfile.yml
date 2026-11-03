@@ -246,8 +246,9 @@ tasks:
           STAMP: build/wasm/examples-version
     cmds:
       - GOOS=js GOARCH=wasm go build -trimpath -ldflags "-s -w -X main.Version={{.VERSION}}-wasm" -o ./build/wasm/arduino-app-cli.wasm ./cmd/arduino-app-cli/wasmdaemon
-      # Go's loader for the module: it must come from the toolchain that built it.
-      - cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" ./build/wasm/wasm_exec.js
+      # Go's loader for the module: it must come from the toolchain that built it. A toolchain
+      # from the module cache is read-only, and cp would keep that mode and fail the next build.
+      - install -m 0644 "$(go env GOROOT)/lib/wasm/wasm_exec.js" ./build/wasm/wasm_exec.js
       # A browser has no board to detect: the daemon runs as on an UNO Q.
       - printf '{"fqbn":"arduino:zephyr:unoq"}\n' > "{{.DATA}}/platform.json"
 
