@@ -70,31 +70,24 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 		return fmt.Errorf("%w: %w", ErrNetwork, reported.networkError)
 	}
 	if err == nil {
-		pruneReplacedBuilds(ctx, docker, prj)
+		pruneDanglingBuilds(ctx, docker, prj.Name)
 	}
 	return err
 }
 
 const builtImageLabel = "cc.arduino.app.built"
 
-// pruneReplacedBuilds removes the images a rebuild of the app left without a tag: each
-// change to a brick that builds would otherwise keep one more on the board.
-func pruneReplacedBuilds(ctx context.Context, docker command.Cli, prj *types.Project) {
-	builds := false
-	for _, service := range prj.Services {
-		builds = builds || service.Build != nil
-	}
-	if !builds {
-		return
-	}
+// pruneDanglingBuilds removes the untagged images the builds of the project left: the
+// image a rebuild replaced, and the parents of the one a down removed.
+func pruneDanglingBuilds(ctx context.Context, docker command.Cli, projectName string) {
 	_, err := docker.Client().ImagePrune(ctx, dockerClient.ImagePruneOptions{
 		Filters: make(dockerClient.Filters).
 			Add("dangling", "true").
 			Add("label", builtImageLabel+"=true").
-			Add("label", api.ProjectLabel+"="+prj.Name),
+			Add("label", api.ProjectLabel+"="+projectName),
 	})
 	if err != nil {
-		slog.Warn("cannot remove the images replaced by a rebuild", slog.String("project", prj.Name), slog.String("error", err.Error()))
+		slog.Warn("cannot remove the untagged images of the builds", slog.String("project", projectName), slog.String("error", err.Error()))
 	}
 }
 
@@ -112,18 +105,24 @@ func ComposeStop(ctx context.Context, docker command.Cli, projectName string, li
 	return backend.Stop(ctx, projectName, api.StopOptions{Timeout: &timeout})
 }
 
-// ComposeDown removes the containers of the app, its volumes and its leftovers.
+// ComposeDown removes the containers of the app, its volumes, the images it built and its
+// leftovers.
 func ComposeDown(ctx context.Context, docker command.Cli, projectName string, line func(string)) error {
 	backend, err := compose.NewComposeService(docker, compose.WithEventProcessor(newProgress(line)))
 	if err != nil {
 		return err
 	}
 	timeout := stopTimeout
-	return backend.Down(ctx, projectName, api.DownOptions{
+	err = backend.Down(ctx, projectName, api.DownOptions{
 		RemoveOrphans: true,
 		Volumes:       true,
+		Images:        "local",
 		Timeout:       &timeout,
 	})
+	if err == nil {
+		pruneDanglingBuilds(ctx, docker, projectName)
+	}
+	return err
 }
 
 // classicBuilder makes the sdk build with the legacy builder of the engine. WARNING: the sdk
