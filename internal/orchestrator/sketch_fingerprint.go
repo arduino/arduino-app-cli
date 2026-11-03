@@ -10,7 +10,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/arduino/go-paths-helper"
 )
@@ -21,11 +20,11 @@ const sketchFingerprintFormat = "1"
 
 // sketchInputs is what the sketch build depends on, as the bytes to hash: the content of every
 // file of the sketch folder, sketch.yaml included, by relative path, the FQBN and the flash mode
-// of the upload and the version of the installed platform. Never a modification time: the clock
-// of the board lags after a boot.
-func sketchInputs(sketchPath *paths.Path, fqbn string, flashToRAM bool, platformVersion string) ([]byte, error) {
+// of the upload and the installed platforms with their versions. Never a modification time:
+// the clock of the board lags after a boot.
+func sketchInputs(sketchPath *paths.Path, fqbn string, flashToRAM bool, platforms string) ([]byte, error) {
 	var inputs bytes.Buffer
-	fmt.Fprintf(&inputs, "format=%s\nfqbn=%s\nflash_to_ram=%t\nplatform=%s\n", sketchFingerprintFormat, fqbn, flashToRAM, platformVersion)
+	fmt.Fprintf(&inputs, "format=%s\nfqbn=%s\nflash_to_ram=%t\nplatforms=%s\n", sketchFingerprintFormat, fqbn, flashToRAM, platforms)
 	files, err := sketchPath.ReadDirRecursive()
 	if err != nil {
 		return nil, fmt.Errorf("cannot read the sketch folder: %w", err)
@@ -62,14 +61,4 @@ func buildArtifacts(buildPath, sketchPath *paths.Path) []string {
 		}
 	}
 	return artifacts
-}
-
-// sketchBuilds holds one mutex per app path: two starts of the same app cannot build in one
-// folder and leave the fingerprint of the other build. The lock on the app operations, once it
-// lands, makes this one redundant.
-var sketchBuilds sync.Map
-
-func sketchBuildLock(appPath *paths.Path) *sync.Mutex {
-	mu, _ := sketchBuilds.LoadOrStore(appPath.String(), &sync.Mutex{})
-	return mu.(*sync.Mutex)
 }
