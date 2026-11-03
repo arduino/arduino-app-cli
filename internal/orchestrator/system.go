@@ -6,7 +6,9 @@
 package orchestrator
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,6 +23,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
+	yaml "github.com/goccy/go-yaml"
 	"github.com/moby/moby/api/types/container"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
@@ -493,8 +496,10 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 	}()
 
 	// Download libraries used in each example app
+	eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceArduino, Message: "Resolving the libraries of the example sketches ..."})
+	seenProfiles := map[string]bool{}
 	for _, appPath := range exampleAppsPath {
-		if err := downloadSketchLibsUsedInApp(ctx, appPath, cli, cliInstance, downloadProgressCB); err != nil {
+		if err := downloadSketchLibsUsedInApp(ctx, appPath, seenProfiles, cli, cliInstance, downloadProgressCB, eventCB); err != nil {
 			return fmt.Errorf("could not download libs in app %s: %w", appPath, err)
 		}
 	}
@@ -546,7 +551,7 @@ func platformVersionToInstall(
 	return best.String(), nil
 }
 
-func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, cli rpc.ArduinoCoreServiceServer, cliInstance *rpc.Instance, downloadProgressCB func(*rpc.DownloadProgress)) error {
+func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, seenProfiles map[string]bool, cli rpc.ArduinoCoreServiceServer, cliInstance *rpc.Instance, downloadProgressCB func(*rpc.DownloadProgress), eventCB InitEventCallback) error {
 	// Open the app to get the sketch path
 	app, err := app.Load(appPath)
 	if err != nil {
@@ -556,6 +561,27 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, cli r
 	sketchPath, ok := app.GetSketchPath()
 	if !ok {
 		return nil
+	}
+
+	// Each Init is slow, and identical sketch.yaml files resolve to the same libraries: init only the first.
+	// A dir: library is relative to its sketch, so a file with one is always initialized.
+	content, err := sketchPath.Join("sketch.yaml").ReadFile()
+	if err != nil {
+		return fmt.Errorf("could not read sketch project: %w", err)
+	}
+	var project any
+	if err := yaml.Unmarshal(content, &project); err != nil {
+		return fmt.Errorf("could not parse sketch project: %w", err)
+	}
+	normalized, err := json.Marshal(project)
+	if err != nil {
+		return err
+	}
+	if !bytes.Contains(normalized, []byte(`"dir":`)) {
+		if seenProfiles[string(normalized)] {
+			return nil
+		}
+		seenProfiles[string(normalized)] = true
 	}
 
 	// Detect the sketch default defaultProfile
@@ -578,6 +604,9 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, cli r
 		commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
 			if p := r.GetInitProgress().GetDownloadProgress(); p != nil {
 				downloadProgressCB(p)
+			}
+			if name := r.GetInitProgress().GetTaskProgress().GetName(); name != "" {
+				eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceArduino, Message: name})
 			}
 			return nil
 		}),
