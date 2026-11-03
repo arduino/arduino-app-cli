@@ -25,7 +25,7 @@ type UninstallResult struct {
 }
 
 // Uninstall removes the given version of the brick from bricksDir or, if version is empty,
-// all of its installed versions. Either all of them are removed or none is.
+// all of its installed versions. On error, the result contains the versions removed so far.
 func Uninstall(ctx context.Context, bricksDir *paths.Path, id, version string) (UninstallResult, error) {
 	namespace, name, err := splitBrickID(id)
 	if err != nil {
@@ -61,36 +61,29 @@ func Uninstall(ctx context.Context, bricksDir *paths.Path, id, version string) (
 		return UninstallResult{}, nil
 	}
 
-	// The versions are first moved out of the way, so that a failure can put them back and an
+	// Each version is moved out of the way with an atomic rename before being deleted, so that an
 	// interrupted removal never leaves a partial brick that looks installed.
 	tempDir, err := paths.MkTempDir(bricksDir.String(), uninstallTempPrefix)
 	if err != nil {
 		return UninstallResult{}, fmt.Errorf("creating temporary directory: %w", err)
 	}
-	var moved []string
-	for _, v := range versions {
-		installPath := namespaceDir.Join(name + "@" + v)
-		if err := installPath.Rename(tempDir.Join(v)); err != nil {
-			for _, m := range moved {
-				if rerr := tempDir.Join(m).Rename(namespaceDir.Join(name + "@" + m)); rerr != nil {
-					slog.Warn("cannot restore brick", "id", id, "version", m, "error", rerr)
-				}
-			}
-			_ = tempDir.RemoveAll()
-			return UninstallResult{}, fmt.Errorf("uninstalling brick %s@%s: %w", id, v, err)
+	defer func() {
+		if err := tempDir.RemoveAll(); err != nil {
+			slog.Warn("cannot remove uninstalled brick files", "path", tempDir, "error", err)
 		}
-		moved = append(moved, v)
+		// Fails, as expected, if other bricks of the namespace are installed.
+		_ = os.Remove(namespaceDir.String())
+	}()
+
+	var res UninstallResult
+	for _, v := range versions {
+		if err := namespaceDir.Join(name + "@" + v).Rename(tempDir.Join(v)); err != nil {
+			return res, fmt.Errorf("uninstalling brick %s@%s: %w", id, v, err)
+		}
+		res.Versions = append(res.Versions, v)
 	}
 	fatomic.Sync()
-
-	// The brick is already uninstalled: what is left is only garbage.
-	if err := tempDir.RemoveAll(); err != nil {
-		slog.Warn("cannot remove uninstalled brick files", "path", tempDir, "error", err)
-	}
-	// Fails, as expected, if other bricks of the namespace are installed.
-	_ = os.Remove(namespaceDir.String())
-
-	return UninstallResult{Versions: versions}, nil
+	return res, nil
 }
 
 // installedVersions returns the installed versions of the brick, sorted from the oldest.

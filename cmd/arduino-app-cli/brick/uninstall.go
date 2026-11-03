@@ -34,21 +34,23 @@ func uninstallHandler(ctx context.Context, args []string, cfg config.Configurati
 	var res uninstallResult
 	for _, ref := range parseBrickReferences(args) {
 		uninstalled, err := remotebricksindex.Uninstall(ctx, cfg.BricksDir(), ref.id, ref.version)
+		if err == nil || len(uninstalled.Versions) > 0 {
+			versions := uninstalled.Versions
+			if versions == nil {
+				versions = []string{}
+			}
+			res.Bricks = append(res.Bricks, uninstalledBrick{
+				ID:               ref.id,
+				RequestedVersion: ref.version,
+				Versions:         versions,
+			})
+		}
 		if err != nil {
 			if len(res.Bricks) > 0 {
 				feedback.PrintResult(res)
 			}
 			feedback.Fatal(err.Error(), feedback.ErrGeneric)
 		}
-		versions := uninstalled.Versions
-		if versions == nil {
-			versions = []string{}
-		}
-		res.Bricks = append(res.Bricks, uninstalledBrick{
-			ID:               ref.id,
-			RequestedVersion: ref.version,
-			Versions:         versions,
-		})
 	}
 	feedback.PrintResult(res)
 }
