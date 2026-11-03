@@ -427,18 +427,18 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 		}})
 	}
 
-	// Force-update of the Arduino Libraries index
+	// Update the Arduino Libraries index, unless it is younger than IndexMaxAge
 	{
 		str, _ := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
-		if err := cli.UpdateLibrariesIndex(&rpc.UpdateLibrariesIndexRequest{Instance: cliInstance}, str); err != nil {
+		if err := cli.UpdateLibrariesIndex(&rpc.UpdateLibrariesIndexRequest{Instance: cliInstance, UpdateIfOlderThanSecs: int64(IndexMaxAge.Seconds())}, str); err != nil {
 			return fmt.Errorf("could not update libraries index: %w", err)
 		}
 	}
 
-	// Force-update of the Arduino Platforms index
+	// Update the Arduino Platforms index, unless it is younger than IndexMaxAge
 	{
 		str, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
-		if err := cli.UpdateIndex(&rpc.UpdateIndexRequest{Instance: cliInstance}, str); err != nil {
+		if err := cli.UpdateIndex(&rpc.UpdateIndexRequest{Instance: cliInstance, UpdateIfOlderThanSecs: int64(IndexMaxAge.Seconds())}, str); err != nil {
 			return fmt.Errorf("could not update platforms index: %w", err)
 		}
 	}
