@@ -15,7 +15,6 @@ import (
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
-	"github.com/sirupsen/logrus"
 
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -120,39 +119,16 @@ func GetPlatformMenuOptions(ctx context.Context, platform platform.Platform) (Me
 	return menuOptionsOf(info), nil
 }
 
-// boardDetails asks arduino-cli about the board of the platform, with an instance initialized
-// without a sketch profile: what the installed platform says of the board.
+// boardDetails asks arduino-cli about the board of the platform: what the installed platform
+// says of it, with or without a sketch profile loaded.
 func boardDetails(ctx context.Context, platform platform.Platform) (*rpc.BoardDetailsResponse, error) {
-	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
-	srv := commands.NewArduinoCoreServer()
-	if err := SetArduinoCliConfig(ctx, srv); err != nil {
-		return nil, err
-	}
-
-	var inst *rpc.Instance
-	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
-		return nil, err
-	} else {
-		inst = resp.GetInstance()
-	}
-	defer func() {
-		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
-	}()
-
-	if err := srv.Init(
-		&rpc.InitRequest{Instance: inst},
-		commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
-			slog.Debug("Arduino init instance", slog.String("instance", r.String()))
-			return nil
-		}),
-	); err != nil {
-		return nil, err
-	}
-
-	return srv.BoardDetails(ctx, &rpc.BoardDetailsRequest{
-		Instance: inst,
-		Fqbn:     platform.FQBN,
+	var info *rpc.BoardDetailsResponse
+	err := cli.forPlatform(ctx, func(srv rpc.ArduinoCoreServiceServer, inst *rpc.Instance) error {
+		var err error
+		info, err = srv.BoardDetails(ctx, &rpc.BoardDetailsRequest{Instance: inst, Fqbn: platform.FQBN})
+		return err
 	})
+	return info, err
 }
 
 // menuOptionsOf are the menu options of the board, none for a board arduino-cli did not describe.

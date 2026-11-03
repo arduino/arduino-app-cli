@@ -22,7 +22,7 @@ func TestSketchInputs(t *testing.T) {
 	require.NoError(t, sketch.Join("sketch.yaml").WriteFile([]byte("profiles:\n  default:\n    fqbn: arduino:zephyr:unoq\n")))
 	require.NoError(t, sketch.Join("src", "helper.h").WriteFile([]byte("#pragma once\n")))
 
-	const fqbn, platform = "arduino:zephyr:unoq:wait_linux_boot=app", "1.0.0"
+	const fqbn, platform = "arduino:zephyr:unoq:wait_linux_boot=app", "arduino:zephyr@1.0.0"
 	inputs := func() string {
 		data, err := sketchInputs(sketch, fqbn, false, platform)
 		require.NoError(t, err)
@@ -51,7 +51,7 @@ func TestSketchInputs(t *testing.T) {
 	}{
 		{"fqbn", func() ([]byte, error) { return sketchInputs(sketch, "arduino:zephyr:unoq", false, platform) }},
 		{"flash mode", func() ([]byte, error) { return sketchInputs(sketch, fqbn, true, platform) }},
-		{"platform version", func() ([]byte, error) { return sketchInputs(sketch, fqbn, false, "1.1.0") }},
+		{"installed platforms", func() ([]byte, error) { return sketchInputs(sketch, fqbn, false, "arduino:zephyr@1.1.0") }},
 	} {
 		data, err := variant.input()
 		require.NoError(t, err)
