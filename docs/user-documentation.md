@@ -63,7 +63,7 @@ Examples of the `assets` and the builtin `examples` stored under the `ARDUINO_AP
 ├── bootloader_burned.flag
 ├── bricks
 │   └── <namespace>
-│       └── <name>@<version>  # Brick installed with `brick install`
+│       └── <name>@<version>  # Brick installed with `brick install`, removed with `brick uninstall`
 ├── bricks-index
 │   └── brick-index.json      # Bricks index, from `brick update-index`
 ├── default.app               # Default App

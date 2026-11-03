@@ -93,7 +93,7 @@ func TestInstallPathRejectsUnsafeNames(t *testing.T) {
 		{"acme:camera", ""},
 	}
 	for _, tc := range tests {
-		_, err := InstallPath(dir, &Brick{ID: tc.id}, &Release{Version: tc.version})
+		_, err := InstallPath(dir, tc.id, tc.version)
 		require.Error(t, err, "%s@%s", tc.id, tc.version)
 	}
 }

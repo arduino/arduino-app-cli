@@ -35,7 +35,8 @@ const (
 	brickConfigFileName = "brick_config.yaml"
 	installLockFileName = ".lock"
 	// Temporary folders start with a dot, which no namespace can, so they never clash with a brick.
-	installTempPrefix = ".install-"
+	installTempPrefix   = ".install-"
+	uninstallTempPrefix = ".uninstall-"
 )
 
 var (
@@ -81,23 +82,38 @@ func (idx *Index) FindRelease(id, version string) (*Brick, *Release, error) {
 	return nil, nil, fmt.Errorf("%w: %s", ErrBrickNotFound, id)
 }
 
-// InstallPath returns the folder where the release of the brick is installed in bricksDir.
-func InstallPath(bricksDir *paths.Path, brick *Brick, release *Release) (*paths.Path, error) {
-	namespace, name, err := bricksindex.ParseBrickID(brick.ID)
+// splitBrickID returns the namespace and the name of the brick, checking that both can be used as folder names.
+func splitBrickID(id string) (namespace, name string, err error) {
+	namespace, name, err = bricksindex.ParseBrickID(id)
+	if err != nil || !validFolderName.MatchString(namespace) || !validFolderName.MatchString(name) {
+		return "", "", fmt.Errorf("brick id %q contains characters that are not allowed", id)
+	}
+	return namespace, name, nil
+}
+
+// InstallPath returns the folder where the given version of the brick is installed in bricksDir.
+func InstallPath(bricksDir *paths.Path, id, version string) (*paths.Path, error) {
+	namespace, name, err := splitBrickID(id)
 	if err != nil {
 		return nil, err
 	}
-	if !validFolderName.MatchString(namespace) || !validFolderName.MatchString(name) {
-		return nil, fmt.Errorf("brick id %q contains characters that are not allowed", brick.ID)
-	}
 	// An empty string is accepted by the parser.
-	if release.Version == "" {
-		return nil, fmt.Errorf("brick %q has a release without version", brick.ID)
+	if version == "" {
+		return nil, fmt.Errorf("brick %q has a release without version", id)
 	}
-	if _, err := semver.Parse(release.Version); err != nil {
-		return nil, fmt.Errorf("brick %q has an invalid version %q: %w", brick.ID, release.Version, err)
+	if _, err := semver.Parse(version); err != nil {
+		return nil, fmt.Errorf("brick %q has an invalid version %q: %w", id, version, err)
 	}
-	return bricksDir.Join(namespace, name+"@"+release.Version), nil
+	return bricksDir.Join(namespace, name+"@"+version), nil
+}
+
+// lockBricksDir prevents installs and uninstalls from running at the same time.
+func lockBricksDir(ctx context.Context, bricksDir *paths.Path) (unlock func(), err error) {
+	lock := flock.New(bricksDir.Join(installLockFileName).String())
+	if _, err := lock.TryLockContext(ctx, 100*time.Millisecond); err != nil {
+		return nil, fmt.Errorf("locking bricks directory: %w", err)
+	}
+	return func() { _ = lock.Unlock() }, nil
 }
 
 type InstallResult struct {
@@ -109,7 +125,7 @@ type InstallResult struct {
 // Install downloads the release of the brick and installs it in bricksDir. Releases are
 // never replaced: each version is installed in its own folder.
 func Install(ctx context.Context, client *http.Client, bricksDir *paths.Path, brick *Brick, release *Release, userAgent string) (InstallResult, error) {
-	installPath, err := InstallPath(bricksDir, brick, release)
+	installPath, err := InstallPath(bricksDir, brick.ID, release.Version)
 	if err != nil {
 		return InstallResult{}, err
 	}
@@ -127,11 +143,11 @@ func Install(ctx context.Context, client *http.Client, bricksDir *paths.Path, br
 	if err := bricksDir.MkdirAll(); err != nil {
 		return InstallResult{}, fmt.Errorf("creating bricks directory: %w", err)
 	}
-	lock := flock.New(bricksDir.Join(installLockFileName).String())
-	if _, err := lock.TryLockContext(ctx, 100*time.Millisecond); err != nil {
-		return InstallResult{}, fmt.Errorf("locking bricks directory: %w", err)
+	unlock, err := lockBricksDir(ctx, bricksDir)
+	if err != nil {
+		return InstallResult{}, err
 	}
-	defer func() { _ = lock.Unlock() }()
+	defer unlock()
 
 	if installPath.Exist() {
 		return InstallResult{Path: installPath, AlreadyInstalled: true}, nil
