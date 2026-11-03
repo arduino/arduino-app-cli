@@ -369,6 +369,14 @@ func installPlatformPackage(ctx context.Context, plat platform.Platform, eventCB
 	}
 	packageName := platform.DebianPackage(plat.BoardName)
 
+	// apt-mark lists the package only when it is installed and marked manual: then apt-get has nothing to do.
+	if cmd, err := paths.NewProcess(nil, "apt-mark", "showmanual", packageName); err == nil {
+		if stdout, _, err := cmd.RunAndCaptureOutput(ctx); err == nil && strings.TrimSpace(string(stdout)) == packageName {
+			eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDeb, Message: fmt.Sprintf("package '%s' already installed, skipping install", packageName)})
+			return nil
+		}
+	}
+
 	eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDeb, Message: fmt.Sprintf("Installing package '%s'", packageName)})
 
 	cmd, err := sudo.AptInstall.Process(packageName)
