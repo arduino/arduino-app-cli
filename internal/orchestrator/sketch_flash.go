@@ -113,15 +113,25 @@ func (o MenuOptions) Has(optionValue MenuOptionValue) bool {
 }
 
 func GetPlatformMenuOptions(ctx context.Context, platform platform.Platform) (MenuOptions, error) {
+	info, err := boardDetails(ctx, platform)
+	if err != nil {
+		return MenuOptions{}, err
+	}
+	return menuOptionsOf(info), nil
+}
+
+// boardDetails asks arduino-cli about the board of the platform, with an instance initialized
+// without a sketch profile: what the installed platform says of the board.
+func boardDetails(ctx context.Context, platform platform.Platform) (*rpc.BoardDetailsResponse, error) {
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
 	if err := SetArduinoCliConfig(ctx, srv); err != nil {
-		return MenuOptions{}, err
+		return nil, err
 	}
 
 	var inst *rpc.Instance
 	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
-		return MenuOptions{}, err
+		return nil, err
 	} else {
 		inst = resp.GetInstance()
 	}
@@ -136,18 +146,18 @@ func GetPlatformMenuOptions(ctx context.Context, platform platform.Platform) (Me
 			return nil
 		}),
 	); err != nil {
-		return MenuOptions{}, err
+		return nil, err
 	}
 
-	info, err := srv.BoardDetails(ctx, &rpc.BoardDetailsRequest{
+	return srv.BoardDetails(ctx, &rpc.BoardDetailsRequest{
 		Instance: inst,
 		Fqbn:     platform.FQBN,
 	})
-	if err != nil {
-		return MenuOptions{}, err
-	}
+}
 
-	var options MenuOptions
+// menuOptionsOf are the menu options of the board, none for a board arduino-cli did not describe.
+func menuOptionsOf(info *rpc.BoardDetailsResponse) MenuOptions {
+	options := make(MenuOptions, 0, len(info.GetConfigOptions()))
 	for _, config := range info.GetConfigOptions() {
 		option := MenuOption{name: config.GetOption()}
 		for _, value := range config.GetValues() {
@@ -155,5 +165,5 @@ func GetPlatformMenuOptions(ctx context.Context, platform platform.Platform) (Me
 		}
 		options = append(options, option)
 	}
-	return options, nil
+	return options
 }

@@ -1152,10 +1152,46 @@ func compileUploadSketch(
 	if !ok {
 		return fmt.Errorf("no sketch path found in the Arduino app")
 	}
+	buildLock := sketchBuildLock(arduinoApp.FullPath)
+	buildLock.Lock()
+	defer buildLock.Unlock()
+
 	// Make the cache dir for the compiled sketch
 	buildPath := arduinoApp.SketchBuildPath()
 	if err := buildPath.MkdirAll(); err != nil {
 		return fmt.Errorf("failed to create build directory: %w", err)
+	}
+
+	board, err := boardDetails(ctx, platform)
+	if err != nil {
+		slog.Warn("failed to get platform menu options", slog.String("error", err.Error()))
+	}
+	menuOptions := menuOptionsOf(board)
+	fqbn := platform.FQBN
+	if menuOptions.Has(WaitForApp) {
+		fqbn += ":" + WaitForApp.String()
+	}
+	useLegacyFlashToRam := !menuOptions.Has(WaitForApp) && platform.SupportFlashToRam()
+
+	// The build folder holds the binary of the last build: when the inputs of the build
+	// are the ones of that build, the start only uploads it. The flash script still
+	// verifies the flash and writes on a mismatch, so the fingerprint says nothing about
+	// what the MCU holds, only what the build folder holds.
+	inputs, err := sketchInputs(sketchPath, fqbn, useLegacyFlashToRam, board.GetVersion())
+	if err != nil {
+		return err
+	}
+	sketch, hash := partFingerprint(arduinoApp.ProvisioningStateDir(), "sketch"), hashOf(inputs)
+	if sketch.matches(hash) {
+		_, _ = w.Write([]byte("Sketch unchanged since the last build: uploading it\n"))
+		srv, inst, err := initializeArduinoCli(ctx, nil, w)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
+		}()
+		return uploadSketch(ctx, srv, inst, sketchPath, buildPath, useLegacyFlashToRam, fqbn, w)
 	}
 
 	srv, inst, err := initializeArduinoCli(ctx, sketchPath, w)
@@ -1166,23 +1202,24 @@ func compileUploadSketch(
 		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
 	}()
 
-	menuOptions, err := GetPlatformMenuOptions(ctx, platform)
-	if err != nil {
-		slog.Warn("failed to get platform menu options", slog.String("error", err.Error()))
-	}
-	fqbn := platform.FQBN
-	if menuOptions.Has(WaitForApp) {
-		fqbn += ":" + WaitForApp.String()
-	}
-	useLegacyFlashToRam := !menuOptions.Has(WaitForApp) && platform.SupportFlashToRam()
-
 	// Compile the sketch
-	if err := compileSketch(
+	result, err := compileSketch(
 		ctx, srv, inst,
 		sketchPath, buildPath,
 		platform, fqbn,
 		verbose, w,
-	); err != nil {
+	)
+	if err != nil {
+		return err
+	}
+
+	// The record of this build, for the next start: the inputs hashed before the compile,
+	// so that an edit made during it is seen then, and the files the upload needs.
+	files := buildArtifacts(buildPath, sketchPath)
+	for _, lib := range result.GetUsedLibraries() {
+		files = append(files, lib.GetInstallDir())
+	}
+	if err := sketch.save(hash, files...); err != nil {
 		return err
 	}
 
@@ -1304,7 +1341,7 @@ func compileSketch(
 	fqbn string,
 	verbose bool,
 	w io.Writer,
-) error {
+) (*rpc.BuilderResult, error) {
 	// build the sketch
 	slog.Debug("compile sketch", slog.String("fqbn", fqbn))
 
@@ -1318,7 +1355,7 @@ func compileSketch(
 		Verbose:    verbose,
 	}
 	if err := srv.Compile(&compileReq, server); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Output compilations details
@@ -1337,7 +1374,7 @@ func compileSketch(
 	for _, lib := range result.GetUsedLibraries() {
 		_, _ = w.Write([]byte("Used library " + lib.GetName() + " (" + lib.GetVersion() + ") in " + lib.GetInstallDir() + "\n"))
 	}
-	return nil
+	return result, nil
 }
 
 // uploadSketch flashes what buildPath holds, whether a compile has just written it or

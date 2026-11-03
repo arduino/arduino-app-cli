@@ -516,7 +516,7 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 	}
 
 	// Compile the sketch
-	if err := compileSketch(
+	if _, err := compileSketch(
 		ctx, srv, inst,
 		sketchPath, buildPath,
 		platform, fqbn,
