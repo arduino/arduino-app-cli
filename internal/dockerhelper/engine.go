@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/config"
 	"github.com/docker/cli/cli/flags"
@@ -38,10 +39,43 @@ func NewCli() (*command.DockerCli, error) {
 
 // EngineVersion is what the engine of this board answers: its version, and the api it
 // speaks after the negotiation.
-func EngineVersion(ctx context.Context, docker command.Cli) (version, apiVersion string, err error) {
-	engine, err := docker.Client().ServerVersion(ctx, client.ServerVersionOptions{})
+func (e *Engine) Version(ctx context.Context) (version, apiVersion string, err error) {
+	docker := e.cli
+	v, err := docker.Client().ServerVersion(ctx, client.ServerVersionOptions{})
 	if err != nil {
 		return "", "", fmt.Errorf("cannot reach the docker engine: %w", err)
 	}
-	return engine.Version, engine.APIVersion, nil
+	return v.Version, v.APIVersion, nil
 }
+
+// Engine is engine.Engine on docker.
+type Engine struct{ cli command.Cli }
+
+var _ engine.Engine = (*Engine)(nil)
+
+// NewEngine connects to the docker engine as NewCli does.
+func NewEngine() (*Engine, error) {
+	cli, err := NewCli()
+	if err != nil {
+		return nil, err
+	}
+	return &Engine{cli: cli}, nil
+}
+
+// EngineOf wraps a docker cli already made, as tests do.
+func EngineOf(cli command.Cli) *Engine { return &Engine{cli: cli} }
+
+// Close closes the connection to the engine.
+func (e *Engine) Close() error { return e.cli.Client().Close() }
+
+// clientOnly is a docker cli made of a client alone, for EngineOfClient.
+type clientOnly struct {
+	command.Cli
+	c client.APIClient
+}
+
+func (c clientOnly) Client() client.APIClient { return c.c }
+
+// EngineOfClient wraps a docker client alone, as tests do: what needs the rest of the
+// cli, as compose does, panics.
+func EngineOfClient(c client.APIClient) *Engine { return &Engine{cli: clientOnly{c: c}} }

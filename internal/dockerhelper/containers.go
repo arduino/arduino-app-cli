@@ -17,7 +17,8 @@ import (
 
 // PruneContainers removes the containers carrying the label, running ones included, and
 // reports how many. A label cannot express everything, so keep has the last word.
-func PruneContainers(ctx context.Context, docker dockerClient.APIClient, label string, keep func(labels map[string]string) bool) (int, error) {
+func (e *Engine) PruneContainers(ctx context.Context, label string, keep func(labels map[string]string) bool) (int, error) {
+	docker := e.cli.Client()
 	containers, err := docker.ContainerList(ctx, dockerClient.ContainerListOptions{
 		All:     true,
 		Filters: make(dockerClient.Filters).Add("label", label),
@@ -44,7 +45,8 @@ func PruneContainers(ctx context.Context, docker dockerClient.APIClient, label s
 
 // PruneNetworks removes every network remove accepts, by its labels, and reports how
 // many went.
-func PruneNetworks(ctx context.Context, docker dockerClient.APIClient, remove func(labels map[string]string) bool) (int, error) {
+func (e *Engine) PruneNetworks(ctx context.Context, remove func(labels map[string]string) bool) (int, error) {
+	docker := e.cli.Client()
 	networks, err := docker.NetworkList(ctx, dockerClient.NetworkListOptions{})
 	if err != nil {
 		return 0, fmt.Errorf("failed to list networks: %w", err)
@@ -67,7 +69,8 @@ func PruneNetworks(ctx context.Context, docker dockerClient.APIClient, remove fu
 }
 
 // Containers lists the containers carrying the label, stopped ones included.
-func Containers(ctx context.Context, docker dockerClient.APIClient, label string) ([]container.Summary, error) {
+func (e *Engine) Containers(ctx context.Context, label string) ([]container.Summary, error) {
+	docker := e.cli.Client()
 	containers, err := docker.ContainerList(ctx, dockerClient.ContainerListOptions{
 		All:     true,
 		Filters: make(dockerClient.Filters).Add("label", label),
@@ -79,8 +82,9 @@ func Containers(ctx context.Context, docker dockerClient.APIClient, label string
 }
 
 // StopContainers stops the containers carrying the label.
-func StopContainers(ctx context.Context, docker dockerClient.APIClient, label string) (int, error) {
-	containers, err := Containers(ctx, docker, label)
+func (e *Engine) StopContainers(ctx context.Context, label string) (int, error) {
+	docker := e.cli.Client()
+	containers, err := e.Containers(ctx, label)
 	if err != nil {
 		return 0, err
 	}
@@ -97,7 +101,8 @@ func StopContainers(ctx context.Context, docker dockerClient.APIClient, label st
 
 // ContainerEvents streams the actions of the containers carrying the label, as
 // `docker events` does: create, start, die, and whatever else the caller names.
-func ContainerEvents(ctx context.Context, docker dockerClient.APIClient, label string, actions ...string) (<-chan events.Message, <-chan error) {
+func (e *Engine) ContainerEvents(ctx context.Context, label string, actions ...string) (<-chan events.Message, <-chan error) {
+	docker := e.cli.Client()
 	stream := docker.Events(ctx, dockerClient.EventsListOptions{
 		Filters: make(dockerClient.Filters).
 			Add("label", label).

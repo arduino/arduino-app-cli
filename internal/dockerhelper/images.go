@@ -32,7 +32,8 @@ var ErrOutOfSpace = errors.New("not enough disk space to pull the docker image")
 
 // PullImages downloads the images the board has not, as one download: the size comes
 // from the registry, so the percentage is over what is really left to fetch.
-func PullImages(ctx context.Context, docker dockerClient.APIClient, images []string, line func(string), progress func(label string, curr, total int64)) error {
+func (e *Engine) PullImages(ctx context.Context, images []string, line func(string), progress func(label string, curr, total int64)) error {
+	docker := e.cli.Client()
 	if line == nil {
 		line = func(string) {}
 	}
@@ -41,7 +42,7 @@ func PullImages(ctx context.Context, docker dockerClient.APIClient, images []str
 	}
 	var imagesToPull []string
 	for _, image := range images {
-		present, err := HasImage(ctx, docker, image)
+		present, err := e.HasImage(ctx, image)
 		if err != nil {
 			return err
 		}
@@ -52,7 +53,7 @@ func PullImages(ctx context.Context, docker dockerClient.APIClient, images []str
 	if len(imagesToPull) == 0 {
 		return nil
 	}
-	pulledImages, err := ListImages(ctx, docker)
+	pulledImages, err := e.ListImages(ctx)
 	if err != nil {
 		return err
 	}
@@ -103,7 +104,8 @@ func PullImages(ctx context.Context, docker dockerClient.APIClient, images []str
 }
 
 // HasImage lets the engine resolve image references, including implicit latest tags.
-func HasImage(ctx context.Context, docker dockerClient.APIClient, image string) (bool, error) {
+func (e *Engine) HasImage(ctx context.Context, image string) (bool, error) {
+	docker := e.cli.Client()
 	_, err := docker.ImageInspect(ctx, image)
 	if errors.Is(err, errdefs.ErrNotFound) {
 		return false, nil
@@ -115,7 +117,8 @@ func HasImage(ctx context.Context, docker dockerClient.APIClient, image string) 
 }
 
 // ListImages reports every image the engine has, as name:version.
-func ListImages(ctx context.Context, docker dockerClient.APIClient) ([]string, error) {
+func (e *Engine) ListImages(ctx context.Context) ([]string, error) {
+	docker := e.cli.Client()
 	images, err := docker.ImageList(ctx, dockerClient.ImageListOptions{})
 	if err != nil {
 		return nil, err
@@ -129,7 +132,8 @@ func ListImages(ctx context.Context, docker dockerClient.APIClient) ([]string, e
 	return result, nil
 }
 
-func RemoveImage(ctx context.Context, docker dockerClient.APIClient, imageName string) (int64, error) {
+func (e *Engine) RemoveImage(ctx context.Context, imageName string) (int64, error) {
+	docker := e.cli.Client()
 	var size int64
 	if info, err := docker.ImageInspect(ctx, imageName); err != nil {
 		slog.Warn("failed to inspect image", "image", imageName, "error", err)

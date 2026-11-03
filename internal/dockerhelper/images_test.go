@@ -45,7 +45,8 @@ func TestHasImage(t *testing.T) {
 				require.Equal(t, tc.image, image)
 				return tc.err
 			}}
-			present, err := HasImage(t.Context(), docker, tc.image)
+			eng := EngineOfClient(docker)
+			present, err := eng.HasImage(t.Context(), tc.image)
 			require.Equal(t, tc.present, present)
 			if tc.err == daemonError {
 				require.ErrorIs(t, err, daemonError)
@@ -63,14 +64,16 @@ func TestPullImagesSkipsLocalReferences(t *testing.T) {
 		inspected = append(inspected, image)
 		return nil
 	}}
-	require.NoError(t, PullImages(t.Context(), docker, images, nil, nil))
+	eng := EngineOfClient(docker)
+	require.NoError(t, eng.PullImages(t.Context(), images, nil, nil))
 	require.Equal(t, images, inspected)
 }
 
 func TestPullImagesReportsInspectFailure(t *testing.T) {
 	daemonError := errors.New("cannot reach Docker")
 	docker := imageInspectClient{inspect: func(string) error { return daemonError }}
-	require.ErrorIs(t, PullImages(t.Context(), docker, []string{"viktoruj/ping_pong"}, nil, nil), daemonError)
+	eng := EngineOfClient(docker)
+	require.ErrorIs(t, eng.PullImages(t.Context(), []string{"viktoruj/ping_pong"}, nil, nil), daemonError)
 }
 
 func TestParseDockerImage(t *testing.T) {
@@ -287,26 +290,28 @@ func TestImageName(t *testing.T) {
 
 func TestListImagesAlreadyPulled(t *testing.T) {
 	docker := getDockerCli(t).Client()
+	eng := EngineOfClient(docker)
 
 	r, err := docker.ImagePull(t.Context(), "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8", dockerClient.ImagePullOptions{})
 	require.NoError(t, err)
 	_, _ = io.Copy(io.Discard, r)
 	r.Close()
 
-	images, err := ListImages(t.Context(), docker)
+	images, err := eng.ListImages(t.Context())
 	require.NoError(t, err)
 	require.Contains(t, images, "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8")
 }
 
 func TestRemoveImage(t *testing.T) {
 	docker := getDockerCli(t).Client()
+	eng := EngineOfClient(docker)
 
 	r, err := docker.ImagePull(t.Context(), "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8", dockerClient.ImagePullOptions{})
 	require.NoError(t, err)
 	_, _ = io.Copy(io.Discard, r)
 	r.Close()
 
-	size, err := RemoveImage(t.Context(), docker, "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8")
+	size, err := eng.RemoveImage(t.Context(), "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8")
 	require.NoError(t, err)
 	require.Greater(t, size, int64(1024))
 }

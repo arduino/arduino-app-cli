@@ -27,13 +27,10 @@ import (
 // stopTimeout is what a container is given to stop before it is killed.
 const stopTimeout = 5 * time.Second
 
-// ComposeImages is every image the project names, which is what a pull is given. An
-// image a service builds is not: the registry does not have it.
-func ComposeImages(prj *types.Project) []string { return engine.ComposeImages(prj) }
-
 // ComposeUp starts the app the project states, reporting to line what it does. The
 // compose of the board takes no part: the sdk this binary links talks to the engine.
-func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line func(string)) error {
+func (e *Engine) ComposeUp(ctx context.Context, prj *types.Project, line func(string)) error {
+	docker := e.cli
 	// An image the board already has is not asked for again: `--pull missing`. A built
 	// one is built at every start, and the cache keeps an unchanged one as it is.
 	for name, service := range prj.Services {
@@ -75,7 +72,8 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 var ErrNetwork = engine.ErrNetwork
 
 // ComposeStop leaves the containers of the app where they are, stopped.
-func ComposeStop(ctx context.Context, docker command.Cli, projectName string, line func(string)) error {
+func (e *Engine) ComposeStop(ctx context.Context, projectName string, line func(string)) error {
+	docker := e.cli
 	backend, err := compose.NewComposeService(docker, compose.WithEventProcessor(newProgress(line)))
 	if err != nil {
 		return err
@@ -86,7 +84,8 @@ func ComposeStop(ctx context.Context, docker command.Cli, projectName string, li
 
 // ComposeDown removes the containers of the app, its volumes, the images it built and its
 // leftovers.
-func ComposeDown(ctx context.Context, docker command.Cli, projectName string, line func(string)) error {
+func (e *Engine) ComposeDown(ctx context.Context, projectName string, line func(string)) error {
+	docker := e.cli
 	backend, err := compose.NewComposeService(docker, compose.WithEventProcessor(newProgress(line)))
 	if err != nil {
 		return err
@@ -230,4 +229,18 @@ func registryError(message string) error {
 	}
 
 	return nil
+}
+
+// ComposeLogs sends the lines of the project's containers to out.
+func (e *Engine) ComposeLogs(ctx context.Context, projectName string, opts engine.LogOptions, out engine.LogConsumer) error {
+	backend, err := compose.NewComposeService(e.cli)
+	if err != nil {
+		return err
+	}
+	return backend.Logs(ctx, projectName, out, api.LogOptions{
+		Services:   opts.Services,
+		Follow:     opts.Follow,
+		Tail:       opts.Tail,
+		Timestamps: opts.Timestamps,
+	})
 }

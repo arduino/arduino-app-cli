@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,10 +17,11 @@ import (
 // are run: the output is what the caller reads, and the exit code is the error.
 func TestRun(t *testing.T) {
 	docker := getDockerCli(t).Client()
+	eng := EngineOfClient(docker)
 
 	t.Run("the output of the container reaches the writers", func(t *testing.T) {
 		var stdout, stderr bytes.Buffer
-		err := Run(t.Context(), docker, RunOptions{
+		err := eng.Run(t.Context(), engine.RunOptions{
 			Image:  "busybox:latest",
 			Cmd:    []string{"sh", "-c", "echo out; echo err >&2"},
 			Stdout: &stdout,
@@ -32,7 +34,7 @@ func TestRun(t *testing.T) {
 
 	t.Run("the entrypoint is what the caller states", func(t *testing.T) {
 		var stdout bytes.Buffer
-		err := Run(t.Context(), docker, RunOptions{
+		err := eng.Run(t.Context(), engine.RunOptions{
 			Image:      "busybox:latest",
 			Entrypoint: []string{"/bin/echo", "from the entrypoint"},
 			Stdout:     &stdout,
@@ -42,7 +44,7 @@ func TestRun(t *testing.T) {
 	})
 
 	t.Run("a container that fails is an error stating its code", func(t *testing.T) {
-		err := Run(t.Context(), docker, RunOptions{
+		err := eng.Run(t.Context(), engine.RunOptions{
 			Image: "busybox:latest",
 			Cmd:   []string{"sh", "-c", "exit 3"},
 		})
@@ -53,7 +55,7 @@ func TestRun(t *testing.T) {
 
 	t.Run("the environment reaches the container, with a writable home", func(t *testing.T) {
 		var stdout bytes.Buffer
-		err := Run(t.Context(), docker, RunOptions{
+		err := eng.Run(t.Context(), engine.RunOptions{
 			Image:  "busybox:latest",
 			Cmd:    []string{"sh", "-c", "echo $A_VARIABLE $HOME"},
 			Env:    map[string]string{"A_VARIABLE": "a-value"},
@@ -67,16 +69,17 @@ func TestRun(t *testing.T) {
 // TestPullImages downloads what the board has not, and says how far it got.
 func TestPullImages(t *testing.T) {
 	docker := getDockerCli(t).Client()
+	eng := EngineOfClient(docker)
 	const image = "busybox:latest"
 
 	// Start from a board that does not have it.
-	_, _ = RemoveImage(t.Context(), docker, image)
+	_, _ = eng.RemoveImage(t.Context(), image)
 
 	var lines []string
 	var last int64
 	var label string
 	var total int64
-	require.NoError(t, PullImages(t.Context(), docker, []string{image},
+	require.NoError(t, eng.PullImages(t.Context(), []string{image},
 		func(line string) { lines = append(lines, line) },
 		func(l string, curr, tot int64) {
 			require.GreaterOrEqual(t, curr, last, "the download only moves forward")
@@ -90,14 +93,14 @@ func TestPullImages(t *testing.T) {
 
 	// The image is there now, so there is nothing to say and nothing to fetch.
 	lines = nil
-	require.NoError(t, PullImages(t.Context(), docker, []string{image},
+	require.NoError(t, eng.PullImages(t.Context(), []string{image},
 		func(line string) { lines = append(lines, line) }, nil))
 	require.Empty(t, lines)
 }
 
 // TestEngineVersion asks the engine what it is: the board must speak api 1.44 or later.
 func TestEngineVersion(t *testing.T) {
-	version, apiVersion, err := EngineVersion(t.Context(), getDockerCli(t))
+	version, apiVersion, err := EngineOf(getDockerCli(t)).Version(t.Context())
 	require.NoError(t, err)
 	require.NotEmpty(t, version)
 	require.NotEmpty(t, apiVersion)
