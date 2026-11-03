@@ -75,22 +75,6 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 	return err
 }
 
-const builtImageLabel = "cc.arduino.app.built"
-
-// pruneDanglingBuilds removes the untagged images the builds of the project left: the
-// image a rebuild replaced, and the parents of the one a down removed.
-func pruneDanglingBuilds(ctx context.Context, docker command.Cli, projectName string) {
-	_, err := docker.Client().ImagePrune(ctx, dockerClient.ImagePruneOptions{
-		Filters: make(dockerClient.Filters).
-			Add("dangling", "true").
-			Add("label", builtImageLabel+"=true").
-			Add("label", api.ProjectLabel+"="+projectName),
-	})
-	if err != nil {
-		slog.Warn("cannot remove the untagged images of the builds", slog.String("project", projectName), slog.String("error", err.Error()))
-	}
-}
-
 // ErrNetwork states that the network of the app was not created. A pool with no
 // subnet left is one of the reasons, worded by the daemon.
 var ErrNetwork = errors.New("failed to create the network of the app")
@@ -125,15 +109,30 @@ func ComposeDown(ctx context.Context, docker command.Cli, projectName string, li
 	return err
 }
 
-// classicBuilder makes the sdk build with the legacy builder of the engine. WARNING: the sdk
-// needs buildx 0.17, which the UNO Q does not have; drop this once the board ships it.
+// classicBuilder makes the sdk build with the legacy builder of the engine. The sdk needs
+// buildx 0.17 for BuildKit, and the UNO Q has 0.13.
 type classicBuilder struct{ command.Cli }
 
 func (classicBuilder) BuildKitEnabled() (bool, error) { return false, nil }
 
-// stampComposeLabels marks the services the way the sdk marks the projects it loads
-// itself: compose finds the containers of a project by these labels. The image a service
-// builds is marked too.
+const builtImageLabel = "cc.arduino.app.built"
+
+// pruneDanglingBuilds removes the untagged images the builds of the project left: the
+// image a rebuild replaced, and the parents of the one a down removed.
+func pruneDanglingBuilds(ctx context.Context, docker command.Cli, projectName string) {
+	_, err := docker.Client().ImagePrune(ctx, dockerClient.ImagePruneOptions{
+		Filters: make(dockerClient.Filters).
+			Add("dangling", "true").
+			Add("label", builtImageLabel+"=true").
+			Add("label", api.ProjectLabel+"="+projectName),
+	})
+	if err != nil {
+		slog.Warn("cannot remove the untagged images of the builds", slog.String("project", projectName), slog.String("error", err.Error()))
+	}
+}
+
+// stampComposeLabels marks the services and their built images the way the sdk marks the
+// projects it loads: compose finds the containers of a project by these labels.
 func stampComposeLabels(prj *types.Project) {
 	for name, service := range prj.Services {
 		service.CustomLabels = map[string]string{

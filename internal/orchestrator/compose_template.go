@@ -305,9 +305,8 @@ func frozenComposeIncludes(composeFiles paths.PathList, appDir *paths.Path, genP
 
 	includes := make([]composeInclude, 0, len(composeFiles))
 	for _, composeFile := range composeFiles {
-		// Keep the layout of the asset dir, or of the app for a local brick: it makes the
-		// copied names unique. A local brick is outside the asset dir, where RelFrom
-		// answers a ../ chain and not an error.
+		// The copy keeps the layout of the asset dir, or of the app for a local brick. For a
+		// local brick, RelFrom answers a ../ chain and not an error.
 		var projectDir string
 		relPath, err := composeFile.RelFrom(cfg.AssetDir())
 		if inside, _ := composeFile.IsInsideDir(cfg.AssetDir()); err != nil || !inside {
