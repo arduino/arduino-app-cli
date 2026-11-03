@@ -18,48 +18,61 @@ import (
 
 func newUninstallCmd(cfg config.Configuration) *cobra.Command {
 	return &cobra.Command{
-		Use:     "uninstall ID[@VERSION]",
-		Short:   "Uninstall a brick installed from the bricks index",
-		Long:    "Uninstall a brick installed from the bricks index. Without a version, all the installed versions are uninstalled.",
-		Example: "  arduino-app-cli brick uninstall acme:camera\n  arduino-app-cli brick uninstall acme:camera@1.1.0",
-		Args:    cobra.ExactArgs(1),
+		Use:     "uninstall ID[@VERSION]...",
+		Short:   "Uninstall bricks installed from the bricks index",
+		Long:    "Uninstall bricks installed from the bricks index. Without a version, all the installed versions of the brick are uninstalled.",
+		Example: "  arduino-app-cli brick uninstall acme:camera\n  arduino-app-cli brick uninstall acme:camera@1.0.0 acme:camera@1.1.0",
+		Args:    cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			id, brickVersion, err := remotebricksindex.ParseBrickReference(args[0])
-			if err != nil {
-				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+			var res uninstallResult
+			for _, ref := range parseBrickReferences(args) {
+				uninstalled, err := remotebricksindex.Uninstall(cmd.Context(), cfg.BricksDir(), ref.id, ref.version)
+				if err != nil {
+					if len(res.Bricks) > 0 {
+						feedback.PrintResult(res)
+					}
+					feedback.Fatal(err.Error(), feedback.ErrGeneric)
+				}
+				versions := uninstalled.Versions
+				if versions == nil {
+					versions = []string{}
+				}
+				res.Bricks = append(res.Bricks, uninstalledBrick{
+					ID:               ref.id,
+					RequestedVersion: ref.version,
+					Versions:         versions,
+				})
 			}
-			res, err := remotebricksindex.Uninstall(cmd.Context(), cfg.BricksDir(), id, brickVersion)
-			if err != nil {
-				feedback.Fatal(err.Error(), feedback.ErrGeneric)
-			}
-			feedback.PrintResult(uninstallResult{
-				ID:               id,
-				RequestedVersion: brickVersion,
-				Versions:         res.Versions,
-			})
+			feedback.PrintResult(res)
 		},
 	}
 }
 
-type uninstallResult struct {
+type uninstalledBrick struct {
 	ID               string   `json:"id"`
 	RequestedVersion string   `json:"-"`
 	Versions         []string `json:"versions"`
 }
 
+type uninstallResult struct {
+	Bricks []uninstalledBrick `json:"bricks"`
+}
+
 func (r uninstallResult) String() string {
-	if len(r.Versions) == 0 {
-		if r.RequestedVersion != "" {
-			return fmt.Sprintf("Brick %s@%s is not installed", r.ID, r.RequestedVersion)
+	lines := make([]string, 0, len(r.Bricks))
+	for _, b := range r.Bricks {
+		switch {
+		case len(b.Versions) > 0:
+			lines = append(lines, fmt.Sprintf("Brick %s uninstalled: %s", b.ID, strings.Join(b.Versions, ", ")))
+		case b.RequestedVersion != "":
+			lines = append(lines, fmt.Sprintf("Brick %s@%s is not installed", b.ID, b.RequestedVersion))
+		default:
+			lines = append(lines, fmt.Sprintf("Brick %s is not installed", b.ID))
 		}
-		return fmt.Sprintf("Brick %s is not installed", r.ID)
 	}
-	return fmt.Sprintf("Brick %s uninstalled: %s", r.ID, strings.Join(r.Versions, ", "))
+	return strings.Join(lines, "\n")
 }
 
 func (r uninstallResult) Data() any {
-	if r.Versions == nil {
-		r.Versions = []string{}
-	}
 	return r
 }
