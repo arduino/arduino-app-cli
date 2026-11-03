@@ -221,6 +221,13 @@ tasks:
     cmds:
       - go build -v -o ./build/arduino-app-cli ./cmd/arduino-app-cli
 
+  build:boardless-wasm:
+    desc: "Build the Boardless API for the PWA, as js/wasm, into build/wasm"
+    cmds:
+      - GOOS=js GOARCH=wasm go build -trimpath -ldflags "-s -w" -o ./build/wasm/boardless.wasm ./cmd/boardless-wasm
+      # The loader must come from the toolchain that built the module; install, not cp, as the toolchain may be read-only.
+      - install -m 0644 "$(go env GOROOT)/lib/wasm/wasm_exec.js" ./build/wasm/wasm_exec.js
+
   start:
     desc: "build and launch the arduino-app-cli in daemon mode"
     cmds:
