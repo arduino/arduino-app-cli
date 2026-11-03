@@ -211,8 +211,8 @@ License for the following packages:
   go.opentelemetry.io/proto/otlp/resource/v1@v1.11.0
   go.opentelemetry.io/proto/otlp/trace/v1@v1.11.0
   google.golang.org/genproto/googleapis/api/httpbody@v0.0.0-20260825221802-da73d73af1c5
-  google.golang.org/genproto/googleapis/rpc/errdetails@v0.0.0-20260928230214-8a89bd6388cc
-  google.golang.org/genproto/googleapis/rpc/status@v0.0.0-20260928230214-8a89bd6388cc
+  google.golang.org/genproto/googleapis/rpc/errdetails@v0.0.0-20261019180522-ce908d29299b
+  google.golang.org/genproto/googleapis/rpc/status@v0.0.0-20261019180522-ce908d29299b
   google.golang.org/grpc/attributes@v1.84.0
   google.golang.org/grpc/backoff@v1.84.0
   google.golang.org/grpc/balancer@v1.84.0
@@ -677,44 +677,44 @@ SOFTWARE.
 
 *****
 License for the following packages:
-  github.com/arduino/arduino-cli/commands@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/commands/cmderrors@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/commands/internal/instances@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/builder@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/builder/cpp@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/builder/internal/compilation@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/builder/internal/detector@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/builder/internal/diagnostics@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/builder/internal/preprocessor@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/builder/internal/preprocessor/internal/ctags@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/builder/internal/progress@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/builder/internal/runner@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/builder/internal/utils@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/builder/logger@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/cores@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/cores/packageindex@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/cores/packagemanager@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/discovery/discoverymanager@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/globals@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/httpclient@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/libraries@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/libraries/librariesindex@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/libraries/librariesmanager@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/libraries/librariesresolver@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/monitor@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/resources@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/security@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/sketch@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/arduino/utils@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/buildcache@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/cleanup@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/cli/configuration@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/cli/feedback@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/go-configmap@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/i18n@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/inventory@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/internal/version@v1.5.2-0.20260925125641-e39aa9996f70
-  github.com/arduino/arduino-cli/pkg/fqbn@v1.5.2-0.20260925125641-e39aa9996f70
+  github.com/arduino/arduino-cli/commands@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/commands/cmderrors@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/commands/internal/instances@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/builder@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/builder/cpp@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/builder/internal/compilation@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/builder/internal/detector@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/builder/internal/diagnostics@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/builder/internal/preprocessor@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/builder/internal/preprocessor/internal/ctags@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/builder/internal/progress@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/builder/internal/runner@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/builder/internal/utils@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/builder/logger@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/cores@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/cores/packageindex@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/cores/packagemanager@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/discovery/discoverymanager@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/globals@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/httpclient@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/libraries@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/libraries/librariesindex@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/libraries/librariesmanager@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/libraries/librariesresolver@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/monitor@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/resources@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/security@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/sketch@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/arduino/utils@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/buildcache@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/cleanup@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/cli/configuration@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/cli/feedback@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/go-configmap@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/i18n@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/inventory@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/internal/version@v1.5.2-0.20261027131404-eb191fb84e98
+  github.com/arduino/arduino-cli/pkg/fqbn@v1.5.2-0.20261027131404-eb191fb84e98
 
 GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
@@ -1428,7 +1428,7 @@ license@arduino.cc
 [security policy]: https://github.com/arduino/arduino-cli/security/policy
 
 *****
-github.com/arduino/arduino-cli/internal/locales@v1.5.2-0.20260925125641-e39aa9996f70
+github.com/arduino/arduino-cli/internal/locales@v1.5.2-0.20261027131404-eb191fb84e98
 
 GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
@@ -2123,7 +2123,7 @@ Arduino software without disclosing the source code of your own applications.
 To purchase a commercial license, send an email to license@arduino.cc.
 
 *****
-github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1@v1.5.2-0.20260925125641-e39aa9996f70
+github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1@v1.5.2-0.20261027131404-eb191fb84e98
 
 Apache License
                            Version 2.0, January 2004
@@ -5835,7 +5835,7 @@ Redistribution and use in source and binary forms, with or without modification,
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 *****
-github.com/codeclysm/extract/v4@v4.0.0
+github.com/codeclysm/extract/v4@v4.0.2
 
 The MIT License (MIT)
 
@@ -8756,11 +8756,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 *****
 License for the following packages:
-  github.com/go-git/go-billy/v5@v5.9.1
-  github.com/go-git/go-billy/v5/helper/chroot@v5.9.1
-  github.com/go-git/go-billy/v5/helper/polyfill@v5.9.1
-  github.com/go-git/go-billy/v5/osfs@v5.9.1
-  github.com/go-git/go-billy/v5/util@v5.9.1
+  github.com/go-git/go-billy/v5@v5.9.2
+  github.com/go-git/go-billy/v5/helper/chroot@v5.9.2
+  github.com/go-git/go-billy/v5/helper/polyfill@v5.9.2
+  github.com/go-git/go-billy/v5/osfs@v5.9.2
+  github.com/go-git/go-billy/v5/util@v5.9.2
 
 Apache License
                            Version 2.0, January 2004
@@ -8970,53 +8970,53 @@ Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
 License for the following packages:
-  github.com/go-git/go-git/v5@v5.19.2
-  github.com/go-git/go-git/v5/config@v5.19.2
-  github.com/go-git/go-git/v5/internal/path_util@v5.19.2
-  github.com/go-git/go-git/v5/internal/pathutil@v5.19.2
-  github.com/go-git/go-git/v5/internal/revision@v5.19.2
-  github.com/go-git/go-git/v5/internal/url@v5.19.2
-  github.com/go-git/go-git/v5/plumbing@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/cache@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/color@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/filemode@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/format/config@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/format/diff@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/format/gitignore@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/format/idxfile@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/format/index@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/format/objfile@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/format/packfile@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/format/pktline@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/hash@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/object@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/protocol/packp@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/protocol/packp/capability@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/protocol/packp/sideband@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/revlist@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/storer@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/transport@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/transport/client@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/transport/file@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/transport/git@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/transport/http@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/transport/internal/common@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/transport/server@v5.19.2
-  github.com/go-git/go-git/v5/plumbing/transport/ssh@v5.19.2
-  github.com/go-git/go-git/v5/storage@v5.19.2
-  github.com/go-git/go-git/v5/storage/filesystem@v5.19.2
-  github.com/go-git/go-git/v5/storage/filesystem/dotgit@v5.19.2
-  github.com/go-git/go-git/v5/storage/memory@v5.19.2
-  github.com/go-git/go-git/v5/utils/binary@v5.19.2
-  github.com/go-git/go-git/v5/utils/diff@v5.19.2
-  github.com/go-git/go-git/v5/utils/ioutil@v5.19.2
-  github.com/go-git/go-git/v5/utils/merkletrie@v5.19.2
-  github.com/go-git/go-git/v5/utils/merkletrie/filesystem@v5.19.2
-  github.com/go-git/go-git/v5/utils/merkletrie/index@v5.19.2
-  github.com/go-git/go-git/v5/utils/merkletrie/internal/frame@v5.19.2
-  github.com/go-git/go-git/v5/utils/merkletrie/noder@v5.19.2
-  github.com/go-git/go-git/v5/utils/sync@v5.19.2
-  github.com/go-git/go-git/v5/utils/trace@v5.19.2
+  github.com/go-git/go-git/v5@v5.19.3
+  github.com/go-git/go-git/v5/config@v5.19.3
+  github.com/go-git/go-git/v5/internal/path_util@v5.19.3
+  github.com/go-git/go-git/v5/internal/pathutil@v5.19.3
+  github.com/go-git/go-git/v5/internal/revision@v5.19.3
+  github.com/go-git/go-git/v5/internal/url@v5.19.3
+  github.com/go-git/go-git/v5/plumbing@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/cache@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/color@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/filemode@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/format/config@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/format/diff@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/format/gitignore@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/format/idxfile@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/format/index@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/format/objfile@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/format/packfile@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/format/pktline@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/hash@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/object@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/protocol/packp@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/protocol/packp/capability@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/protocol/packp/sideband@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/revlist@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/storer@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/transport@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/transport/client@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/transport/file@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/transport/git@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/transport/http@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/transport/internal/common@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/transport/server@v5.19.3
+  github.com/go-git/go-git/v5/plumbing/transport/ssh@v5.19.3
+  github.com/go-git/go-git/v5/storage@v5.19.3
+  github.com/go-git/go-git/v5/storage/filesystem@v5.19.3
+  github.com/go-git/go-git/v5/storage/filesystem/dotgit@v5.19.3
+  github.com/go-git/go-git/v5/storage/memory@v5.19.3
+  github.com/go-git/go-git/v5/utils/binary@v5.19.3
+  github.com/go-git/go-git/v5/utils/diff@v5.19.3
+  github.com/go-git/go-git/v5/utils/ioutil@v5.19.3
+  github.com/go-git/go-git/v5/utils/merkletrie@v5.19.3
+  github.com/go-git/go-git/v5/utils/merkletrie/filesystem@v5.19.3
+  github.com/go-git/go-git/v5/utils/merkletrie/index@v5.19.3
+  github.com/go-git/go-git/v5/utils/merkletrie/internal/frame@v5.19.3
+  github.com/go-git/go-git/v5/utils/merkletrie/noder@v5.19.3
+  github.com/go-git/go-git/v5/utils/sync@v5.19.3
+  github.com/go-git/go-git/v5/utils/trace@v5.19.3
 
 Apache License
                            Version 2.0, January 2004
@@ -9257,15 +9257,15 @@ The project is licensed under the [MIT License](LICENSE).
 
 *****
 License for the following packages:
-  github.com/goccy/go-json@v0.11.1
-  github.com/goccy/go-json/internal/decoder@v0.11.1
-  github.com/goccy/go-json/internal/encoder@v0.11.1
-  github.com/goccy/go-json/internal/encoder/vm@v0.11.1
-  github.com/goccy/go-json/internal/encoder/vm_color@v0.11.1
-  github.com/goccy/go-json/internal/encoder/vm_color_indent@v0.11.1
-  github.com/goccy/go-json/internal/encoder/vm_indent@v0.11.1
-  github.com/goccy/go-json/internal/errors@v0.11.1
-  github.com/goccy/go-json/internal/runtime@v0.11.1
+  github.com/goccy/go-json@v0.11.2
+  github.com/goccy/go-json/internal/decoder@v0.11.2
+  github.com/goccy/go-json/internal/encoder@v0.11.2
+  github.com/goccy/go-json/internal/encoder/vm@v0.11.2
+  github.com/goccy/go-json/internal/encoder/vm_color@v0.11.2
+  github.com/goccy/go-json/internal/encoder/vm_color_indent@v0.11.2
+  github.com/goccy/go-json/internal/encoder/vm_indent@v0.11.2
+  github.com/goccy/go-json/internal/errors@v0.11.2
+  github.com/goccy/go-json/internal/runtime@v0.11.2
 
 MIT License
 
@@ -11756,9 +11756,10 @@ sio2boss <sio2boss@users.noreply.github.com>
 
 *****
 License for the following packages:
-  github.com/klauspost/compress@v1.20.1
-  github.com/klauspost/compress/internal/cpuinfo@v1.20.1
-  github.com/klauspost/compress/internal/le@v1.20.1
+  github.com/klauspost/compress@v1.20.3
+  github.com/klauspost/compress/internal/cpuinfo@v1.20.3
+  github.com/klauspost/compress/internal/le@v1.20.3
+  github.com/klauspost/compress/internal/regmask@v1.20.3
 
 Copyright (c) 2012 The Go Authors. All rights reserved.
 Copyright (c) 2019 Klaus Post. All rights reserved.
@@ -12071,9 +12072,9 @@ This code is licensed under the same conditions as the original Go code. See LIC
 
 *****
 License for the following packages:
-  github.com/klauspost/compress/fse@v1.20.1
-  github.com/klauspost/compress/huff0@v1.20.1
-  github.com/klauspost/compress/zstd@v1.20.1
+  github.com/klauspost/compress/fse@v1.20.3
+  github.com/klauspost/compress/huff0@v1.20.3
+  github.com/klauspost/compress/zstd@v1.20.3
 
 Copyright (c) 2012 The Go Authors. All rights reserved.
 Copyright (c) 2019 Klaus Post. All rights reserved.
@@ -12381,7 +12382,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 *****
-github.com/klauspost/compress/internal/snapref@v1.20.1
+github.com/klauspost/compress/internal/snapref@v1.20.3
 
 Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
 
@@ -12723,7 +12724,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 This code is licensed under the same conditions as the original Go code. See LICENSE file.
 
 *****
-github.com/klauspost/compress/zstd/internal/xxhash@v1.20.1
+github.com/klauspost/compress/zstd/internal/xxhash@v1.20.3
 
 Copyright (c) 2012 The Go Authors. All rights reserved.
 Copyright (c) 2019 Klaus Post. All rights reserved.
@@ -13054,35 +13055,6 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
 LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-*****
-github.com/klauspost/cpuid/v2@v2.4.0
-
-The MIT License (MIT)
-
-Copyright (c) 2015 Klaus Post
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
------
-
-This code is published under an MIT license. See LICENSE file for more information.
 
 *****
 License for the following packages:
@@ -15015,9 +14987,10 @@ The MIT License (MIT). Read [LICENSE](LICENSE).
 
 *****
 License for the following packages:
-  github.com/pjbgf/sha1cd@v0.6.0
-  github.com/pjbgf/sha1cd/internal@v0.6.0
-  github.com/pjbgf/sha1cd/ubc@v0.6.0
+  github.com/pjbgf/sha1cd@v0.7.0
+  github.com/pjbgf/sha1cd/internal@v0.7.0
+  github.com/pjbgf/sha1cd/internal/cpu@v0.7.0
+  github.com/pjbgf/sha1cd/ubc@v0.7.0
 
 Apache License
                            Version 2.0, January 2004
@@ -17389,7 +17362,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 *****
-go.bug.st/downloader/v3@v3.0.0
+go.bug.st/downloader/v3@v3.0.1
 
 Copyright (c) 2018-2025, Cristian Maglie.
 All rights reserved.
@@ -17554,12 +17527,12 @@ License for the following packages:
   go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp@v0.71.0
   go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/request@v0.71.0
   go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconv@v0.71.0
-  go.opentelemetry.io/otel@v1.46.0
-  go.opentelemetry.io/otel/attribute@v1.46.0
-  go.opentelemetry.io/otel/attribute/internal@v1.46.0
-  go.opentelemetry.io/otel/attribute/internal/xxhash@v1.46.0
-  go.opentelemetry.io/otel/baggage@v1.46.0
-  go.opentelemetry.io/otel/codes@v1.46.0
+  go.opentelemetry.io/otel@v1.47.0
+  go.opentelemetry.io/otel/attribute@v1.47.0
+  go.opentelemetry.io/otel/attribute/internal@v1.47.0
+  go.opentelemetry.io/otel/attribute/internal/xxhash@v1.47.0
+  go.opentelemetry.io/otel/baggage@v1.47.0
+  go.opentelemetry.io/otel/codes@v1.47.0
   go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc@v1.46.0
   go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal@v1.46.0
   go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal/counter@v1.46.0
@@ -17597,44 +17570,47 @@ License for the following packages:
   go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/otlpjson@v1.46.0
   go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/retry@v1.46.0
   go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/x@v1.46.0
-  go.opentelemetry.io/otel/internal/baggage@v1.46.0
-  go.opentelemetry.io/otel/internal/errorhandler@v1.46.0
-  go.opentelemetry.io/otel/internal/global@v1.46.0
-  go.opentelemetry.io/otel/metric@v1.46.0
-  go.opentelemetry.io/otel/metric/embedded@v1.46.0
-  go.opentelemetry.io/otel/metric/noop@v1.46.0
-  go.opentelemetry.io/otel/propagation@v1.46.0
-  go.opentelemetry.io/otel/sdk@v1.46.0
-  go.opentelemetry.io/otel/sdk/instrumentation@v1.46.0
-  go.opentelemetry.io/otel/sdk/internal/attrnorm@v1.46.0
-  go.opentelemetry.io/otel/sdk/internal/x@v1.46.0
-  go.opentelemetry.io/otel/sdk/metric@v1.46.0
-  go.opentelemetry.io/otel/sdk/metric/exemplar@v1.46.0
-  go.opentelemetry.io/otel/sdk/metric/internal@v1.46.0
-  go.opentelemetry.io/otel/sdk/metric/internal/aggregate@v1.46.0
-  go.opentelemetry.io/otel/sdk/metric/internal/attrnorm@v1.46.0
-  go.opentelemetry.io/otel/sdk/metric/internal/observ@v1.46.0
-  go.opentelemetry.io/otel/sdk/metric/internal/reservoir@v1.46.0
-  go.opentelemetry.io/otel/sdk/metric/internal/x@v1.46.0
-  go.opentelemetry.io/otel/sdk/metric/metricdata@v1.46.0
-  go.opentelemetry.io/otel/sdk/resource@v1.46.0
-  go.opentelemetry.io/otel/sdk/trace@v1.46.0
-  go.opentelemetry.io/otel/sdk/trace/internal/env@v1.46.0
-  go.opentelemetry.io/otel/sdk/trace/internal/observ@v1.46.0
-  go.opentelemetry.io/otel/sdk/trace/tracetest@v1.46.0
-  go.opentelemetry.io/otel/semconv/internal/metricpool@v1.46.0
-  go.opentelemetry.io/otel/semconv/v1.19.0@v1.46.0
-  go.opentelemetry.io/otel/semconv/v1.21.0@v1.46.0
-  go.opentelemetry.io/otel/semconv/v1.37.0@v1.46.0
-  go.opentelemetry.io/otel/semconv/v1.37.0/rpcconv@v1.46.0
-  go.opentelemetry.io/otel/semconv/v1.43.0@v1.46.0
-  go.opentelemetry.io/otel/semconv/v1.43.0/httpconv@v1.46.0
-  go.opentelemetry.io/otel/semconv/v1.43.0/otelconv@v1.46.0
-  go.opentelemetry.io/otel/semconv/v1.43.0/rpcconv@v1.46.0
-  go.opentelemetry.io/otel/trace@v1.46.0
-  go.opentelemetry.io/otel/trace/embedded@v1.46.0
-  go.opentelemetry.io/otel/trace/internal/telemetry@v1.46.0
-  go.opentelemetry.io/otel/trace/noop@v1.46.0
+  go.opentelemetry.io/otel/internal/baggage@v1.47.0
+  go.opentelemetry.io/otel/internal/errorhandler@v1.47.0
+  go.opentelemetry.io/otel/internal/global@v1.47.0
+  go.opentelemetry.io/otel/log@v1.47.0
+  go.opentelemetry.io/otel/log/embedded@v1.47.0
+  go.opentelemetry.io/otel/metric@v1.47.0
+  go.opentelemetry.io/otel/metric/embedded@v1.47.0
+  go.opentelemetry.io/otel/metric/noop@v1.47.0
+  go.opentelemetry.io/otel/propagation@v1.47.0
+  go.opentelemetry.io/otel/propagation/internal/hextable@v1.47.0
+  go.opentelemetry.io/otel/sdk@v1.47.0
+  go.opentelemetry.io/otel/sdk/instrumentation@v1.47.0
+  go.opentelemetry.io/otel/sdk/internal/attrnorm@v1.47.0
+  go.opentelemetry.io/otel/sdk/internal/x@v1.47.0
+  go.opentelemetry.io/otel/sdk/metric@v1.47.0
+  go.opentelemetry.io/otel/sdk/metric/exemplar@v1.47.0
+  go.opentelemetry.io/otel/sdk/metric/internal@v1.47.0
+  go.opentelemetry.io/otel/sdk/metric/internal/aggregate@v1.47.0
+  go.opentelemetry.io/otel/sdk/metric/internal/attrnorm@v1.47.0
+  go.opentelemetry.io/otel/sdk/metric/internal/finish@v1.47.0
+  go.opentelemetry.io/otel/sdk/metric/internal/observ@v1.47.0
+  go.opentelemetry.io/otel/sdk/metric/internal/reservoir@v1.47.0
+  go.opentelemetry.io/otel/sdk/metric/metricdata@v1.47.0
+  go.opentelemetry.io/otel/sdk/resource@v1.47.0
+  go.opentelemetry.io/otel/sdk/trace@v1.47.0
+  go.opentelemetry.io/otel/sdk/trace/internal/env@v1.47.0
+  go.opentelemetry.io/otel/sdk/trace/internal/observ@v1.47.0
+  go.opentelemetry.io/otel/sdk/trace/tracetest@v1.47.0
+  go.opentelemetry.io/otel/semconv/internal/metricpool@v1.47.0
+  go.opentelemetry.io/otel/semconv/v1.19.0@v1.47.0
+  go.opentelemetry.io/otel/semconv/v1.21.0@v1.47.0
+  go.opentelemetry.io/otel/semconv/v1.37.0@v1.47.0
+  go.opentelemetry.io/otel/semconv/v1.37.0/rpcconv@v1.47.0
+  go.opentelemetry.io/otel/semconv/v1.43.0@v1.47.0
+  go.opentelemetry.io/otel/semconv/v1.43.0/httpconv@v1.47.0
+  go.opentelemetry.io/otel/semconv/v1.43.0/otelconv@v1.47.0
+  go.opentelemetry.io/otel/semconv/v1.43.0/rpcconv@v1.47.0
+  go.opentelemetry.io/otel/trace@v1.47.0
+  go.opentelemetry.io/otel/trace/embedded@v1.47.0
+  go.opentelemetry.io/otel/trace/internal/telemetry@v1.47.0
+  go.opentelemetry.io/otel/trace/noop@v1.47.0
 
 Apache License
                            Version 2.0, January 2004
@@ -18614,31 +18590,31 @@ License for the following packages:
   golang.org/x/net/proxy@v0.59.0
   golang.org/x/net/publicsuffix@v0.59.0
   golang.org/x/net/trace@v0.59.0
-  golang.org/x/sync/errgroup@v0.23.0
-  golang.org/x/sync/semaphore@v0.23.0
-  golang.org/x/sync/singleflight@v0.23.0
-  golang.org/x/sys/execabs@v0.48.0
-  golang.org/x/sys/unix@v0.48.0
-  golang.org/x/term@v0.46.0
-  golang.org/x/text/encoding@v0.42.0
-  golang.org/x/text/encoding/internal@v0.42.0
-  golang.org/x/text/encoding/internal/identifier@v0.42.0
-  golang.org/x/text/encoding/unicode@v0.42.0
-  golang.org/x/text/feature/plural@v0.42.0
-  golang.org/x/text/internal@v0.42.0
-  golang.org/x/text/internal/catmsg@v0.42.0
-  golang.org/x/text/internal/format@v0.42.0
-  golang.org/x/text/internal/language@v0.42.0
-  golang.org/x/text/internal/language/compact@v0.42.0
-  golang.org/x/text/internal/number@v0.42.0
-  golang.org/x/text/internal/stringset@v0.42.0
-  golang.org/x/text/internal/tag@v0.42.0
-  golang.org/x/text/internal/utf8internal@v0.42.0
-  golang.org/x/text/language@v0.42.0
-  golang.org/x/text/message@v0.42.0
-  golang.org/x/text/message/catalog@v0.42.0
-  golang.org/x/text/runes@v0.42.0
-  golang.org/x/text/width@v0.42.0
+  golang.org/x/sync/errgroup@v0.24.0
+  golang.org/x/sync/semaphore@v0.24.0
+  golang.org/x/sync/singleflight@v0.24.0
+  golang.org/x/sys/execabs@v0.49.0
+  golang.org/x/sys/unix@v0.49.0
+  golang.org/x/term@v0.47.0
+  golang.org/x/text/encoding@v0.43.0
+  golang.org/x/text/encoding/internal@v0.43.0
+  golang.org/x/text/encoding/internal/identifier@v0.43.0
+  golang.org/x/text/encoding/unicode@v0.43.0
+  golang.org/x/text/feature/plural@v0.43.0
+  golang.org/x/text/internal@v0.43.0
+  golang.org/x/text/internal/catmsg@v0.43.0
+  golang.org/x/text/internal/format@v0.43.0
+  golang.org/x/text/internal/language@v0.43.0
+  golang.org/x/text/internal/language/compact@v0.43.0
+  golang.org/x/text/internal/number@v0.43.0
+  golang.org/x/text/internal/stringset@v0.43.0
+  golang.org/x/text/internal/tag@v0.43.0
+  golang.org/x/text/internal/utf8internal@v0.43.0
+  golang.org/x/text/language@v0.43.0
+  golang.org/x/text/message@v0.43.0
+  golang.org/x/text/message/catalog@v0.43.0
+  golang.org/x/text/runes@v0.43.0
+  golang.org/x/text/width@v0.43.0
   golang.org/x/time/rate@v0.15.0
 
 Copyright 2009 The Go Authors.

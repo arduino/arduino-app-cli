@@ -1,13 +1,13 @@
 ---
 name: go.opentelemetry.io/otel/semconv/v1.43.0/httpconv
-version: v1.46.0
+version: v1.47.0
 type: go
 summary: Package httpconv provides types and functionality for OpenTelemetry semantic
   conventions in the "http" namespace.
 homepage: https://pkg.go.dev/go.opentelemetry.io/otel/semconv/v1.43.0/httpconv
 license: apache-2.0
 licenses:
-- sources: otel@v1.46.0/LICENSE
+- sources: otel@v1.47.0/LICENSE
   text: |2-
                                      Apache License
                                Version 2.0, January 2004
