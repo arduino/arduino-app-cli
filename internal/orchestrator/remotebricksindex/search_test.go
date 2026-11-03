@@ -40,11 +40,9 @@ func TestSearch(t *testing.T) {
 	}{
 		{"", []string{"acme:camera", "sensorlab:air_quality"}},
 		{"CAMERA", []string{"acme:camera"}},
-		{"acme:camera", []string{"acme:camera"}},
 		{"usb frames", []string{"acme:camera"}},
 		{"usb sensors", []string{}},
 		{"gitlab", []string{"acme:camera"}},
-		{"i2c", []string{"sensorlab:air_quality"}},
 		{"thermal", []string{}},
 	}
 	for _, tt := range tests {

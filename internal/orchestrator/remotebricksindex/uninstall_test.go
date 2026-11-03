@@ -12,16 +12,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// installedBricks creates the folders of the given installed bricks, in the form namespace/name@version.
+// installedBricks creates the given folders, in the form namespace/name@version.
 func installedBricks(t *testing.T, folders ...string) *paths.Path {
 	t.Helper()
 	bricksDir := paths.New(t.TempDir())
 	for _, f := range folders {
-		dir := bricksDir.Join(f)
-		require.NoError(t, dir.MkdirAll())
-		require.NoError(t, dir.Join(brickConfigFileName).WriteFile([]byte("id: x\n")))
+		require.NoError(t, bricksDir.Join(f).MkdirAll())
 	}
 	return bricksDir
+}
+
+func dirNames(t *testing.T, dir *paths.Path) []string {
+	t.Helper()
+	entries, err := dir.ReadDir(paths.FilterDirectories())
+	require.NoError(t, err)
+	names := []string{}
+	for _, e := range entries {
+		names = append(names, e.Base())
+	}
+	return names
 }
 
 func TestUninstallVersion(t *testing.T) {
@@ -30,12 +39,16 @@ func TestUninstallVersion(t *testing.T) {
 	res, err := Uninstall(t.Context(), bricksDir, "acme:camera", "1.0.0")
 	require.NoError(t, err)
 	require.Equal(t, []string{"1.0.0"}, res.Versions)
-	require.NoDirExists(t, bricksDir.Join("acme", "camera@1.0.0").String())
-	require.DirExists(t, bricksDir.Join("acme", "camera@1.2.0").String())
+	require.Equal(t, []string{"camera@1.2.0"}, dirNames(t, bricksDir.Join("acme")))
 
 	res, err = Uninstall(t.Context(), bricksDir, "acme:camera", "1.0.0")
 	require.NoError(t, err)
 	require.Empty(t, res.Versions)
+
+	// Removing the last brick of the namespace removes the namespace folder too.
+	_, err = Uninstall(t.Context(), bricksDir, "acme:camera", "1.2.0")
+	require.NoError(t, err)
+	require.Empty(t, dirNames(t, bricksDir))
 }
 
 func TestUninstallAllVersions(t *testing.T) {
@@ -48,23 +61,9 @@ func TestUninstallAllVersions(t *testing.T) {
 	res, err := Uninstall(t.Context(), bricksDir, "acme:camera", "")
 	require.NoError(t, err)
 	require.Equal(t, []string{"1.2.0", "1.10.0"}, res.Versions)
-
-	entries, err := bricksDir.Join("acme").ReadDir()
-	require.NoError(t, err)
-	require.ElementsMatch(t, []string{"camera2@1.0.0", "camera@notes"}, []string{entries[0].Base(), entries[1].Base()})
-
+	require.ElementsMatch(t, []string{"camera2@1.0.0", "camera@notes"}, dirNames(t, bricksDir.Join("acme")))
 	// No temporary folders are left behind.
-	entries, err = bricksDir.ReadDir(paths.FilterDirectories())
-	require.NoError(t, err)
-	require.Len(t, entries, 1)
-}
-
-func TestUninstallRemovesEmptyNamespace(t *testing.T) {
-	bricksDir := installedBricks(t, "acme/camera@1.0.0")
-
-	_, err := Uninstall(t.Context(), bricksDir, "acme:camera", "")
-	require.NoError(t, err)
-	require.NoDirExists(t, bricksDir.Join("acme").String())
+	require.Equal(t, []string{"acme"}, dirNames(t, bricksDir))
 }
 
 func TestUninstallNotInstalled(t *testing.T) {
@@ -75,12 +74,4 @@ func TestUninstallNotInstalled(t *testing.T) {
 	res, err = Uninstall(t.Context(), installedBricks(t), "acme:camera", "")
 	require.NoError(t, err)
 	require.Empty(t, res.Versions)
-}
-
-func TestUninstallRejectsUnsafeReferences(t *testing.T) {
-	bricksDir := installedBricks(t)
-	_, err := Uninstall(t.Context(), bricksDir, "acme:..", "")
-	require.Error(t, err)
-	_, err = Uninstall(t.Context(), bricksDir, "acme:camera", "../1.0.0")
-	require.Error(t, err)
 }

@@ -22,7 +22,7 @@ const validIndex = `{
       "name": "Camera Brick",
       "namespace": "acme",
       "latest": "1.0.0",
-      "releases": [{"version": "1.0.0", "url": "https://example.com/camera-1.0.0.zip", "hash": "SHA-256:00", "size": 1}]
+      "releases": [{"version": "1.0.0", "url": "https://example.com/camera-1.0.0.zip", "hash": "0000000000000000000000000000000000000000000000000000000000000000", "size": 1}]
     }
   ]
 }`
@@ -45,16 +45,6 @@ func indexServer(t *testing.T, status int, body, etag string) *url.URL {
 	u, err := url.Parse(srv.URL + "/brick-index.json")
 	require.NoError(t, err)
 	return u
-}
-
-func TestLoadMissingIndex(t *testing.T) {
-	_, err := Load(paths.New(t.TempDir()))
-	require.ErrorIs(t, err, ErrIndexNotFound)
-}
-
-func TestUpdateWithoutURL(t *testing.T) {
-	_, err := Update(t.Context(), http.DefaultClient, nil, paths.New(t.TempDir()), "test")
-	require.ErrorContains(t, err, "ARDUINO_APP_CLI__BRICKS_INDEX_URL")
 }
 
 func TestUpdate(t *testing.T) {

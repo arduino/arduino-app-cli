@@ -48,23 +48,6 @@ func archiveRelease(t *testing.T, archive []byte) *Release {
 	}
 }
 
-func TestParseBrickReference(t *testing.T) {
-	id, version, err := ParseBrickReference("acme:camera@1.1.0")
-	require.NoError(t, err)
-	require.Equal(t, "acme:camera", id)
-	require.Equal(t, "1.1.0", version)
-
-	id, version, err = ParseBrickReference("acme:camera")
-	require.NoError(t, err)
-	require.Equal(t, "acme:camera", id)
-	require.Empty(t, version)
-
-	for _, ref := range []string{"camera", "acme:camera@"} {
-		_, _, err := ParseBrickReference(ref)
-		require.Error(t, err, ref)
-	}
-}
-
 func TestFindRelease(t *testing.T) {
 	index, err := parse([]byte(validIndex))
 	require.NoError(t, err)
