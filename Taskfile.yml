@@ -136,19 +136,30 @@ tasks:
 
   build-deb:clone-examples:
     desc: "Clones the examples repo directly into the debian structure"
+    cmds:
+      - task: clone-examples
+        vars:
+          DEST: debian/arduino-app-cli/var/lib/arduino-app-cli
+          # Outside the packaged tree, so the deb does not carry it.
+          STAMP: build/examples-version
+
+  clone-examples:
+    desc: "Clones the examples repo, at EXAMPLE_VERSION, into DEST/examples"
     vars:
+      DEST: "{{.DEST}}"
       # Written by this task, read by its status: the clone itself records no version.
-      # Outside the packaged tree, so the deb does not carry it.
-      STAMP: "build/examples-version"
+      STAMP: "{{.STAMP}}"
+    requires:
+      vars: [DEST, STAMP]
     status:
-      - test -d "debian/arduino-app-cli/var/lib/arduino-app-cli/examples"
+      - test -d "{{.DEST}}/examples"
       - test "$(cat {{.STAMP}} 2>/dev/null)" = "{{.EXAMPLE_VERSION}}"
     cmds:
       - |
           set -e
           echo "Examples version set as: {{ .EXAMPLE_VERSION }}"
           TMP_PATH="$(mktemp -d)"
-          DEST_PATH="debian/arduino-app-cli/var/lib/arduino-app-cli/"
+          DEST_PATH="{{.DEST}}"
           echo "Cloning arduino/app-bricks-examples into temporary directory ${TMP_PATH}..."
           git clone --depth 1 --branch "{{ .EXAMPLE_VERSION }}" https://github.com/arduino/app-bricks-examples "${TMP_PATH}"
           rm -rf "${DEST_PATH}/examples"
@@ -220,6 +231,31 @@ tasks:
     desc: "Build the arduino-app-cli locally"
     cmds:
       - go build -v -o ./build/arduino-app-cli ./cmd/arduino-app-cli
+
+  build:wasm:
+    desc: "Build the daemon for js/wasm, with the board's files it reads, into build/wasm"
+    vars:
+      DATA: build/wasm/rootfs/var/lib/arduino-app-cli
+    deps:
+      - task: download-runner-assets
+        vars:
+          DEST: build/wasm/rootfs/var/lib/arduino-app-cli/assets
+      - task: clone-examples
+        vars:
+          DEST: build/wasm/rootfs/var/lib/arduino-app-cli
+          STAMP: build/wasm/examples-version
+    cmds:
+      - GOOS=js GOARCH=wasm go build -trimpath -ldflags "-s -w -X main.Version={{.VERSION}}-wasm" -o ./build/wasm/arduino-app-cli.wasm ./cmd/arduino-app-cli/wasmdaemon
+      # Go's loader for the module: it must come from the toolchain that built it.
+      - cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" ./build/wasm/wasm_exec.js
+      # A browser has no board to detect: the daemon runs as on an UNO Q.
+      - printf '{"fqbn":"arduino:zephyr:unoq"}\n' > "{{.DATA}}/platform.json"
+
+  test:wasm:
+    desc: "Run the js/wasm daemon in Node, through what App Lab asks of a board without one"
+    deps: [build:wasm]
+    cmds:
+      - node scripts/wasmdaemon-check.cjs ./build/wasm/arduino-app-cli.wasm ./build/wasm/rootfs/var/lib/arduino-app-cli/assets/{{.RUNNER_VERSION}} ./build/wasm/rootfs/var/lib/arduino-app-cli/examples
 
   start:
     desc: "build and launch the arduino-app-cli in daemon mode"
