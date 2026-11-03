@@ -135,6 +135,9 @@ func HandleAppBuild(
 // build of every app. Each event carries the "build_id" it belongs to, so a
 // client can filter the stream down to a single build it triggered.
 func HandleAppBuildEvents(broker *releasebuild.EventBroker) http.HandlerFunc {
+	if broker == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {
