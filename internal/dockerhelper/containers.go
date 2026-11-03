@@ -9,6 +9,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"slices"
+	"time"
 
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/events"
@@ -76,6 +79,33 @@ func Containers(ctx context.Context, docker dockerClient.APIClient, label string
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
 	return containers.Items, nil
+}
+
+// WaitStopped waits until the engine reports no running container carrying the label. A stop
+// returns once the container exited, the list the engine serves catches up a moment later, and
+// a start right after a stop would still find the app running.
+func WaitStopped(ctx context.Context, docker dockerClient.APIClient, label string, timeout time.Duration) error {
+	started := time.Now()
+	for {
+		containers, err := Containers(ctx, docker, label)
+		if err != nil {
+			return err
+		}
+		if !slices.ContainsFunc(containers, func(c container.Summary) bool { return c.State == container.StateRunning }) {
+			if waited := time.Since(started); waited > time.Millisecond {
+				slog.Debug("waited for the engine to report the containers stopped", slog.String("label", label), slog.Duration("wait", waited))
+			}
+			return nil
+		}
+		if time.Since(started) > timeout {
+			return fmt.Errorf("the containers %s are still reported running %s after their stop", label, timeout)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
 }
 
 // StopContainers stops the containers carrying the label.

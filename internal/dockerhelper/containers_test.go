@@ -13,6 +13,7 @@ import (
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/events"
 	dockerClient "github.com/moby/moby/client"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -126,4 +127,37 @@ func startLabelled(t *testing.T, docker dockerClient.APIClient, label string) st
 	_, err = docker.ContainerStart(t.Context(), created.ID, dockerClient.ContainerStartOptions{})
 	require.NoError(t, err)
 	return created.ID
+}
+
+// listingClient answers each container list with the next of its answers, the last one forever.
+type listingClient struct {
+	dockerClient.APIClient
+	answers [][]container.Summary
+	calls   int
+}
+
+func (c *listingClient) ContainerList(context.Context, dockerClient.ContainerListOptions) (dockerClient.ContainerListResult, error) {
+	answer := c.answers[min(c.calls, len(c.answers)-1)]
+	c.calls++
+	return dockerClient.ContainerListResult{Items: answer}, nil
+}
+
+func TestWaitStopped(t *testing.T) {
+	running := container.Summary{State: container.StateRunning}
+	exited := container.Summary{State: container.StateExited}
+
+	t.Run("returns once no container is reported running", func(t *testing.T) {
+		docker := &listingClient{answers: [][]container.Summary{{running}, {running}, {exited}}}
+		require.NoError(t, WaitStopped(t.Context(), docker, "label=x", time.Second))
+		assert.Equal(t, 3, docker.calls)
+	})
+	t.Run("gives up after its timeout", func(t *testing.T) {
+		docker := &listingClient{answers: [][]container.Summary{{running}}}
+		require.ErrorContains(t, WaitStopped(t.Context(), docker, "label=x", 50*time.Millisecond), "still reported running")
+	})
+	t.Run("is cancellable", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Millisecond)
+		defer cancel()
+		require.ErrorIs(t, WaitStopped(ctx, &listingClient{answers: [][]container.Summary{{running}}}, "label=x", time.Minute), context.DeadlineExceeded)
+	})
 }
