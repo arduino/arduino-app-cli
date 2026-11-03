@@ -365,6 +365,15 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 	}
 }
 
+func TestLoadMissingBricksList(t *testing.T) {
+	dir := paths.New(t.TempDir()).Join("missing")
+	index, err := Load(platform.GetPlatform(nil), dir)
+	require.NoError(t, err)
+	require.NotNil(t, index)
+	assert.Empty(t, index.ListBricks())
+	assert.True(t, dir.Join(bricksListFileName).Exist())
+}
+
 func TestLoadBrickYamlBrickIndex(t *testing.T) {
 
 	t.Run("get files of a brick in the yaml index", func(t *testing.T) {
