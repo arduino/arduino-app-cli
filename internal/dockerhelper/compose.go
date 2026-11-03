@@ -6,6 +6,7 @@
 package dockerhelper
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
+	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v5/pkg/api"
 	"github.com/docker/compose/v5/pkg/compose"
 	dockerClient "github.com/moby/moby/client"
@@ -54,7 +56,8 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 	stampComposeLabels(prj)
 
 	reported := newProgress(line)
-	backend, err := compose.NewComposeService(classicBuilder{docker}, compose.WithEventProcessor(reported))
+	builder := classicBuilder{Cli: docker, out: streams.NewOut(reported)}
+	backend, err := compose.NewComposeService(builder, compose.WithEventProcessor(reported))
 	if err != nil {
 		return err
 	}
@@ -109,11 +112,16 @@ func ComposeDown(ctx context.Context, docker command.Cli, projectName string, li
 	return err
 }
 
-// classicBuilder makes the sdk build with the legacy builder of the engine. The sdk needs
-// buildx 0.17 for BuildKit, and the UNO Q has 0.13.
-type classicBuilder struct{ command.Cli }
+// classicBuilder makes the sdk build with the legacy builder, and writes the build output
+// to out. The sdk needs buildx 0.17 for BuildKit, and the UNO Q has 0.13.
+type classicBuilder struct {
+	command.Cli
+	out *streams.Out
+}
 
 func (classicBuilder) BuildKitEnabled() (bool, error) { return false, nil }
+
+func (b classicBuilder) Out() *streams.Out { return b.out }
 
 const builtImageLabel = "cc.arduino.app.built"
 
@@ -153,11 +161,13 @@ func stampComposeLabels(prj *types.Project) {
 	}
 }
 
-// composeProgress is where the sdk reports to: an api.EventProcessor.
+// composeProgress is where the sdk reports to: an api.EventProcessor, and the writer of
+// the build output.
 type composeProgress struct {
 	line          func(string)
 	mu            sync.Mutex
 	said          map[string]string
+	build         []byte
 	registryError error
 	networkError  error
 }
@@ -197,6 +207,25 @@ func (p *composeProgress) On(events ...api.Resource) {
 func (p *composeProgress) Start(context.Context, string) {}
 
 func (p *composeProgress) Done(string, bool) {}
+
+// Write says each complete line of the build output; the rest waits for its newline.
+func (p *composeProgress) Write(b []byte) (int, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.build = append(p.build, b...)
+	for {
+		before, after, found := bytes.Cut(p.build, []byte("\n"))
+		if !found {
+			break
+		}
+		if line := strings.TrimSpace(string(before)); line != "" {
+			p.line(line)
+		}
+		p.build = after
+	}
+	return len(b), nil
+}
 
 // registryError states what an event of the registry means: the error of the sdk does not.
 func registryError(message string) error {
