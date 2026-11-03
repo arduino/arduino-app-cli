@@ -187,10 +187,16 @@ func (c *Configuration) EnsureFolders() error {
 	if err := c.AssetDir().MkdirAll(); err != nil {
 		return err
 	}
+	if err := chmodSharedDir(c.AssetDir()); err != nil {
+		return err
+	}
 	if err := c.CustomModelsDir().MkdirAll(); err != nil {
 		return err
 	}
 	if err := c.ReleasesDir().MkdirAll(); err != nil {
+		return err
+	}
+	if err := chmodSharedDir(c.ReleasesDir()); err != nil {
 		return err
 	}
 
@@ -256,8 +262,24 @@ func (c *Configuration) AssetDir() *paths.Path {
 	return c.assetDir
 }
 
+// MkTempAssetDir makes the dir the assets are provisioned in before it is renamed to
+// AssetDir, so it already has the permissions AssetDir must have.
 func (c *Configuration) MkTempAssetDir() (*paths.Path, error) {
-	return c.assetDir.Parent().MkTempDir("dynamic-provisioning")
+	dir, err := c.assetDir.Parent().MkTempDir("dynamic-provisioning")
+	if err != nil {
+		return nil, err
+	}
+	if err := chmodSharedDir(dir); err != nil {
+		_ = dir.RemoveAll()
+		return nil, err
+	}
+	return dir, nil
+}
+
+// chmodSharedDir sets 0775 plus the setgid bit, so that what is created inside inherits
+// the group. It is an explicit chmod because mkdir applies the umask and drops setgid.
+func chmodSharedDir(dir *paths.Path) error {
+	return os.Chmod(dir.String(), os.ModeSetgid|0o775)
 }
 
 // MkTempBuildDir is where a release is staged while it is built. Not the system temp
