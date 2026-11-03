@@ -6,8 +6,10 @@
 package dockerhelper
 
 import (
+	"context"
 	"testing"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/types"
 	dockerCommand "github.com/docker/cli/cli/command"
 	"github.com/docker/compose/v5/pkg/api"
@@ -64,6 +66,86 @@ func TestComposeRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, gone.Items)
+}
+
+// TestComposeUpPrunesReplacedBuilds rebuilds a service after a change to its context: the
+// image it replaces must not stay on the board.
+func TestComposeUpPrunesReplacedBuilds(t *testing.T) {
+	docker := getDockerCli(t)
+	const projectName = "arduino-app-cli-rebuild"
+
+	buildDir := paths.New(t.TempDir())
+	require.NoError(t, buildDir.Join("Dockerfile").WriteFile([]byte("FROM busybox:latest\nCOPY message.txt /message.txt\nCMD [\"sleep\", \"600\"]\n")))
+	newProject := func() *types.Project {
+		return &types.Project{
+			Name:       projectName,
+			WorkingDir: buildDir.String(),
+			Services: types.Services{
+				"main": types.ServiceConfig{
+					Name:  "main",
+					Build: &types.BuildConfig{Context: buildDir.String(), Dockerfile: "Dockerfile"},
+				},
+			},
+		}
+	}
+	builtImages := func(ctx context.Context, dangling bool) []string {
+		filters := make(dockerClient.Filters).
+			Add("label", builtImageLabel+"=true").
+			Add("label", api.ProjectLabel+"="+projectName)
+		if dangling {
+			filters = filters.Add("dangling", "true")
+		}
+		images, err := docker.Client().ImageList(ctx, dockerClient.ImageListOptions{Filters: filters})
+		require.NoError(t, err)
+		ids := make([]string, 0, len(images.Items))
+		for _, image := range images.Items {
+			ids = append(ids, image.ID)
+		}
+		return ids
+	}
+	t.Cleanup(func() {
+		// t.Context() is already cancelled when cleanups run.
+		ctx := context.Background()
+		_ = ComposeDown(ctx, docker, projectName, nil)
+		for _, id := range builtImages(ctx, false) {
+			_, _ = docker.Client().ImageRemove(ctx, id, dockerClient.ImageRemoveOptions{Force: true, PruneChildren: true})
+		}
+	})
+
+	require.NoError(t, buildDir.Join("message.txt").WriteFile([]byte("first")))
+	require.NoError(t, ComposeUp(t.Context(), docker, newProject(), nil))
+	first := builtImages(t.Context(), false)
+	require.Len(t, first, 1)
+
+	require.NoError(t, buildDir.Join("message.txt").WriteFile([]byte("second")))
+	require.NoError(t, ComposeUp(t.Context(), docker, newProject(), nil))
+	second := builtImages(t.Context(), false)
+	require.Len(t, second, 1)
+	require.NotEqual(t, first, second, "a changed context is built again")
+	require.Empty(t, builtImages(t.Context(), true))
+}
+
+func TestStampComposeLabelsMarksBuiltImages(t *testing.T) {
+	prj := &types.Project{
+		Name: "my-app",
+		Services: types.Services{
+			"built": types.ServiceConfig{
+				Name:  "built",
+				Build: &types.BuildConfig{Context: ".", Labels: types.Labels{"brick.label": "kept"}},
+			},
+			"pulled": types.ServiceConfig{Name: "pulled", Image: "busybox:latest"},
+		},
+	}
+
+	stampComposeLabels(prj)
+
+	require.Equal(t, types.Labels{
+		"brick.label":    "kept",
+		builtImageLabel:  "true",
+		api.ProjectLabel: "my-app",
+		api.ServiceLabel: "built",
+	}, prj.Services["built"].Build.Labels)
+	require.Nil(t, prj.Services["pulled"].Build)
 }
 
 func TestComposeProgressSaysAThingOnce(t *testing.T) {

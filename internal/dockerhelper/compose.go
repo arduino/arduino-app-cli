@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/compose/v5/pkg/api"
 	"github.com/docker/compose/v5/pkg/compose"
+	dockerClient "github.com/moby/moby/client"
 )
 
 // stopTimeout is what a container is given to stop before it is killed.
@@ -67,7 +69,33 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 	if err != nil && reported.networkError != nil {
 		return fmt.Errorf("%w: %w", ErrNetwork, reported.networkError)
 	}
+	if err == nil {
+		pruneReplacedBuilds(ctx, docker, prj)
+	}
 	return err
+}
+
+const builtImageLabel = "cc.arduino.app.built"
+
+// pruneReplacedBuilds removes the images a rebuild of the app left without a tag: each
+// change to a brick that builds would otherwise keep one more on the board.
+func pruneReplacedBuilds(ctx context.Context, docker command.Cli, prj *types.Project) {
+	builds := false
+	for _, service := range prj.Services {
+		builds = builds || service.Build != nil
+	}
+	if !builds {
+		return
+	}
+	_, err := docker.Client().ImagePrune(ctx, dockerClient.ImagePruneOptions{
+		Filters: make(dockerClient.Filters).
+			Add("dangling", "true").
+			Add("label", builtImageLabel+"=true").
+			Add("label", api.ProjectLabel+"="+prj.Name),
+	})
+	if err != nil {
+		slog.Warn("cannot remove the images replaced by a rebuild", slog.String("project", prj.Name), slog.String("error", err.Error()))
+	}
 }
 
 // ErrNetwork states that the network of the app was not created. A pool with no
@@ -105,7 +133,8 @@ type classicBuilder struct{ command.Cli }
 func (classicBuilder) BuildKitEnabled() (bool, error) { return false, nil }
 
 // stampComposeLabels marks the services the way the sdk marks the projects it loads
-// itself: compose finds the containers of a project by these labels.
+// itself: compose finds the containers of a project by these labels. The image a service
+// builds is marked too.
 func stampComposeLabels(prj *types.Project) {
 	for name, service := range prj.Services {
 		service.CustomLabels = map[string]string{
@@ -115,6 +144,12 @@ func stampComposeLabels(prj *types.Project) {
 			api.WorkingDirLabel:  prj.WorkingDir,
 			api.ConfigFilesLabel: strings.Join(prj.ComposeFiles, ","),
 			api.OneoffLabel:      "False",
+		}
+		if service.Build != nil {
+			service.Build.Labels = service.Build.Labels.
+				Add(builtImageLabel, "true").
+				Add(api.ProjectLabel, prj.Name).
+				Add(api.ServiceLabel, name)
 		}
 		prj.Services[name] = service
 	}
