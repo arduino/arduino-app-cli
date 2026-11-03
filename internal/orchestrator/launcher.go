@@ -7,7 +7,6 @@ package orchestrator
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -196,13 +195,9 @@ func parentPID(pid int) (int, error) {
 	return 0, fmt.Errorf("no parent in the status of the process %d", pid)
 }
 
-// appProjectUp tells whether the project of the app runs as rendered: the compose file written
-// now is the one written before, byte for byte, and every service of the project has a running
-// container. The main container is the one answering the launcher socket, so no status request is needed.
-func appProjectUp(ctx context.Context, docker dockerClient.APIClient, appPath *paths.Path, prj *types.Project, previous, current []byte) (bool, error) {
-	if len(previous) == 0 || !bytes.Equal(previous, current) {
-		return false, nil
-	}
+// appProjectUp tells whether every service of the project of the app has a running container.
+// The main one is the container answering the launcher socket, so no status request is needed.
+func appProjectUp(ctx context.Context, docker dockerClient.APIClient, appPath *paths.Path, prj *types.Project) (bool, error) {
 	containers, err := dockerhelper.Containers(ctx, docker, DockerAppPathLabel+"="+appPath.String())
 	if err != nil {
 		return false, err

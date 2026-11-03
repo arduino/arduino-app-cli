@@ -272,12 +272,18 @@ func StartApp(
 		// What the template references, answered on this board. The app half is in
 		// the template already, frozen, when the app comes from a release.
 		env := hostEnvironment(ctx, appToStart.FullPath, cfg).Merge(appEnv)
-		previous, _ := appToStart.AppComposeFilePath().ReadFile()
 		prj, err := provisioner.Render(ctx, &appToStart, env, appToStart.Secrets(bricksIndex))
 		if err != nil {
 			return err
 		}
 		steps.done("render")
+
+		// The fingerprint of the Python part, saved once compose brought the project up.
+		inputs, err := pythonInputs(appToStart)
+		if err != nil {
+			return err
+		}
+		python, hash := partFingerprint(appToStart.ProvisioningStateDir(), "python"), hashOf(inputs)
 
 		// The folder the launcher binds its socket in, created by the daemon so that the
 		// app user owns it: docker would create a missing bind source as root.
@@ -289,12 +295,12 @@ func StartApp(
 		}
 
 		// A reload of a running app asks nothing of the images or of compose: the project it
-		// rendered is the one its containers run, and all of them are up. Anything else, a
-		// changed project, a stopped sidecar, a cold container, goes through compose as always.
+		// rendered is the one compose brought up, and all of its containers are running.
+		// Anything else, a changed project, a stopped sidecar, a cold container, goes
+		// through compose as always.
 		warm := false
-		if served {
-			current, _ := appToStart.AppComposeFilePath().ReadFile()
-			if warm, err = appProjectUp(ctx, docker.Client(), appToStart.FullPath, prj, previous, current); err != nil {
+		if served && python.matches(hash) {
+			if warm, err = appProjectUp(ctx, docker.Client(), appToStart.FullPath, prj); err != nil {
 				return err
 			}
 			steps.done("project check")
@@ -344,6 +350,9 @@ func StartApp(
 				err = dockerhelper.ComposeUp(ctx, docker, prj, line)
 			}
 			if err != nil {
+				return err
+			}
+			if err := python.save(hash); err != nil {
 				return err
 			}
 			steps.done("compose up")
