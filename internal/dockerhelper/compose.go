@@ -65,15 +65,14 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 		Create: api.CreateOptions{RemoveOrphans: true, Inherit: true, Build: &api.BuildOptions{}},
 		Start:  api.StartOptions{Project: prj},
 	})
+	// A prune never removes an image a container uses, so a failed up prunes too.
+	pruneDanglingBuilds(ctx, docker, prj.Name)
 	// What went wrong is reported as an event, and the error itself says little.
 	if err != nil && reported.registryError != nil {
 		return reported.registryError
 	}
 	if err != nil && reported.networkError != nil {
 		return fmt.Errorf("%w: %w", ErrNetwork, reported.networkError)
-	}
-	if err == nil {
-		pruneDanglingBuilds(ctx, docker, prj.Name)
 	}
 	return err
 }
