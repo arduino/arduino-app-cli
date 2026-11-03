@@ -14,6 +14,14 @@ to `viktoruj/ping_pong:latest`. If that image is already local, it satisfies the
 app's readiness check and is not downloaded again during preparation.
 Use an explicit version tag or digest when you need a specific image version.
 
+## Bricks that build their container
+
+A brick compose service with `build:` is built at every app start, and a relative
+`context` is the brick folder. The build uses the legacy builder of the Docker engine,
+not BuildKit: BuildKit-only Dockerfile syntax, such as `RUN --mount` or heredocs, fails.
+A release build refuses an app with such a brick. A start with `--no-prepare` does not
+build: it uses the image of the last build, and fails if there is none.
+
 ## Environment Variables
 
 The following environment variables are used to configure Arduino App CLI:

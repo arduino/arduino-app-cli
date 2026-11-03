@@ -6,27 +6,32 @@
 package dockerhelper
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
+	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v5/pkg/api"
 	"github.com/docker/compose/v5/pkg/compose"
+	dockerClient "github.com/moby/moby/client"
 )
 
 // stopTimeout is what a container is given to stop before it is killed.
 const stopTimeout = 5 * time.Second
 
-// ComposeImages is every image the project names, which is what a pull is given.
+// ComposeImages is every image the project names, which is what a pull is given. An
+// image a service builds is not: the registry does not have it.
 func ComposeImages(prj *types.Project) []string {
 	images := make([]string, 0, len(prj.Services))
 	for _, service := range prj.Services {
-		if service.Image != "" {
+		if service.Image != "" && service.Build == nil {
 			images = append(images, service.Image)
 		}
 	}
@@ -36,10 +41,14 @@ func ComposeImages(prj *types.Project) []string {
 // ComposeUp starts the app the project states, reporting to line what it does. The
 // compose of the board takes no part: the sdk this binary links talks to the engine.
 func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line func(string)) error {
-	// An image the board already has is not asked for again: `--pull missing`.
+	// An image the board already has is not asked for again: `--pull missing`. A built
+	// one is built at every start, and the cache keeps an unchanged one as it is.
 	for name, service := range prj.Services {
 		if service.PullPolicy == "" {
 			service.PullPolicy = types.PullPolicyMissing
+			if service.Build != nil {
+				service.PullPolicy = types.PullPolicyBuild
+			}
 			prj.Services[name] = service
 		}
 	}
@@ -47,14 +56,17 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 	stampComposeLabels(prj)
 
 	reported := newProgress(line)
-	backend, err := compose.NewComposeService(docker, compose.WithEventProcessor(reported))
+	builder := classicBuilder{Cli: docker, out: streams.NewOut(reported)}
+	backend, err := compose.NewComposeService(builder, compose.WithEventProcessor(reported))
 	if err != nil {
 		return err
 	}
 	err = backend.Up(ctx, prj, api.UpOptions{
-		Create: api.CreateOptions{RemoveOrphans: true, Inherit: true},
+		Create: api.CreateOptions{RemoveOrphans: true, Inherit: true, Build: &api.BuildOptions{}},
 		Start:  api.StartOptions{Project: prj},
 	})
+	// A prune never removes an image a container uses, so a failed up prunes too.
+	pruneDanglingBuilds(ctx, docker, prj.Name)
 	// What went wrong is reported as an event, and the error itself says little.
 	if err != nil && reported.registryError != nil {
 		return reported.registryError
@@ -79,22 +91,55 @@ func ComposeStop(ctx context.Context, docker command.Cli, projectName string, li
 	return backend.Stop(ctx, projectName, api.StopOptions{Timeout: &timeout})
 }
 
-// ComposeDown removes the containers of the app, its volumes and its leftovers.
+// ComposeDown removes the containers of the app, its volumes, the images it built and its
+// leftovers.
 func ComposeDown(ctx context.Context, docker command.Cli, projectName string, line func(string)) error {
 	backend, err := compose.NewComposeService(docker, compose.WithEventProcessor(newProgress(line)))
 	if err != nil {
 		return err
 	}
 	timeout := stopTimeout
-	return backend.Down(ctx, projectName, api.DownOptions{
+	err = backend.Down(ctx, projectName, api.DownOptions{
 		RemoveOrphans: true,
 		Volumes:       true,
+		Images:        "local",
 		Timeout:       &timeout,
 	})
+	if err == nil {
+		pruneDanglingBuilds(ctx, docker, projectName)
+	}
+	return err
 }
 
-// stampComposeLabels marks the services the way the sdk marks the projects it loads
-// itself: compose finds the containers of a project by these labels.
+// classicBuilder makes the sdk build with the legacy builder, and writes the build output
+// to out. The sdk needs buildx 0.17 for BuildKit, and the UNO Q has 0.13.
+type classicBuilder struct {
+	command.Cli
+	out *streams.Out
+}
+
+func (classicBuilder) BuildKitEnabled() (bool, error) { return false, nil }
+
+func (b classicBuilder) Out() *streams.Out { return b.out }
+
+const builtImageLabel = "cc.arduino.app.built"
+
+// pruneDanglingBuilds removes the untagged images the builds of the project left: the
+// image a rebuild replaced, and the parents of the one a down removed.
+func pruneDanglingBuilds(ctx context.Context, docker command.Cli, projectName string) {
+	_, err := docker.Client().ImagePrune(ctx, dockerClient.ImagePruneOptions{
+		Filters: make(dockerClient.Filters).
+			Add("dangling", "true").
+			Add("label", builtImageLabel+"=true").
+			Add("label", api.ProjectLabel+"="+projectName),
+	})
+	if err != nil {
+		slog.Warn("cannot remove the untagged images of the builds", slog.String("project", projectName), slog.String("error", err.Error()))
+	}
+}
+
+// stampComposeLabels marks the services and their built images the way the sdk marks the
+// projects it loads: compose finds the containers of a project by these labels.
 func stampComposeLabels(prj *types.Project) {
 	for name, service := range prj.Services {
 		service.CustomLabels = map[string]string{
@@ -105,15 +150,23 @@ func stampComposeLabels(prj *types.Project) {
 			api.ConfigFilesLabel: strings.Join(prj.ComposeFiles, ","),
 			api.OneoffLabel:      "False",
 		}
+		if service.Build != nil {
+			service.Build.Labels = service.Build.Labels.
+				Add(builtImageLabel, "true").
+				Add(api.ProjectLabel, prj.Name).
+				Add(api.ServiceLabel, name)
+		}
 		prj.Services[name] = service
 	}
 }
 
-// composeProgress is where the sdk reports to: an api.EventProcessor.
+// composeProgress is where the sdk reports to: an api.EventProcessor, and the writer of
+// the build output.
 type composeProgress struct {
 	line          func(string)
 	mu            sync.Mutex
 	said          map[string]string
+	build         []byte
 	registryError error
 	networkError  error
 }
@@ -153,6 +206,25 @@ func (p *composeProgress) On(events ...api.Resource) {
 func (p *composeProgress) Start(context.Context, string) {}
 
 func (p *composeProgress) Done(string, bool) {}
+
+// Write says each complete line of the build output; the rest waits for its newline.
+func (p *composeProgress) Write(b []byte) (int, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.build = append(p.build, b...)
+	for {
+		before, after, found := bytes.Cut(p.build, []byte("\n"))
+		if !found {
+			break
+		}
+		if line := strings.TrimSpace(string(before)); line != "" {
+			p.line(line)
+		}
+		p.build = after
+	}
+	return len(b), nil
+}
 
 // registryError states what an event of the registry means: the error of the sdk does not.
 func registryError(message string) error {

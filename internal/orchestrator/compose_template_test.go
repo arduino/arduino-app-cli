@@ -91,19 +91,38 @@ func TestFrozenComposeIncludes(t *testing.T) {
 	// A brick the app brings along is outside the asset dir, at a different depth.
 	appDir := paths.New(t.TempDir()).Join("home", "arduino", "ArduinoApps", "my-app")
 	localCompose := appDir.Join("bricks", "local_brick", "brick_compose.yaml")
-	require.NoError(t, localCompose.Parent().MkdirAll())
-	require.NoError(t, localCompose.WriteFile(compose))
+	// Nested bricks with the same folder name must not share a copy.
+	nestedComposeA := appDir.Join("bricks", "a", "nested_brick", "brick_compose.yaml")
+	nestedComposeB := appDir.Join("bricks", "b", "nested_brick", "brick_compose.yaml")
+	for _, c := range []*paths.Path{localCompose, nestedComposeA, nestedComposeB} {
+		require.NoError(t, c.Parent().MkdirAll())
+		require.NoError(t, c.WriteFile(compose))
+	}
 
 	genPath := appDir.Join(".cache")
 	require.NoError(t, genPath.MkdirAll())
 
-	includes, err := frozenComposeIncludes(paths.NewPathList(assetCompose.String(), localCompose.String()), genPath, cfg, types.Mapping{})
+	includes, err := frozenComposeIncludes(
+		paths.NewPathList(assetCompose.String(), localCompose.String(), nestedComposeA.String(), nestedComposeB.String()),
+		appDir, genPath, cfg, types.Mapping{},
+	)
 	require.NoError(t, err)
-	assert.Equal(t, []string{
-		"compose/compose/arduino/asset_brick/brick_compose.yaml",
-		"compose/local_brick/brick_compose.yaml",
+	assert.Equal(t, []composeInclude{
+		{Path: "compose/compose/arduino/asset_brick/brick_compose.yaml"},
+		{Path: "compose/bricks/local_brick/brick_compose.yaml", ProjectDirectory: "${APP_HOME}/bricks/local_brick"},
+		{Path: "compose/bricks/a/nested_brick/brick_compose.yaml", ProjectDirectory: "${APP_HOME}/bricks/a/nested_brick"},
+		{Path: "compose/bricks/b/nested_brick/brick_compose.yaml", ProjectDirectory: "${APP_HOME}/bricks/b/nested_brick"},
 	}, includes)
 	for _, include := range includes {
-		assert.FileExists(t, genPath.Join(include).String())
+		assert.FileExists(t, genPath.Join(include.Path).String())
 	}
+
+	// A release generates in its prebuild dir, installed as the .cache of the app.
+	prebuildDir := paths.New(t.TempDir()).Join("my-app-release", "prebuild")
+	require.NoError(t, prebuildDir.MkdirAll())
+	includes, err = frozenComposeIncludes(paths.NewPathList(localCompose.String()), appDir, prebuildDir, cfg, types.Mapping{})
+	require.NoError(t, err)
+	assert.Equal(t, []composeInclude{
+		{Path: "compose/bricks/local_brick/brick_compose.yaml", ProjectDirectory: "${APP_HOME}/bricks/local_brick"},
+	}, includes)
 }

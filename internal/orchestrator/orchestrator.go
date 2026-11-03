@@ -21,6 +21,7 @@ import (
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
+	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
 	"github.com/goccy/go-yaml"
 	"github.com/gosimple/slug"
@@ -256,11 +257,15 @@ func StartApp(
 			return err
 		}
 
-		// Without a prepare, a start never fetches a missing image: it fails and asks for
-		// one first.
+		// Without a prepare, a start never fetches nor builds an image: it fails on a
+		// missing one and asks for a prepare first.
 		if !prepare {
 			if err := checkImages(ctx, docker, prj); err != nil {
 				return err
+			}
+			for name, service := range prj.Services {
+				service.PullPolicy = types.PullPolicyNever
+				prj.Services[name] = service
 			}
 		}
 

@@ -7,6 +7,7 @@ package daemon
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -91,6 +92,33 @@ func loop(r io.ReadCloser, events chan Event) {
 			fmt.Fprintf(os.Stderr, "Unknown line: '%s'", line)
 			close(events)
 		}
+	}
+}
+
+// startApp starts the app and fails the test on any error the start stream reports.
+func startApp(t *testing.T, httpClient *client.ClientWithResponses, appID string) {
+	t.Helper()
+	startResp, err := httpClient.StartApp(t.Context(), appID, nil)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, startResp.StatusCode)
+	defer startResp.Body.Close() // loop closes it too, but the linter cannot see that
+	startEvents := make(chan Event)
+	go loop(startResp.Body, startEvents)
+	for event := range startEvents {
+		t.Logf("start event: %s %s", event.Event, string(event.Data))
+		if event.Event != sseEventError {
+			continue
+		}
+		var errData struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		}
+		require.NoError(t, json.Unmarshal(event.Data, &errData))
+		// SERVER_CLOSED is emitted by the SSE teardown on every stream; ignore it.
+		if errData.Code == sseCodeServerClosed {
+			continue
+		}
+		t.Fatalf("app failed to start: code=%s message=%s", errData.Code, errData.Message)
 	}
 }
 
