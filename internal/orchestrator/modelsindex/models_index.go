@@ -320,10 +320,26 @@ func WriteModelsList(dir *paths.Path, models []AIModel) error {
 
 const modelsListFileName = "models-list.yaml"
 
+// ensureModelsListFile creates an empty models list in dir if it does not exist.
+func ensureModelsListFile(dir *paths.Path) error {
+	file := dir.Join(modelsListFileName)
+	if file.Exist() {
+		return nil
+	}
+	if err := dir.MkdirAll(); err != nil {
+		return err
+	}
+	return file.WriteFile([]byte{})
+}
+
 func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, error) {
 	if dir == nil {
 		// skip loading internal models
 		return []AIModel{}, nil
+	}
+
+	if err := ensureModelsListFile(dir); err != nil {
+		return nil, err
 	}
 
 	content, err := dir.Join(modelsListFileName).ReadFile()
