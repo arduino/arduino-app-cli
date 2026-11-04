@@ -42,7 +42,7 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 	cmd.Flags().StringVarP(&icon, "icon", "i", "", "Icon for the app")
 	cmd.Flags().StringVarP(&description, "description", "d", "", "Description for the app")
 	cmd.Flags().StringVarP(&fromApp, "from-app", "", "", "Create the new app from an existing app, example or App Release (path or ID)")
-	cmd.Flags().StringArrayVarP(&brickIDs, "bricks", "b", []string{}, "List of bricks to include in the app")
+	cmd.Flags().StringSliceVarP(&brickIDs, "bricks", "b", []string{}, "Comma-separated list of bricks to include in the app (can be repeated)")
 	cmd.Flags().BoolVarP(&noSketch, "no-sketch", "", false, "Do not include Sketch files")
 
 	_ = cmd.RegisterFlagCompletionFunc("bricks", completion.BrickIDsWithFilterFunc(func(b bricks.BrickListItem) bool {
