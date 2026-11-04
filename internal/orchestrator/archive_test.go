@@ -319,7 +319,8 @@ func TestImportAppFromZip(t *testing.T) {
 			id, err := ImportAppFromZip(cfg, paths.New(zipPath), idProvider, tc.originalZipName)
 
 			// Verify temp folder cleanup, on success and on failure
-			files, _ := os.ReadDir(appsDirPath)
+			files, readErr := os.ReadDir(appsDirPath)
+			require.NoError(t, readErr)
 			for _, f := range files {
 				require.False(t, strings.HasPrefix(f.Name(), ".tmp_"), "Temp folder not cleaned: %s", f.Name())
 			}

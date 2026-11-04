@@ -190,7 +190,7 @@ func ImportAppFromZip(
 		finalDestPath, _ = findAppPathByName(newName, cfg)
 	}
 
-	tempContainerDir, err := paths.MkTempDir(finalDestPath.Parent().String(), ".tmp_import-")
+	tempContainerDir, err := app.MkTmpAppDir(finalDestPath.Parent())
 	if err != nil {
 		return appid.ID{}, fmt.Errorf("unable to create temp app directory: %w", err)
 	}
