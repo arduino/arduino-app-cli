@@ -1,12 +1,12 @@
 ---
 name: github.com/djherbis/buffer/wrapio
-version: v1.2.0
+version: v1.2.1
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/djherbis/buffer/wrapio
 license: mit
 licenses:
-- sources: buffer@v1.2.0/LICENSE.txt
+- sources: buffer@v1.2.1/LICENSE.txt
   text: |
     The MIT License (MIT)
 
