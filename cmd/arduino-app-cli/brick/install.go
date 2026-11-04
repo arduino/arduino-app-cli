@@ -44,7 +44,7 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 		brick   *remotebricksindex.Brick
 		release *remotebricksindex.Release
 	}
-	var resolved []toInstall
+	resolved := make([]toInstall, 0, len(refs))
 	for _, ref := range refs {
 		brick, release, err := index.FindRelease(ref.id, ref.version)
 		if err != nil {

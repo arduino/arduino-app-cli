@@ -26,7 +26,7 @@ func dirNames(t *testing.T, dir *paths.Path) []string {
 	t.Helper()
 	entries, err := dir.ReadDir(paths.FilterDirectories())
 	require.NoError(t, err)
-	names := []string{}
+	names := make([]string, 0, len(entries))
 	for _, e := range entries {
 		names = append(names, e.Base())
 	}

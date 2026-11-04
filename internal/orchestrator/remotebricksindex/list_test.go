@@ -32,7 +32,7 @@ func TestListInstalled(t *testing.T) {
 	installed, err := ListInstalled(bricksDir)
 	require.NoError(t, err)
 
-	var got []string
+	got := make([]string, 0, len(installed))
 	for _, b := range installed {
 		require.Equal(t, "acme", b.Namespace)
 		got = append(got, b.Brick.ID+"@"+b.Version+" "+b.Brick.Name)

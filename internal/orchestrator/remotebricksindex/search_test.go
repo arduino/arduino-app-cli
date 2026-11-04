@@ -27,7 +27,7 @@ func TestSearch(t *testing.T) {
 	}}
 
 	ids := func(bricks []Brick) []string {
-		res := []string{}
+		res := make([]string, 0, len(bricks))
 		for _, b := range bricks {
 			res = append(res, b.ID)
 		}

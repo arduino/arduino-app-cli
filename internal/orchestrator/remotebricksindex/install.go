@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"path"
@@ -305,6 +306,10 @@ func extractZip(archive *paths.Path, destDir *paths.Path) (string, error) {
 }
 
 func extractFile(destRoot *os.Root, f *zip.File, name string) error {
+	if f.UncompressedSize64 >= math.MaxInt64 {
+		return fmt.Errorf("invalid size %d", f.UncompressedSize64)
+	}
+	size := int64(f.UncompressedSize64)
 	if err := destRoot.MkdirAll(path.Dir(name), 0o755); err != nil {
 		return err
 	}
@@ -317,9 +322,14 @@ func extractFile(destRoot *os.Root, f *zip.File, name string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(dst, src); err != nil {
-		dst.Close()
+	defer dst.Close()
+	// The declared size has been accounted for by the free space check: never write more than that.
+	written, err := io.Copy(dst, io.LimitReader(src, size+1))
+	if err != nil {
 		return err
+	}
+	if written > size {
+		return fmt.Errorf("file larger than its declared size %d", size)
 	}
 	return dst.Close()
 }
