@@ -6,7 +6,9 @@
 package orchestrator
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,6 +23,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
+	yaml "github.com/goccy/go-yaml"
 	"github.com/moby/moby/api/types/container"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
@@ -366,6 +369,14 @@ func installPlatformPackage(ctx context.Context, plat platform.Platform, eventCB
 	}
 	packageName := platform.DebianPackage(plat.BoardName)
 
+	// apt-mark lists the package only when it is installed and marked manual: then apt-get has nothing to do.
+	if cmd, err := paths.NewProcess(nil, "apt-mark", "showmanual", packageName); err == nil {
+		if stdout, _, err := cmd.RunAndCaptureOutput(ctx); err == nil && strings.TrimSpace(string(stdout)) == packageName {
+			eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDeb, Message: fmt.Sprintf("package '%s' already installed, skipping install", packageName)})
+			return nil
+		}
+	}
+
 	eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDeb, Message: fmt.Sprintf("Installing package '%s'", packageName)})
 
 	cmd, err := sudo.AptInstall.Process(packageName)
@@ -424,18 +435,18 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 		}})
 	}
 
-	// Force-update of the Arduino Libraries index
+	// Update the Arduino Libraries index, unless it is younger than IndexMaxAge
 	{
 		str, _ := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
-		if err := cli.UpdateLibrariesIndex(&rpc.UpdateLibrariesIndexRequest{Instance: cliInstance}, str); err != nil {
+		if err := cli.UpdateLibrariesIndex(&rpc.UpdateLibrariesIndexRequest{Instance: cliInstance, UpdateIfOlderThanSecs: int64(IndexMaxAge.Seconds())}, str); err != nil {
 			return fmt.Errorf("could not update libraries index: %w", err)
 		}
 	}
 
-	// Force-update of the Arduino Platforms index
+	// Update the Arduino Platforms index, unless it is younger than IndexMaxAge
 	{
 		str, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
-		if err := cli.UpdateIndex(&rpc.UpdateIndexRequest{Instance: cliInstance}, str); err != nil {
+		if err := cli.UpdateIndex(&rpc.UpdateIndexRequest{Instance: cliInstance, UpdateIfOlderThanSecs: int64(IndexMaxAge.Seconds())}, str); err != nil {
 			return fmt.Errorf("could not update platforms index: %w", err)
 		}
 	}
@@ -493,8 +504,10 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 	}()
 
 	// Download libraries used in each example app
+	eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceArduino, Message: "Resolving the libraries of the example sketches ..."})
+	seenProfiles := map[string]bool{}
 	for _, appPath := range exampleAppsPath {
-		if err := downloadSketchLibsUsedInApp(ctx, appPath, platform, cli, cliInstance, downloadProgressCB); err != nil {
+		if err := downloadSketchLibsUsedInApp(ctx, appPath, seenProfiles, cli, cliInstance, downloadProgressCB, eventCB); err != nil {
 			return fmt.Errorf("could not download libs in app %s: %w", appPath, err)
 		}
 	}
@@ -546,25 +559,37 @@ func platformVersionToInstall(
 	return best.String(), nil
 }
 
-func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platform platform.Platform, cli rpc.ArduinoCoreServiceServer, cliInstance *rpc.Instance, downloadProgressCB func(*rpc.DownloadProgress)) error {
+func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, seenProfiles map[string]bool, cli rpc.ArduinoCoreServiceServer, cliInstance *rpc.Instance, downloadProgressCB func(*rpc.DownloadProgress), eventCB InitEventCallback) error {
 	// Open the app to get the sketch path
 	app, err := app.Load(appPath)
 	if err != nil {
 		return err
 	}
 
-	// A release ships a frozen sketch profile, so there is nothing to migrate.
-	if editable, err := app.GetAsEditable(); err == nil {
-		if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, editable); err != nil {
-			slog.Warn("Failed to migrate app to remove router bridge", "app", appPath, "error", err)
-		} else if ok {
-			slog.Info("App migrated, RouterBridge has been removed successfully", "app", appPath)
-		}
-	}
-
 	sketchPath, ok := app.GetSketchPath()
 	if !ok {
 		return nil
+	}
+
+	// Each Init is slow, and identical sketch.yaml files resolve to the same libraries: init only the first.
+	// A dir: library is relative to its sketch, so a file with one is always initialized.
+	content, err := sketchPath.Join("sketch.yaml").ReadFile()
+	if err != nil {
+		return fmt.Errorf("could not read sketch project: %w", err)
+	}
+	var project any
+	if err := yaml.Unmarshal(content, &project); err != nil {
+		return fmt.Errorf("could not parse sketch project: %w", err)
+	}
+	normalized, err := json.Marshal(project)
+	if err != nil {
+		return err
+	}
+	if !bytes.Contains(normalized, []byte(`"dir":`)) {
+		if seenProfiles[string(normalized)] {
+			return nil
+		}
+		seenProfiles[string(normalized)] = true
 	}
 
 	// Detect the sketch default defaultProfile
@@ -587,6 +612,9 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platf
 		commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
 			if p := r.GetInitProgress().GetDownloadProgress(); p != nil {
 				downloadProgressCB(p)
+			}
+			if name := r.GetInitProgress().GetTaskProgress().GetName(); name != "" {
+				eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceArduino, Message: name})
 			}
 			return nil
 		}),

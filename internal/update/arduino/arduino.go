@@ -205,7 +205,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 
 	{
 		stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
-		if err := srv.UpdateIndex(&rpc.UpdateIndexRequest{Instance: inst}, stream); err != nil {
+		if err := srv.UpdateIndex(&rpc.UpdateIndexRequest{Instance: inst, UpdateIfOlderThanSecs: int64(orchestrator.IndexMaxAge.Seconds())}, stream); err != nil {
 			return fmt.Errorf("error updating index: %w", err)
 		}
 		if err := srv.Init(&rpc.InitRequest{Instance: inst}, commands.InitStreamResponseToCallbackFunction(ctx, nil)); err != nil {

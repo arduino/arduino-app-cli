@@ -20,6 +20,9 @@ import (
 
 const indexUpdateInterval = 10 * time.Minute
 
+// IndexMaxAge is the age after which system init and the platform upgrade download an index again.
+const IndexMaxAge = 20 * time.Minute
+
 func AddSketchLibrary(ctx context.Context, arduinoApp app.Editable, libRef LibraryReleaseID, addDeps bool) ([]LibraryReleaseID, error) {
 	sketchPath, ok := arduinoApp.GetSketchPath()
 	if !ok {
