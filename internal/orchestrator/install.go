@@ -68,9 +68,9 @@ func InstallRelease(
 		return InstallReleaseResult{}, fmt.Errorf("%w: %s not found", ErrBadRequest, archive)
 	}
 
-	stagingDir, err := cfg.MkStagingDir()
+	stagingDir, err := mkStagingDir(cfg.ReleasesDir())
 	if err != nil {
-		return InstallReleaseResult{}, fmt.Errorf("failed to create the staging dir: %w", err)
+		return InstallReleaseResult{}, err
 	}
 	defer removeStagingDir(stagingDir)
 
@@ -310,6 +310,19 @@ func writeReleaseFile(destRoot *os.Root, target string, perm os.FileMode, conten
 		return err
 	}
 	return file.Close()
+}
+
+// mkStagingDir stages an install beside what it installs, so that installing it is a
+// rename on the same filesystem and nothing half extracted is ever started.
+func mkStagingDir(installDir *paths.Path) (*paths.Path, error) {
+	if err := installDir.MkdirAll(); err != nil {
+		return nil, fmt.Errorf("failed to create %s: %w", installDir, err)
+	}
+	stagingDir, err := paths.MkTempDir(installDir.String(), "tmp_install_")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the staging dir: %w", err)
+	}
+	return stagingDir, nil
 }
 
 func removeStagingDir(stagingDir *paths.Path) {
