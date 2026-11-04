@@ -318,6 +318,13 @@ func TestImportAppFromZip(t *testing.T) {
 			createZipFile(t, zipPath, tc.zipFiles)
 			id, err := ImportAppFromZip(cfg, paths.New(zipPath), idProvider, tc.originalZipName)
 
+			// Verify temp folder cleanup, on success and on failure
+			files, readErr := os.ReadDir(appsDirPath)
+			require.NoError(t, readErr)
+			for _, f := range files {
+				require.False(t, strings.HasPrefix(f.Name(), ".tmp_"), "Temp folder not cleaned: %s", f.Name())
+			}
+
 			if tc.wantErr {
 				require.Error(t, err)
 				if tc.errorContains != "" {
@@ -327,12 +334,6 @@ func TestImportAppFromZip(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotEmpty(t, id)
-
-				// Verify temp folder cleanup
-				files, _ := os.ReadDir(appsDirPath)
-				for _, f := range files {
-					require.False(t, strings.HasPrefix(f.Name(), ".tmp_"), "Temp folder not cleaned: %s", f.Name())
-				}
 
 				if !tc.preExisting && tc.expectedFolder != "" {
 					finalPath := cfg.AppsDir().Join(tc.expectedFolder)
