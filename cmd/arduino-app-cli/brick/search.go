@@ -6,15 +6,15 @@
 package brick
 
 import (
+	"cmp"
+	"fmt"
 	"strings"
 
-	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
-	"github.com/arduino/arduino-app-cli/internal/tablestyle"
 )
 
 func newSearchCmd(cfg config.Configuration) *cobra.Command {
@@ -29,7 +29,7 @@ func newSearchCmd(cfg config.Configuration) *cobra.Command {
 			searchHandler(args, allVersions, deprecated, cfg)
 		},
 	}
-	cmd.Flags().BoolVarP(&allVersions, "all", "a", false, "Show all the versions of the bricks")
+	cmd.Flags().BoolVarP(&allVersions, "all", "a", false, "Show the details of all the versions of the bricks")
 	cmd.Flags().BoolVar(&deprecated, "deprecated", false, "Include the deprecated bricks")
 	return cmd
 }
@@ -55,23 +55,35 @@ func (r searchResult) String() string {
 		return "No bricks matching your search."
 	}
 
-	t := table.NewWriter()
-	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"ID", "VERSION", "NAME", "DEPRECATED"})
+	var out strings.Builder
 	for _, b := range r.Bricks {
-		deprecated := ""
+		fmt.Fprintf(&out, "ID: %s\n", b.ID)
+		fmt.Fprintf(&out, "  Name: %s\n", b.Name)
+		fmt.Fprintf(&out, "  Author: %s\n", b.Namespace)
+		fmt.Fprintf(&out, "  Latest: %s\n", b.Latest)
 		if b.Deprecated {
-			deprecated = "yes"
+			fmt.Fprintf(&out, "  Deprecated: %s\n", cmp.Or(b.DeprecationNote, "yes"))
 		}
-		if !r.allVersions {
-			t.AppendRow(table.Row{b.ID, b.Latest, b.Name, deprecated})
+		if r.allVersions {
+			out.WriteString("  Releases:\n")
+			for _, release := range b.Releases {
+				fmt.Fprintf(&out, "    %s\n", release.Version)
+				fmt.Fprintf(&out, "      Description: %s\n", release.Description)
+				fmt.Fprintf(&out, "      Repository: %s\n", release.Repository)
+			}
 			continue
 		}
-		for _, release := range b.Releases {
-			t.AppendRow(table.Row{b.ID, release.Version, b.Name, deprecated})
+		if latest := b.LatestRelease(); latest != nil {
+			fmt.Fprintf(&out, "  Description: %s\n", latest.Description)
+			fmt.Fprintf(&out, "  Repository: %s\n", latest.Repository)
 		}
+		versions := make([]string, 0, len(b.Releases))
+		for _, release := range b.Releases {
+			versions = append(versions, release.Version)
+		}
+		fmt.Fprintf(&out, "  Versions: %s\n", strings.Join(versions, ", "))
 	}
-	return t.Render()
+	return strings.TrimSuffix(out.String(), "\n")
 }
 
 func (r searchResult) Data() any {
