@@ -3,6 +3,7 @@
 USER_ID=1000
 
 systemctl enable arduino-app-cli
+systemctl enable arduino-app-cli-default-app.service
 systemctl enable arduino-avahi-serial.service
 
 mkdir -p /etc/bash_completion.d/

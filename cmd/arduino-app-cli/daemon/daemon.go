@@ -53,27 +53,6 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 				}
 			}
 
-			// start the default app in the background
-			go func() {
-				slog.Info("Starting default app")
-				err := orchestrator.StartDefaultApp(
-					cmd.Context(),
-					servicelocator.GetDockerClient(),
-					servicelocator.GetProvisioner(),
-					servicelocator.GetModelsIndex(),
-					servicelocator.GetBricksIndex(),
-					servicelocator.GetServicesIndex(),
-					servicelocator.GetAppIDProvider(),
-					cfg,
-					servicelocator.GetPlatform(),
-				)
-				if err != nil {
-					slog.Error("Failed to start default app", slog.String("error", err.Error()))
-				} else {
-					slog.Info("Default app started")
-				}
-			}()
-
 			httpHandler(cmd.Context(), cfg, daemonPort, version)
 		},
 	}
@@ -147,11 +126,21 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 		ReadHeaderTimeout: 60 * time.Second,
 		BaseContext:       func(net.Listener) context.Context { return srvCtx },
 	}
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		panic(err.Error())
+	}
 	go func() {
-		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := httpSrv.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			panic(err.Error())
 		}
 	}()
+
+	// The leftover app containers are stopped and the API is listening: the unit that
+	// starts the default app, ordered after this one, can now run.
+	if err := notifyReady(); err != nil {
+		slog.Warn("Failed to notify systemd that the daemon is ready", slog.String("error", err.Error()))
+	}
 
 	<-ctx.Done()
 	slog.Info("Shutting down HTTP server", slog.String("address", address))
