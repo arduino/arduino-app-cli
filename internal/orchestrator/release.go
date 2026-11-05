@@ -508,13 +508,18 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 	}
 
 	return cli.forSketch(ctx, sketchPath, output, func(srv rpc.ArduinoCoreServiceServer, inst *rpc.Instance) error {
-		if _, err := compileSketch(
+		result, err := compileSketch(
 			ctx, srv, inst,
 			sketchPath, buildPath,
 			platform, fqbn,
 			verbose, output,
-		); err != nil {
+		)
+		if err != nil {
 			return err
+		}
+		// The staged copy is built once: its build leaves the cache of arduino-cli with it.
+		if result.GetBuildPath() != "" {
+			defer paths.New(result.GetBuildPath()).RemoveAll()
 		}
 
 		// Upload to file

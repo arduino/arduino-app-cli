@@ -12,6 +12,8 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
 
 func TestSketchInputs(t *testing.T) {
@@ -74,4 +76,19 @@ func TestBuildArtifacts(t *testing.T) {
 		build.Join("sketch.ino.map").String(),
 	}, buildArtifacts(build, sketch))
 	assert.Empty(t, buildArtifacts(build.Join("missing"), sketch))
+}
+
+func TestCleanAppCacheRemovesTheRecordedSketchBuild(t *testing.T) {
+	root := paths.New(t.TempDir())
+	a := app.ArduinoApp{FullPath: root.Join("my-app")}
+	build := root.Join("arduino-cache", "sketches", "ABC")
+	require.NoError(t, build.Join("core").MkdirAll())
+	require.NoError(t, a.SketchBuildPath().MkdirAll())
+	require.NoError(t, recordSketchBuildPath(a, build.String()))
+	assert.Equal(t, build.String(), recordedSketchBuildPath(a).String())
+
+	require.NoError(t, cleanAppCacheFiles(a, nil))
+	assert.False(t, build.Exist(), "the build of arduino-cli goes with the cache")
+	assert.False(t, a.FullPath.Join(".cache").Exist())
+	assert.Nil(t, recordedSketchBuildPath(a))
 }

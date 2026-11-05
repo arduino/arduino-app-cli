@@ -396,6 +396,14 @@ func cleanAppCacheFiles(app app.ArduinoApp, cb func(StreamMessage)) error {
 		return nil
 	}
 	cb(StreamMessage{data: "Removing app cache files..."})
+	// The objects of the sketch live in the build cache of arduino-cli, at the path it
+	// reported to the last compile: they go with the cache of the app.
+	if buildPath := recordedSketchBuildPath(app); buildPath != nil {
+		slog.Debug("removing the sketch build", slog.String("path", buildPath.String()))
+		if err := buildPath.RemoveAll(); err != nil {
+			return fmt.Errorf("unable to remove the sketch build: %w", err)
+		}
+	}
 	slog.Debug("removing app cache", slog.String("path", cachePath.String()))
 	if err := cachePath.RemoveAll(); err != nil {
 		return fmt.Errorf("unable to remove app cache: %w", err)
@@ -1197,6 +1205,9 @@ func compileUploadSketch(
 		if err != nil {
 			return err
 		}
+		if err := recordSketchBuildPath(arduinoApp, result.GetBuildPath()); err != nil {
+			return err
+		}
 
 		// The record of this build, for the next start: the inputs hashed before the
 		// compile, so that an edit made during it is seen then, and the files the upload needs.
@@ -1233,11 +1244,15 @@ func uploadFirmwareFile(
 	})
 }
 
+// compileSketch builds the sketch where arduino-cli builds by default, its build cache, so
+// that the core compiled for the board is shared by every sketch, and exports the outputs
+// named after the sketch to exportPath, where the upload and the fingerprint read them. A
+// build path of our own would cost the core: arduino-cli keeps its core cache out of those.
 func compileSketch(
 	ctx context.Context,
 	srv rpc.ArduinoCoreServiceServer,
 	inst *rpc.Instance,
-	sketchPath, buildPath *paths.Path,
+	sketchPath, exportPath *paths.Path,
 	platform platform.Platform,
 	fqbn string,
 	verbose bool,
@@ -1251,7 +1266,7 @@ func compileSketch(
 		Instance:   inst,
 		Fqbn:       fqbn,
 		SketchPath: sketchPath.String(),
-		BuildPath:  buildPath.String(),
+		ExportDir:  exportPath.String(),
 		Jobs:       platform.CompileJobs(),
 		Verbose:    verbose,
 	}

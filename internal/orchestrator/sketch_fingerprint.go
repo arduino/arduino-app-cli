@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
 
 // sketchFingerprintFormat changes when what sketchInputs covers changes: every sketch is then
@@ -61,4 +63,25 @@ func buildArtifacts(buildPath, sketchPath *paths.Path) []string {
 		}
 	}
 	return artifacts
+}
+
+// sketchBuildPathRecord is the file of the sketch output folder that names where arduino-cli
+// built the sketch, so that a clean of the app removes that build too.
+const sketchBuildPathRecord = "build-path"
+
+func recordSketchBuildPath(arduinoApp app.ArduinoApp, buildPath string) error {
+	if buildPath == "" {
+		return nil
+	}
+	return arduinoApp.SketchBuildPath().Join(sketchBuildPathRecord).WriteFile([]byte(buildPath))
+}
+
+// recordedSketchBuildPath is where arduino-cli built the sketch the last time, nil when no
+// build was recorded.
+func recordedSketchBuildPath(arduinoApp app.ArduinoApp) *paths.Path {
+	data, err := arduinoApp.SketchBuildPath().Join(sketchBuildPathRecord).ReadFile()
+	if err != nil || len(bytes.TrimSpace(data)) == 0 {
+		return nil
+	}
+	return paths.New(string(bytes.TrimSpace(data)))
 }
