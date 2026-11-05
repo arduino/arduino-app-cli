@@ -14,6 +14,7 @@ import (
 	"github.com/moby/moby/client/pkg/versions"
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-app-cli/internal/buildtag"
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/sudo"
 
@@ -39,12 +40,15 @@ func newCheckCmd(docker command.Cli) *cobra.Command {
 // checkPlatform reports what this board provides of what an app needs of it. A new
 // requirement is a new entry here, and the command reports it without knowing it.
 func checkPlatform(ctx context.Context, docker command.Cli) []check {
-	checks := []struct {
+	type requirement struct {
 		name string
 		run  func() (string, error)
-	}{
+	}
+	checks := []requirement{
 		{"docker engine", func() (string, error) { return checkDockerEngine(ctx, docker) }},
-		{"sudo rules", func() (string, error) { return checkSudoRules(ctx) }},
+	}
+	if !buildtag.ImmutableOS {
+		checks = append(checks, requirement{"sudo rules", func() (string, error) { return checkSudoRules(ctx) }})
 	}
 
 	results := make([]check, 0, len(checks))
