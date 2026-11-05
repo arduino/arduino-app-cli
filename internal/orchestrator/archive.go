@@ -197,6 +197,9 @@ func ImportAppFromZip(
 	defer func() { _ = tempDestDir.RemoveAll() }()
 
 	if err := extractZip(&r.Reader, tempDestDir.String(), rootPrefix); err != nil {
+		if errors.Is(err, syscall.ENOSPC) {
+			return appid.ID{}, fmt.Errorf("%w: not enough space on the board", ErrBadRequest)
+		}
 		return appid.ID{}, err
 	}
 
@@ -227,25 +230,10 @@ func ImportAppFromZip(
 
 func extractZip(r *zip.Reader, dest string, rootPrefix string) error {
 	dest = filepath.Clean(dest) + string(os.PathSeparator)
-	const maxFileSize = 100 * 1024 * 1024 // 100MB limit per file
-
-	rootPrefixClean := filepath.FromSlash(rootPrefix)
-	if rootPrefixClean == "." {
-		rootPrefixClean = ""
-	}
 
 	for _, f := range r.File {
-		zipName := filepath.Clean(filepath.FromSlash(f.Name))
-
-		if rootPrefixClean != "" {
-			if !strings.HasPrefix(zipName, rootPrefixClean) {
-				continue
-			}
-			zipName = strings.TrimPrefix(zipName, rootPrefixClean)
-			zipName = strings.TrimPrefix(zipName, string(os.PathSeparator))
-		}
-
-		if zipName == "" || zipName == "." {
+		zipName := entryName(f, rootPrefix)
+		if zipName == "" {
 			continue
 		}
 
@@ -276,21 +264,40 @@ func extractZip(r *zip.Reader, dest string, rootPrefix string) error {
 			return fmt.Errorf("unable to open entry %s: %w", f.Name, err)
 		}
 
-		lr := io.LimitReader(rc, maxFileSize+1)
-		written, err := io.Copy(outFile, lr)
+		_, err = io.Copy(outFile, rc) // nolint:gosec // the zip reader fails with ErrFormat past the declared size
 
 		outFile.Close()
 		rc.Close()
 
+		if errors.Is(err, zip.ErrFormat) || errors.Is(err, zip.ErrChecksum) {
+			return fmt.Errorf("%w: %s: %v", ErrBadRequest, f.Name, err)
+		}
 		if err != nil {
 			return fmt.Errorf("write file %s: %w", fpath, err)
-		}
-		if written > maxFileSize {
-			return fmt.Errorf("file %s too large", f.Name)
 		}
 	}
 
 	return nil
+}
+
+func entryName(f *zip.File, rootPrefix string) string {
+	prefix := filepath.FromSlash(rootPrefix)
+	if prefix == "." {
+		prefix = ""
+	}
+
+	name := filepath.Clean(filepath.FromSlash(f.Name))
+	if prefix != "" {
+		if !strings.HasPrefix(name, prefix) {
+			return ""
+		}
+		name = strings.TrimPrefix(name, prefix)
+		name = strings.TrimPrefix(name, string(os.PathSeparator))
+	}
+	if name == "." {
+		return ""
+	}
+	return name
 }
 
 func readAppDescriptorFromZip(r *zip.Reader, rootPrefix string) (app.AppDescriptor, error) {
