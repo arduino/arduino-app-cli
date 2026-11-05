@@ -6,6 +6,7 @@
 package remotebricksindex
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ func TestSearch(t *testing.T) {
 			},
 		},
 		{
-			ID: "sensorlab:air_quality", Name: "Air Quality Monitor", Namespace: "sensorlab", Latest: "0.3.1",
+			ID: "sensorlab:air_quality", Name: "Air Quality Monitor", Namespace: "sensorlab", Latest: "0.3.1", Deprecated: true,
 			Releases: []Release{{Version: "0.3.1", Description: "Read air quality metrics from I2C sensors."}},
 		},
 	}}
@@ -35,19 +36,23 @@ func TestSearch(t *testing.T) {
 	}
 
 	tests := []struct {
-		query string
-		want  []string
+		query             string
+		includeDeprecated bool
+		want              []string
 	}{
-		{"", []string{"acme:camera", "sensorlab:air_quality"}},
-		{"CAMERA", []string{"acme:camera"}},
-		{"usb frames", []string{"acme:camera"}},
-		{"usb sensors", []string{}},
-		{"gitlab", []string{"acme:camera"}},
-		{"thermal", []string{}},
+		{"", false, []string{"acme:camera"}},
+		{"", true, []string{"acme:camera", "sensorlab:air_quality"}},
+		{"CAMERA", false, []string{"acme:camera"}},
+		{"usb frames", false, []string{"acme:camera"}},
+		{"usb sensors", true, []string{}},
+		{"gitlab", false, []string{"acme:camera"}},
+		{"thermal", false, []string{}},
+		{"i2c", false, []string{}},
+		{"i2c", true, []string{"sensorlab:air_quality"}},
 	}
 	for _, tt := range tests {
-		t.Run(tt.query, func(t *testing.T) {
-			require.Equal(t, tt.want, ids(index.Search(tt.query)))
+		t.Run(fmt.Sprintf("%q deprecated=%t", tt.query, tt.includeDeprecated), func(t *testing.T) {
+			require.Equal(t, tt.want, ids(index.Search(tt.query, tt.includeDeprecated)))
 		})
 	}
 }

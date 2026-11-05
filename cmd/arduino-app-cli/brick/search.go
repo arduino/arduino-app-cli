@@ -18,28 +18,29 @@ import (
 )
 
 func newSearchCmd(cfg config.Configuration) *cobra.Command {
-	var allVersions bool
+	var allVersions, deprecated bool
 	cmd := &cobra.Command{
 		Use:     "search [keywords...]",
 		Short:   "Search bricks in the bricks index",
 		Long:    "Search bricks in the bricks index. Without keywords, all the bricks are listed.",
-		Example: "  arduino-app-cli brick search camera usb --all",
+		Example: "  arduino-app-cli brick search camera usb --all --deprecated",
 		Args:    cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			searchHandler(args, allVersions, cfg)
+			searchHandler(args, allVersions, deprecated, cfg)
 		},
 	}
 	cmd.Flags().BoolVarP(&allVersions, "all", "a", false, "Show all the versions of the bricks")
+	cmd.Flags().BoolVar(&deprecated, "deprecated", false, "Include the deprecated bricks")
 	return cmd
 }
 
-func searchHandler(keywords []string, allVersions bool, cfg config.Configuration) {
+func searchHandler(keywords []string, allVersions, deprecated bool, cfg config.Configuration) {
 	index, err := remotebricksindex.Load(cfg.BricksIndexDir())
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
 	feedback.PrintResult(searchResult{
-		Bricks:      index.Search(strings.Join(keywords, " ")),
+		Bricks:      index.Search(strings.Join(keywords, " "), deprecated),
 		allVersions: allVersions,
 	})
 }

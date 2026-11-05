@@ -20,11 +20,14 @@ func (b Brick) LatestRelease() *Release {
 }
 
 // Search returns the bricks that contain every word of query, ignoring case.
-// An empty query matches all the bricks.
-func (idx *Index) Search(query string) []Brick {
+// An empty query matches all the bricks. Deprecated bricks are skipped unless includeDeprecated is set.
+func (idx *Index) Search(query string, includeDeprecated bool) []Brick {
 	terms := strings.Fields(strings.ToLower(query))
 	res := []Brick{}
 	for _, b := range idx.Bricks {
+		if b.Deprecated && !includeDeprecated {
+			continue
+		}
 		if b.matches(terms) {
 			res = append(res, b)
 		}
