@@ -29,8 +29,6 @@ const (
 	IndexFileName = "brick-index.json"
 	etagFileName  = IndexFileName + ".etag"
 	lockFileName  = IndexFileName + ".lock"
-
-	maxIndexSize = 32 << 20
 )
 
 var ErrIndexNotFound = errors.New("bricks index not found, run 'arduino-app-cli brick update-index' to download it")
@@ -156,12 +154,9 @@ func Update(ctx context.Context, client *http.Client, indexURL *url.URL, dir *pa
 		return UpdateResult{}, fmt.Errorf("downloading bricks index from %s: unexpected status %s", indexURL, resp.Status)
 	}
 
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxIndexSize+1))
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return UpdateResult{}, fmt.Errorf("downloading bricks index: %w", err)
-	}
-	if len(data) > maxIndexSize {
-		return UpdateResult{}, fmt.Errorf("bricks index exceeds the maximum size of %d bytes", maxIndexSize)
 	}
 
 	// TODO: verify the signature of the index before trusting it.
