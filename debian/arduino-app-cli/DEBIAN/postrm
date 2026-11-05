@@ -8,5 +8,10 @@ fi
 
 #LOAD_HELPER
 if [ "$1" = "purge" ]; then
+    LINGER_MARKER=/var/lib/arduino-app-cli/linger-enabled-by-package
+    if [ -e "$LINGER_MARKER" ]; then
+        loginctl disable-linger "$(getent passwd "$USER_ID" | cut -d: -f1)" || true
+        rm -f "$LINGER_MARKER"
+    fi
     cleanup_agent_profiles
 fi
