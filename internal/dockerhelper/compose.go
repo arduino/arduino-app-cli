@@ -88,7 +88,10 @@ func ComposeStop(ctx context.Context, docker command.Cli, projectName string, li
 		return err
 	}
 	timeout := stopTimeout
-	return backend.Stop(ctx, projectName, api.StopOptions{Timeout: &timeout})
+	if err := backend.Stop(ctx, projectName, api.StopOptions{Timeout: &timeout}); err != nil {
+		return err
+	}
+	return WaitStopped(ctx, docker.Client(), api.ProjectLabel+"="+projectName, stopTimeout)
 }
 
 // ComposeDown removes the containers of the app, its volumes, the images it built and its
@@ -105,10 +108,11 @@ func ComposeDown(ctx context.Context, docker command.Cli, projectName string, li
 		Images:        "local",
 		Timeout:       &timeout,
 	})
-	if err == nil {
-		pruneDanglingBuilds(ctx, docker, projectName)
+	if err != nil {
+		return err
 	}
-	return err
+	pruneDanglingBuilds(ctx, docker, projectName)
+	return WaitStopped(ctx, docker.Client(), api.ProjectLabel+"="+projectName, stopTimeout)
 }
 
 // classicBuilder makes the sdk build with the legacy builder, and writes the build output
