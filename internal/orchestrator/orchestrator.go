@@ -104,6 +104,25 @@ func StartApp(
 	prepare bool,
 	cb func(StreamMessage),
 ) error {
+	return runExclusive(ctx, cfg, appToStart, "start", func() error {
+		return startApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, prepare, cb)
+	})
+}
+
+func startApp(
+	ctx context.Context,
+	docker command.Cli,
+	provisioner *Provision,
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+	servicesIndex *servicesindex.ServicesIndex,
+	appToStart app.ArduinoApp,
+	cfg config.Configuration,
+	platform platform.Platform,
+	verbose bool,
+	prepare bool,
+	cb func(StreamMessage),
+) error {
 	if cb == nil {
 		cb = func(StreamMessage) {}
 	}
@@ -170,7 +189,7 @@ func StartApp(
 				continue
 			}
 			slog.Debug("stopping failed app before starting a new one", slog.String("name", failedApp.Name))
-			if err := StopApp(ctx, docker, platform, failedApp, cfg, nil); err != nil {
+			if err := stopApp(ctx, docker, platform, failedApp, cfg, nil); err != nil {
 				slog.Warn("failed to stop failed app", slog.String("name", failedApp.Name), slog.String("error", err.Error()))
 			}
 		}
@@ -366,10 +385,22 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 }
 
 func StopApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cb func(StreamMessage)) error {
+	return runExclusive(ctx, cfg, app, "stop", func() error {
+		return stopApp(ctx, dockerClient, platform, app, cfg, cb)
+	})
+}
+
+func stopApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cb func(StreamMessage)) error {
 	return stopAppWithCmd(ctx, dockerClient, platform, app, cfg, "stop", cb)
 }
 
 func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cb func(StreamMessage)) error {
+	return runExclusive(ctx, cfg, app, "destroy", func() error {
+		return stopAndDestroyApp(ctx, dockerClient, platform, app, cfg, cb)
+	})
+}
+
+func stopAndDestroyApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cb func(StreamMessage)) error {
 	if err := stopAppWithCmd(ctx, dockerClient, platform, app, cfg, "down", cb); err != nil {
 		return err
 	}
@@ -419,22 +450,24 @@ func RestartApp(
 	verbose bool,
 	cb func(StreamMessage),
 ) error {
-	runningApp, err := getRunningApp(ctx, docker.Client())
-	if err != nil {
-		return err
-	}
-
-	if runningApp != nil {
-		if runningApp.FullPath.String() != appToStart.FullPath.String() {
-			return fmt.Errorf("another app %q is running", runningApp.Name)
-		}
-
-		if err := StopApp(ctx, docker, platform, *runningApp, cfg, cb); err != nil {
+	return runExclusive(ctx, cfg, appToStart, "restart", func() error {
+		runningApp, err := getRunningApp(ctx, docker.Client())
+		if err != nil {
 			return err
 		}
-	}
 
-	return StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, !appToStart.IsRelease(), cb)
+		if runningApp != nil {
+			if runningApp.FullPath.String() != appToStart.FullPath.String() {
+				return fmt.Errorf("another app %q is running", runningApp.Name)
+			}
+
+			if err := stopApp(ctx, docker, platform, *runningApp, cfg, cb); err != nil {
+				return err
+			}
+		}
+
+		return startApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, !appToStart.IsRelease(), cb)
+	})
 }
 
 func StartDefaultApp(
@@ -943,15 +976,17 @@ func CloneApp(
 }
 
 func DeleteApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration) error {
-	// We try to remove docker related resources at best effort
-	_ = StopAndDestroyApp(ctx, dockerClient, platform, app, cfg, func(StreamMessage) {})
-	// TODO: Shall we report stop error?
+	return runExclusive(ctx, cfg, app, "delete", func() error {
+		// We try to remove docker related resources at best effort
+		_ = stopAndDestroyApp(ctx, dockerClient, platform, app, cfg, func(StreamMessage) {})
+		// TODO: Shall we report stop error?
 
-	if err := app.FullPath.RemoveAll(); err != nil {
-		return err
-	}
-	fatomic.Sync()
-	return nil
+		if err := app.FullPath.RemoveAll(); err != nil {
+			return err
+		}
+		fatomic.Sync()
+		return nil
+	})
 }
 
 const defaultAppFileName = "default.app"
