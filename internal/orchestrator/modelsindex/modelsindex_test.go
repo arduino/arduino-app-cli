@@ -245,11 +245,13 @@ func TestModelsIndex(t *testing.T) {
 		}, eimodel)
 	})
 
-	t.Run("it fails if model-list.yaml does not exist", func(t *testing.T) {
-		nonExistentPath := paths.New("nonexistentdir")
-		modelsIndex, err := Load(platform.GetPlatform(nil), nonExistentPath, paths.New(t.TempDir()), nil, nil, config.Configuration{})
-		assert.Error(t, err)
-		assert.Nil(t, modelsIndex)
+	t.Run("it creates an empty models-list.yaml if it does not exist", func(t *testing.T) {
+		dir := paths.New(t.TempDir()).Join("missing")
+		modelsIndex, err := Load(platform.GetPlatform(nil), dir, paths.New(t.TempDir()), nil, nil, config.Configuration{})
+		require.NoError(t, err)
+		require.NotNil(t, modelsIndex)
+		assert.Empty(t, modelsIndex.InternalModels)
+		assert.True(t, dir.Join(modelsListFileName).Exist())
 	})
 
 	t.Run("it gets models by a brick", func(t *testing.T) {
