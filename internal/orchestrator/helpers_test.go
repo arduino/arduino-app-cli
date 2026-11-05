@@ -79,7 +79,7 @@ func TestParseAppStatus(t *testing.T) {
 					Status: tc.statusMessage[i],
 				})
 			}
-			res := parseAppStatus(input)
+			res := parseAppStatus(input, nil)
 			require.Len(t, res, 1)
 			require.Equal(t, tc.want, res[0].Status)
 			require.Equal(t, "path1", res[0].AppPath.String())

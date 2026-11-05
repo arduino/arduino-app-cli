@@ -10,10 +10,12 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
+	"slices"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
-	"github.com/moby/moby/api/types/events"
+	"github.com/moby/moby/api/types/container"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -21,21 +23,29 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
+// launcherPollInterval is how often the launchers are asked about their app while one of their
+// containers runs: an app that stops or crashes in a container that stays up raises no docker event.
+const launcherPollInterval = time.Second
+
+// AppStatusEvents yields the status of an app each time one of its containers changes, as the
+// docker events tell, and each time the launcher of a running main container reports its app
+// started, stopped or failed.
 func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker command.Cli, idProvider *appid.Provider) iter.Seq2[AppInfo, error] {
 	chanMsg, chanError := dockerhelper.ContainerEvents(ctx, docker.Client(), DockerAppLabel+"=true",
 		"create", "start", "stop", "die", "restart", "destroy", "delete")
 
 	return func(yield func(AppInfo, error) bool) {
+		var containers []container.Summary
+		var last map[string]Status
+		ticker := time.NewTicker(launcherPollInterval)
+		defer ticker.Stop()
+
 		for {
+			var changed []AppStatusInfo
 			select {
 			case <-ctx.Done():
 				slog.Debug("Stopping to listen to docker events")
 				return
-			default:
-			}
-
-			select {
-
 			case err := <-chanError:
 				if err != nil {
 					slog.Error("Error listening to docker events", slog.String("error", err.Error()))
@@ -43,60 +53,91 @@ func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker comma
 					return
 				}
 			case event := <-chanMsg:
-				appStatus, err := parseDockerStatusEvent(ctx, cfg, docker, idProvider, event)
+				listed, err := dockerhelper.Containers(ctx, docker.Client(), DockerAppLabel+"=true")
 				if err != nil {
 					slog.Error("Unable to get apps status", slog.String("error", err.Error()))
 					if !yield(AppInfo{}, err) {
 						return
 					}
+					continue
 				}
-				if !yield(appStatus, nil) {
+				containers = listed
+				current := statusByPath(containers, launcherStatuses(ctx, docker.Client(), containers))
+				// The app of the event is reported whatever its status, as every event was
+				if pathLabel, ok := event.Actor.Attributes[DockerAppPathLabel]; ok {
+					status, known := current[pathLabel]
+					if !known {
+						status = StatusUninitialized
+					}
+					changed = append(changed, AppStatusInfo{AppPath: paths.New(pathLabel), Status: status})
+				}
+				last = current
+			case <-ticker.C:
+				if !slices.ContainsFunc(containers, isLauncherContainer) {
+					continue
+				}
+				current := statusByPath(containers, launcherStatuses(ctx, docker.Client(), containers))
+				for appPath, status := range current {
+					if last[appPath] != status {
+						changed = append(changed, AppStatusInfo{AppPath: paths.New(appPath), Status: status})
+					}
+				}
+				last = current
+			}
+
+			for _, change := range changed {
+				info, err := appInfoFromStatus(cfg, idProvider, change)
+				if err != nil {
+					slog.Error("Unable to get apps status", slog.String("error", err.Error()))
+					if !yield(AppInfo{}, err) {
+						return
+					}
+					continue
+				}
+				if !yield(info, nil) {
 					return
 				}
 			}
-
 		}
 	}
 }
 
-func parseDockerStatusEvent(ctx context.Context, cfg config.Configuration, docker command.Cli, idProvider *appid.Provider, event events.Message) (AppInfo, error) {
-
-	if pathLabel, ok := event.Actor.Attributes[DockerAppPathLabel]; ok {
-		app, err := app.Load(paths.New(pathLabel))
-		if err != nil {
-			slog.Warn("error loading app", "appPath", pathLabel, "error", err)
-			return AppInfo{}, err
-		}
-
-		appStatus, err := getAppStatus(ctx, docker.Client(), app)
-		if err != nil {
-			return AppInfo{}, err
-		}
-
-		defaultApp, err := GetDefaultApp(cfg)
-		if err != nil {
-			slog.Warn("unable to get default app", slog.String("error", err.Error()))
-		}
-
-		// FIXME: create an helper function to transform an app.ArduinoApp into an ortchestrator.AppInfo
-		id, err := idProvider.IDFromPath(appStatus.AppPath)
-		if err != nil {
-			return AppInfo{}, err
-		}
-
-		isDefault := defaultApp != nil && defaultApp.FullPath.EqualsTo(app.FullPath)
-
-		return AppInfo{
-			ID:          id,
-			Name:        app.Descriptor.Name,
-			Description: app.Descriptor.Description,
-			Icon:        app.Descriptor.Icon,
-			Status:      appStatus.Status,
-			Example:     id.IsExample(),
-			Default:     isDefault,
-		}, nil
-
+func statusByPath(containers []container.Summary, appStatuses map[string]Status) map[string]Status {
+	statuses := parseAppStatus(containers, appStatuses)
+	result := make(map[string]Status, len(statuses))
+	for _, s := range statuses {
+		result[s.AppPath.String()] = s.Status
 	}
-	return AppInfo{}, fmt.Errorf("unable to find app path label in event")
+	return result
+}
 
+func appInfoFromStatus(cfg config.Configuration, idProvider *appid.Provider, status AppStatusInfo) (AppInfo, error) {
+	app, err := app.Load(status.AppPath)
+	if err != nil {
+		slog.Warn("error loading app", "appPath", status.AppPath.String(), "error", err)
+		return AppInfo{}, err
+	}
+
+	defaultApp, err := GetDefaultApp(cfg)
+	if err != nil {
+		slog.Warn("unable to get default app", slog.String("error", err.Error()))
+	}
+
+	// FIXME: create an helper function to transform an app.ArduinoApp into an ortchestrator.AppInfo
+	id, err := idProvider.IDFromPath(status.AppPath)
+	if err != nil {
+		return AppInfo{}, err
+	}
+
+	isDefault := defaultApp != nil && defaultApp.FullPath.EqualsTo(app.FullPath)
+
+	return AppInfo{
+		ID:          id,
+		Name:        app.Descriptor.Name,
+		Description: app.Descriptor.Description,
+		Icon:        app.Descriptor.Icon,
+		Status:      status.Status,
+		Example:     id.IsExample(),
+		Default:     isDefault,
+	}, nil
 }

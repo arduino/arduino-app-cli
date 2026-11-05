@@ -278,7 +278,11 @@ bricks:
 			appDescriptor, err := app.ParseDescriptorFile(appYaml)
 			require.NoError(t, err)
 
-			err = checkBricks(t.Context(), appDescriptor.Bricks, bricksIndex, modelIndex, true)
+			err = checkBricks(t.Context(), appDescriptor.Bricks, bricksIndex, modelIndex)
+			if err == nil {
+				// What a start asks next, once the project is not warm
+				err = checkModelsInstalled(t.Context(), appDescriptor.Bricks, bricksIndex, modelIndex.NewLookup())
+			}
 			if tc.expectedError == nil {
 				assert.NoError(t, err, "Expected no validation errors")
 			} else {
@@ -300,7 +304,6 @@ func TestCheckBricksReturnsMissingRequiredVariableError(t *testing.T) {
 			}},
 		}}},
 		&modelsindex.ModelsIndex{},
-		true,
 	)
 
 	var missing *MissingRequiredVariableError
