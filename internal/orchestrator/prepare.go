@@ -136,10 +136,10 @@ func prepareModels(
 	bricks []app.Brick,
 	index *bricksindex.BricksIndex,
 	modelIndex *modelsindex.ModelsIndex,
+	models *modelsindex.Lookup,
 	plat platform.Platform,
 	cb func(StreamMessage),
 ) error {
-	models := modelIndex.NewLookup()
 	for _, appBrick := range bricks {
 		indexBrick, found := index.FindBrickByID(appBrick.ID)
 		if !found || !indexBrick.RequireModel {

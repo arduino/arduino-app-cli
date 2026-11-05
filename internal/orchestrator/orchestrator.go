@@ -113,13 +113,7 @@ func StartApp(
 
 	modelsIndex = appToStart.Models(modelsIndex, docker, cfg, platform)
 
-	if prepare && !appToStart.IsRelease() {
-		if err := prepareModels(ctx, docker, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex, platform, cb); err != nil {
-			return err
-		}
-	}
-
-	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex, true); err != nil {
+	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex); err != nil {
 		return err
 	}
 
@@ -307,6 +301,19 @@ func StartApp(
 		}
 
 		if !warm {
+			// The models the bricks need, asked of the downloader once for both the
+			// preparation and the check. A warm project runs with them already.
+			models := modelsIndex.NewLookup()
+			if prepare && !appToStart.IsRelease() {
+				if err := prepareModels(ctx, docker, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex, models, platform, cb); err != nil {
+					return err
+				}
+			}
+			if err := checkModelsInstalled(ctx, appToStart.Descriptor.Bricks, bricksIndex, models); err != nil {
+				return err
+			}
+			steps.done("models")
+
 			// Without a prepare, a start never fetches nor builds an image: it fails on a
 			// missing one and asks for a prepare first.
 			if !prepare {
