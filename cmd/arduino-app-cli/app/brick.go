@@ -14,10 +14,13 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/go-paths-helper"
+
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
@@ -28,9 +31,200 @@ func newBrickCmd(cfg config.Configuration) *cobra.Command {
 		Short: "Manage the bricks of an Arduino App",
 	}
 
+	brickCmd.AddCommand(newBrickNewCmd(cfg))
+	brickCmd.AddCommand(newBrickAddCmd(cfg))
+	brickCmd.AddCommand(newBrickDeleteCmd(cfg))
 	brickCmd.AddCommand(newBrickConfigCmd(cfg))
 
 	return brickCmd
+}
+
+func newBrickNewCmd(cfg config.Configuration) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "new app_path name",
+		Short: "Create a local brick in an Arduino App",
+		Long: `Create a local brick in an Arduino App.
+
+The brick is generated in the bricks folder of the app. Add it to the app with
+"app brick add", and edit its brick_compose.yaml for the containers it needs.`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			brickNewHandler(args[0], args[1])
+			return nil
+		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) == 0 {
+				return completion.ApplicationNames(cfg)(cmd, args, toComplete)
+			}
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		},
+	}
+
+	return cmd
+}
+
+func brickNewHandler(appRef, name string) {
+	arduinoApp, err := Load(appRef)
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	}
+	// A release is what a build froze: it takes no new brick.
+	if _, err := arduinoApp.GetAsEditable(); err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	}
+
+	id, err := generator.BrickIDFromName(name)
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	}
+	if err := generator.GenerateLocalBrick(arduinoApp.GetBricksPath(), id, name); err != nil {
+		if errors.Is(err, generator.ErrBrickAlreadyExists) {
+			feedback.Fatal(fmt.Sprintf("A brick with id %q already exists", id), feedback.ErrBadArgument)
+		}
+		feedback.Fatal(fmt.Sprintf("Cannot create the brick: %s", err), feedback.ErrGeneric)
+	}
+
+	// The path the editor shows, not the absolute one.
+	feedback.PrintResult(brickNewResult{Brick: id, Path: paths.New("bricks", id).String(), app: appRef})
+}
+
+type brickNewResult struct {
+	Brick string `json:"brick"`
+	Path  string `json:"path"`
+
+	// The app as the user named it, a path or an id: the hint must repeat it.
+	app string
+}
+
+func (r brickNewResult) String() string {
+	// The brick is ignored until the app lists it.
+	return fmt.Sprintf("✓ Created brick %s in %s\n"+
+		"  Add it to the app: arduino-app-cli app brick add %s %s",
+		r.Brick, r.Path, r.app, r.Brick)
+}
+
+func (r brickNewResult) Data() any {
+	return r
+}
+
+func newBrickAddCmd(cfg config.Configuration) *cobra.Command {
+	var model string
+	cmd := &cobra.Command{
+		Use:   "add app_path brick_id",
+		Short: "Add a brick to an Arduino App",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			brickAddHandler(cmd.Context(), args[0], args[1], model)
+			return nil
+		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			switch len(args) {
+			case 0:
+				return completion.ApplicationNames(cfg)(cmd, args, toComplete)
+			case 1:
+				return completion.AppBrickIDs(args[0])
+			}
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		},
+	}
+
+	cmd.Flags().StringVar(&model, "model", "", "The AI model the brick runs, by id")
+
+	return cmd
+}
+
+func brickAddHandler(ctx context.Context, appRef, brickID, model string) {
+	arduinoApp, err := Load(appRef)
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	}
+	editable, err := arduinoApp.GetAsEditable()
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	}
+
+	req := bricks.BrickCreateUpdateRequest{ID: brickID}
+	if model != "" {
+		req.Model = &model
+	}
+	if err := servicelocator.GetBrickService().BrickCreate(ctx, req, editable); err != nil {
+		feedback.Fatal(fmt.Sprintf("Cannot add the brick: %s", err), feedback.ErrBadArgument)
+	}
+
+	feedback.PrintResult(brickAddResult{Brick: brickID, Model: model})
+}
+
+type brickAddResult struct {
+	Brick string `json:"brick"`
+	Model string `json:"model,omitempty"`
+}
+
+func (r brickAddResult) String() string {
+	if r.Model != "" {
+		return fmt.Sprintf("✓ Added brick %s with model %s", r.Brick, r.Model)
+	}
+	return fmt.Sprintf("✓ Added brick %s", r.Brick)
+}
+
+func newBrickDeleteCmd(cfg config.Configuration) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "delete app_path brick_id",
+		Aliases: []string{"del"},
+		Short:   "Remove a brick from an Arduino App",
+		Long: `Remove a brick from an Arduino App.
+
+The brick is removed from the app descriptor. The folder of a local brick stays
+where it is, so the app can take it back.`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			brickDeleteHandler(args[0], args[1])
+			return nil
+		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			switch len(args) {
+			case 0:
+				return completion.ApplicationNames(cfg)(cmd, args, toComplete)
+			case 1:
+				return completion.AppListedBrickIDs(args[0])
+			}
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		},
+	}
+
+	return cmd
+}
+
+func brickDeleteHandler(appRef, brickID string) {
+	arduinoApp, err := Load(appRef)
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	}
+	editable, err := arduinoApp.GetAsEditable()
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	}
+
+	if err := servicelocator.GetBrickService().BrickDelete(editable, brickID); err != nil {
+		feedback.Fatal(fmt.Sprintf("Cannot remove the brick: %s", err), feedback.ErrBadArgument)
+	}
+
+	feedback.PrintResult(brickDeleteResult{Brick: brickID})
+}
+
+type brickDeleteResult struct {
+	Brick string `json:"brick"`
+}
+
+func (r brickDeleteResult) String() string {
+	return fmt.Sprintf("✓ Removed brick %s", r.Brick)
+}
+
+func (r brickDeleteResult) Data() any {
+	return r
+}
+
+func (r brickAddResult) Data() any {
+	return r
 }
 
 func newBrickConfigCmd(cfg config.Configuration) *cobra.Command {
@@ -55,7 +249,8 @@ On an App Release, only secret variables can be changed.`,
 			case 0:
 				return completion.ApplicationNames(cfg)(cmd, args, toComplete)
 			case 1:
-				return completion.BrickIDs()(cmd, args, toComplete)
+				// Only a brick the app lists can be configured.
+				return completion.AppListedBrickIDs(args[0])
 			}
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		},
