@@ -24,11 +24,10 @@ RUN apt update && apt install -y /tmp/stable.deb /tmp/router.deb \
 # packages this generic container never installs (bluetooth, netdev, fastrpc,
 # gpiod, render, input). Recreate that provisioning so the test sees the group
 # membership the daemon expects on real hardware.
-RUN getent passwd arduino >/dev/null || adduser --disabled-password --gecos "" --ingroup arduino arduino \
-    && for GROUP in bluetooth netdev fastrpc gpiod render input; do \
+RUN for GROUP in bluetooth netdev fastrpc gpiod render input; do \
       getent group "$GROUP" >/dev/null 2>&1 || groupadd --system "$GROUP"; \
     done \
-    && usermod -aG adm,dialout,sudo,audio,video,users,bluetooth,netdev,fastrpc,gpiod,render,input arduino
+    && usermod -aG adm,dialout,sudo,audio,video,users,bluetooth,netdev,fastrpc,gpiod,render,input "$(getent passwd 1000 | cut -d: -f1)"
 
 # Fixture packages for the three plans the apt resolver can report: a package it
 # holds back, an upgrade that needs a new package, and a pinned downgrade.
