@@ -251,7 +251,7 @@ func generateComposeTemplate(
 		User:              appUserExpr,
 		GroupAdd:          groupExprs(groupNames),
 		DeviceCgroupRules: cgroupRules,
-		SecurityOpt:       []string{"apparmor=" + dockerApparmorProfile},
+		SecurityOpt:       apparmorSecurityOpt(),
 		ExtraHosts:        []string{"msgpack-rpc-router:host-gateway"},
 		Labels: map[string]string{
 			DockerAppLabel:     "true",
