@@ -184,7 +184,9 @@ func (c *Configuration) EnsureFolders() error {
 	if err := c.ModelsDir().MkdirAll(); err != nil {
 		return err
 	}
-	if err := c.AssetDir().MkdirAll(); err != nil {
+	// The directory of the assets of this version is not created here: it is what tells
+	// the provisioning whether the assets are there, so it exists once they are.
+	if err := c.AssetDir().Parent().MkdirAll(); err != nil {
 		return err
 	}
 	if err := c.CustomModelsDir().MkdirAll(); err != nil {
