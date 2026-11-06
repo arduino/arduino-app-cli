@@ -78,6 +78,8 @@ func HandleAppInstall(
 		type progress struct {
 			Name     string  `json:"name"`
 			Progress float32 `json:"progress"`
+			Current  int64   `json:"current,omitempty"`
+			Total    int64   `json:"total,omitempty"`
 		}
 
 		result, err := orchestrator.InstallRelease(r.Context(), dockerClient, provisioner, tempFilePath, idProvider, cfg, plat, prepare, func(item orchestrator.StreamMessage) {
