@@ -9,8 +9,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/stretchr/testify/require"
+
+	"github.com/arduino/arduino-app-cli/internal/engine"
 )
 
 // TestRun runs a container to completion the way a model handler and the provisioning
