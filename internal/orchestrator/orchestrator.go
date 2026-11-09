@@ -687,7 +687,7 @@ type AppDetailedInfo struct {
 	Path         string             `json:"path"`
 	Description  string             `json:"description"`
 	Icon         string             `json:"icon"`
-	Status       Status             `json:"status,omitempty"`
+	Status       Status             `json:"status" required:"true"`
 	Example      bool               `json:"example"`
 	Default      bool               `json:"default"`
 	Release      bool               `json:"release"`
@@ -720,6 +720,11 @@ func AppDetails(
 	var status Status
 	go func() {
 		defer wg.Done()
+		if docker == nil {
+			// No engine: the app never ran here.
+			status = StatusUninitialized
+			return
+		}
 		app, err := getAppStatus(ctx, docker, userApp)
 		if err != nil {
 			slog.Warn("unable to get app status", slog.String("error", err.Error()), slog.String("path", userApp.FullPath.String()))

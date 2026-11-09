@@ -208,7 +208,7 @@ func TestCreateAndVerifyAppDetails(t *testing.T) {
 
 	require.False(t, *retrievedApp.Example, "A new app should not be an 'example'")
 	require.False(t, *retrievedApp.Default, "A new app should not be 'default'")
-	require.Equal(t, new(client.Uninitialized), retrievedApp.Status, "The initial status of a new app should be 'initialized'")
+	require.Equal(t, client.Uninitialized, retrievedApp.Status, "The initial status of a new app should be 'initialized'")
 	require.Empty(t, retrievedApp.Bricks, "A new app should not have 'bricks'")
 	require.NotEmpty(t, retrievedApp.Path, "The app path should not be empty")
 }
@@ -1004,7 +1004,7 @@ func TestAppDetails(t *testing.T) {
 		)
 		require.False(t, *detailsResp.JSON200.Example)
 		require.False(t, *detailsResp.JSON200.Default)
-		require.Equal(t, new(client.Uninitialized), detailsResp.JSON200.Status)
+		require.Equal(t, client.Uninitialized, detailsResp.JSON200.Status)
 		require.NotEmpty(t, detailsResp.JSON200.Path)
 		require.Equal(t, new("release notes from manifest"), detailsResp.JSON200.Notes)
 	})

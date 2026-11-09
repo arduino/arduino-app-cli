@@ -16,7 +16,7 @@ import (
 )
 
 // With no engine, as without a board, apps are files: listed, shown, renamed and
-// deleted, with no status.
+// deleted. The list has no status, the details say uninitialized.
 func TestNoEngine(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
@@ -31,7 +31,7 @@ func TestNoEngine(t *testing.T) {
 	require.NoError(t, err)
 	details, err := AppDetails(t.Context(), nil, a, &bricksindex.BricksIndex{}, idProvider, cfg)
 	require.NoError(t, err)
-	require.Equal(t, Status(""), details.Status)
+	require.Equal(t, StatusUninitialized, details.Status)
 
 	name := "app2"
 	require.NoError(t, EditApp(t.Context(), nil, AppEditRequest{Name: &name}, &a, cfg))
