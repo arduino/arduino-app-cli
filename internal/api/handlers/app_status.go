@@ -9,9 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/docker/cli/cli/command"
-
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -21,12 +20,15 @@ import (
 )
 
 func HandlerAppStatus(
-	dockerCli command.Cli,
+	dockerCli engine.Engine,
 	idProvider *appid.Provider,
 	bricksIndex *bricksindex.BricksIndex,
 	cfg config.Configuration,
 	platform platform.Platform,
 ) http.HandlerFunc {
+	if dockerCli == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {

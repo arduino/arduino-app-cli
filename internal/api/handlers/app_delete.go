@@ -9,9 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/docker/cli/cli/command"
-
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
@@ -21,7 +20,7 @@ import (
 )
 
 func HandleAppDelete(
-	dockerClient command.Cli,
+	dockerClient engine.Engine,
 	idProvider *appid.Provider,
 	platform platform.Platform,
 	cfg config.Configuration,

@@ -15,9 +15,9 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
-	"github.com/docker/cli/cli/command"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
@@ -39,12 +39,15 @@ type buildRequest struct {
 // HandleAppBuild builds an app into a release archive and sends it back as the last part
 // of a multipart response. Build progress is published to the global build events stream.
 func HandleAppBuild(
-	dockerClient command.Cli,
+	dockerClient engine.Engine,
 	provisioner *orchestrator.Provision,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 	broker *releasebuild.EventBroker,
 ) http.HandlerFunc {
+	if dockerClient == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
@@ -132,6 +135,9 @@ func HandleAppBuild(
 // build of every app. Each event carries the "build_id" it belongs to, so a
 // client can filter the stream down to a single build it triggered.
 func HandleAppBuildEvents(broker *releasebuild.EventBroker) http.HandlerFunc {
+	if broker == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {

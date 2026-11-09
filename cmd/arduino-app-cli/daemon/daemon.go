@@ -13,13 +13,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/docker/cli/cli/command"
 	"github.com/jub0bs/cors"
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/internal/api"
-	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/httprecover"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -165,8 +164,8 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 }
 
 // stopArduinoContainers stops the Arduino containers that start running automatically when the board boots
-func stopArduinoContainers(ctx context.Context, docker command.Cli) error {
-	stopped, err := dockerhelper.StopContainers(ctx, docker.Client(), orchestrator.DockerAppLabel+"=true")
+func stopArduinoContainers(ctx context.Context, docker engine.Engine) error {
+	stopped, err := docker.StopContainers(ctx, orchestrator.DockerAppLabel+"=true")
 	slog.Debug("stopped the containers of the apps", slog.Int("containers", stopped))
 	return err
 }

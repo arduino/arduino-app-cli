@@ -22,7 +22,6 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
-	"github.com/docker/cli/cli/command"
 	yaml "github.com/goccy/go-yaml"
 	"github.com/moby/moby/api/types/container"
 	"github.com/sirupsen/logrus"
@@ -30,7 +29,7 @@ import (
 	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
-	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -90,7 +89,7 @@ func (o SystemInitOptions) Validate() error {
 // SystemInit pulls all the docker images needed for the current version of the software to run and the
 // sketch libraries used in the example apps. Can be used to pre-install docker images/libraries on an
 // empty system, or to update all the docker images/libraries that need it.
-func SystemInit(ctx context.Context, cfg config.Configuration, platform platform.Platform, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, modelsIndex *modelsindex.ModelsIndex, options SystemInitOptions, eventCB InitEventCallback) error {
+func SystemInit(ctx context.Context, cfg config.Configuration, platform platform.Platform, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker engine.Engine, modelsIndex *modelsindex.ModelsIndex, options SystemInitOptions, eventCB InitEventCallback) error {
 	if eventCB == nil {
 		eventCB = func(InitEvent) {}
 	}
@@ -129,7 +128,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 	return nil
 }
 
-func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker *command.DockerCli, eventCB InitEventCallback) error {
+func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker engine.Engine, eventCB InitEventCallback) error {
 	eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDocker, Message: "Pulling the latest docker images ..."})
 	brickImages, err := getAllSupportedBrickImages(brickindex, servicesindex)
 	if err != nil {
@@ -142,7 +141,7 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 	imagesToPreinstall = append(imagesToPreinstall, brickImages...)
 	imagesToPreinstall = append(imagesToPreinstall, handlerImages...)
 
-	return dockerhelper.PullImages(ctx, docker.Client(), imagesToPreinstall,
+	return docker.PullImages(ctx, imagesToPreinstall,
 		func(line string) {
 			eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDocker, Message: line})
 		},
@@ -243,18 +242,18 @@ type SystemCleanupOptions struct {
 
 // SystemCleanup removes dangling containers and unused images.
 // Also running apps are stopped and removed.
-func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker command.Cli, platform platform.Platform, opts SystemCleanupOptions) (SystemCleanupResult, error) {
+func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker engine.Engine, platform platform.Platform, opts SystemCleanupOptions) (SystemCleanupResult, error) {
 	var result SystemCleanupResult
 
 	// Read before anything removes the containers: they tell which network is ours.
-	appContainers, err := dockerhelper.Containers(ctx, docker.Client(), DockerAppLabel+"=true")
+	appContainers, err := docker.Containers(ctx, DockerAppLabel+"=true")
 	if err != nil {
 		feedback.Warnf("failed to list the app containers - %v", err)
 	}
 	removeNetwork := ourNetworks(appContainers)
 
 	// Remove running app
-	runningApp, err := getRunningApp(ctx, docker.Client())
+	runningApp, err := getRunningApp(ctx, docker)
 	if err != nil {
 		feedback.Warnf("failed to get running app - %v", err)
 	}
@@ -268,13 +267,13 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	}
 
 	// Remove dangling stuff
-	if count, err := dockerhelper.PruneContainers(ctx, docker.Client(), DockerAppLabel+"=true", nil); err != nil {
+	if count, err := docker.PruneContainers(ctx, DockerAppLabel+"=true", nil); err != nil {
 		feedback.Warnf("failed to remove dangling containers - %v", err)
 	} else {
 		result.ContainersRemoved = count
 	}
 	// A network that resists does not cancel the others: the count is read anyway.
-	count, err := dockerhelper.PruneNetworks(ctx, docker.Client(), removeNetwork)
+	count, err := docker.PruneNetworks(ctx, removeNetwork)
 	if err != nil {
 		feedback.Warnf("failed to remove dangling networks - %v", err)
 	}
@@ -295,7 +294,7 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	}
 	slog.Debug("images that must stay", "imagesMustStay", imagesMustStay)
 
-	allImages, err := dockerhelper.ListImages(ctx, docker.Client())
+	allImages, err := docker.ListImages(ctx)
 	if err != nil {
 		return result, err
 	}
@@ -305,7 +304,7 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	slog.Info("images to remove", "imagesToRemove", imagesToRemove)
 
 	for _, image := range imagesToRemove {
-		imageSize, err := dockerhelper.RemoveImage(ctx, docker.Client(), image)
+		imageSize, err := docker.RemoveImage(ctx, image)
 		if err != nil {
 			feedback.Warnf("failed to remove image %s - %v", image, err)
 			continue

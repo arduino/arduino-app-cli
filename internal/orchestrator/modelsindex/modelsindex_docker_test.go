@@ -27,6 +27,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -170,7 +171,7 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		t.Helper()
 		dir := paths.New("testdata/with-handlers")
 		customModelsDir := dir.Join("custom-models")
-		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), customModelsDir, dockerCli, config.Configuration{})
+		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), customModelsDir, dockerhelper.EngineOfClient(dockerCli), config.Configuration{})
 		require.NoError(t, err)
 		return idx
 	}
@@ -281,7 +282,7 @@ func TestGetModelsMergesTheListing(t *testing.T) {
 		})
 
 		dir := paths.New("testdata/with-handlers")
-		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), dockerhelper.EngineOfClient(cli), config.Configuration{})
 		require.NoError(t, err)
 
 		models, err := idx.NewLookup().All(t.Context())
@@ -339,7 +340,7 @@ func TestGetModelsMergesTheListing(t *testing.T) {
 		})
 
 		dir := paths.New("testdata/with-handlers")
-		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), dockerhelper.EngineOfClient(cli), config.Configuration{})
 		require.NoError(t, err)
 
 		models, err := idx.NewLookup().All(t.Context())
@@ -390,7 +391,7 @@ func TestModelForBrick(t *testing.T) {
 		return "", 0
 	})
 	dir := paths.New("testdata/with-handlers")
-	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), dockerhelper.EngineOfClient(cli), config.Configuration{})
 	require.NoError(t, err)
 
 	model, err := idx.NewLookup().ModelForBrick(t.Context(), "ei:efficientnet-b4", "arduino:image_classification")
@@ -417,7 +418,7 @@ func TestLookupRunsOneListing(t *testing.T) {
 			return listingWith(`{"id":"ei:efficientnet-b4","installed":true,"model_size_mb":89}`), 0
 		})
 		dir := paths.New("testdata/with-handlers")
-		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), dockerhelper.EngineOfClient(cli), config.Configuration{})
 		require.NoError(t, err)
 		return idx
 	}
@@ -490,10 +491,10 @@ func TestDownloadByURL(t *testing.T) {
 		return `{"event":"info","description":"Downloaded to: /models/org/repo","artifacts":["/models/org/repo/m-Q4_0.gguf"],"model_id":"llamacpp:org/repo/m-Q4_0","size_mb":1}` + "\n", 0
 	})
 	dir := paths.New("testdata/with-handlers")
-	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), dockerhelper.EngineOfClient(cli), config.Configuration{})
 	require.NoError(t, err)
 
-	installed, err := idx.DownloadByURL(t.Context(), cli, "llamacpp:org/repo:Q4_0", "", platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
+	installed, err := idx.DownloadByURL(t.Context(), dockerhelper.EngineOfClient(cli), "llamacpp:org/repo:Q4_0", "", platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
 	require.NoError(t, err)
 
 	require.NotEmpty(t, gotCmd, "the hf-handler download action must run")
@@ -518,11 +519,11 @@ func TestDownloadByURLReportsAnInstalledModel(t *testing.T) {
 		return `{"event":"info","description":"Model exists: org/repo (m-Q4_0.gguf)","artifacts":["/models/org/repo/m-Q4_0.gguf"],"model_id":"llamacpp:org/repo/m-Q4_0","size_mb":1}` + "\n", 0
 	})
 	dir := paths.New("testdata/with-handlers")
-	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), dockerhelper.EngineOfClient(cli), config.Configuration{})
 	require.NoError(t, err)
 
 	var messages []string
-	installed, err := idx.DownloadByURL(t.Context(), cli, "llamacpp:org/repo:Q4_0", "", platform.Platform{BoardName: "ventunoq"}, func(e StreamMessage) {
+	installed, err := idx.DownloadByURL(t.Context(), dockerhelper.EngineOfClient(cli), "llamacpp:org/repo:Q4_0", "", platform.Platform{BoardName: "ventunoq"}, func(e StreamMessage) {
 		if e.IsData() {
 			messages = append(messages, e.GetData())
 		}
@@ -543,7 +544,7 @@ func TestDownloadRefusesAModelWithNothingToDownload(t *testing.T) {
 		return "", 0
 	})
 	dir := paths.New("testdata/with-handlers")
-	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), dockerhelper.EngineOfClient(cli), config.Configuration{})
 	require.NoError(t, err)
 
 	// A nil docker client: a model that needs no download must not read it.
@@ -556,6 +557,6 @@ func TestDownloadRefusesAModelWithNothingToDownload(t *testing.T) {
 	// The guard stays on the runner, for a caller that reaches it with such a model.
 	preLoaded, ok := idx.known("piper-tts-en")
 	require.True(t, ok)
-	_, err = idx.runDownload(t.Context(), cli, *preLoaded, platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
+	_, err = idx.runDownload(t.Context(), dockerhelper.EngineOfClient(cli), *preLoaded, platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
 	require.ErrorIs(t, err, ErrNoHandler)
 }

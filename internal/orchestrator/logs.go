@@ -15,13 +15,11 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/docker/cli/cli/command"
-	"github.com/docker/compose/v5/pkg/api"
-	"github.com/docker/compose/v5/pkg/compose"
 	"go.bug.st/f"
 
 	"github.com/arduino/go-paths-helper"
 
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -54,7 +52,7 @@ func AppLogs(
 	ctx context.Context,
 	app app.ArduinoApp,
 	req AppLogsRequest,
-	dockerCli command.Cli,
+	dockerCli engine.Engine,
 	bricksIndex *bricksindex.BricksIndex,
 	servicesIndex *servicesindex.ServicesIndex,
 	cfg config.Configuration,
@@ -63,7 +61,7 @@ func AppLogs(
 		return helpers.EmptyIter[LogMessage](), nil
 	}
 
-	services, err := getAppServicesFromContainers(ctx, dockerCli.Client(), app)
+	services, err := getAppServicesFromContainers(ctx, dockerCli, app)
 	if err != nil {
 		return nil, err
 	}
@@ -139,12 +137,8 @@ func AppLogs(
 		return helpers.EmptyIter[LogMessage](), nil
 	}
 
-	backend, err := compose.NewComposeService(dockerCli)
-	if err != nil {
-		return nil, err
-	}
 	return func(yield func(LogMessage) bool) {
-		opts := api.LogOptions{
+		opts := engine.LogOptions{
 			Follow:     req.Follow,
 			Services:   services,
 			Timestamps: false,
@@ -152,12 +146,7 @@ func AppLogs(
 		if req.Tail != nil {
 			opts.Tail = fmt.Sprintf("%d", *req.Tail)
 		}
-		err := backend.Logs(
-			ctx,
-			projectName,
-			NewDockerLogConsumer(ctx, yield, serviceToBrickMapping),
-			opts,
-		)
+		err := dockerCli.ComposeLogs(ctx, projectName, opts, NewDockerLogConsumer(ctx, yield, serviceToBrickMapping))
 		if err != nil {
 			slog.Error("docker logs error", slog.String("error", err.Error()))
 			return
@@ -165,7 +154,7 @@ func AppLogs(
 	}, nil
 }
 
-var _ api.LogConsumer = (*DockerLogConsumer)(nil)
+var _ engine.LogConsumer = (*DockerLogConsumer)(nil)
 
 type DockerLogConsumer struct {
 	ctx          context.Context
@@ -187,17 +176,17 @@ func NewDockerLogConsumer(
 	}
 }
 
-// Err implements api.LogConsumer.
+// Err implements engine.LogConsumer.
 func (d *DockerLogConsumer) Err(containerName string, message string) {
 	d.write(containerName, message)
 }
 
-// Log implements api.LogConsumer.
+// Log implements engine.LogConsumer.
 func (d *DockerLogConsumer) Log(containerName string, message string) {
 	d.write(containerName, message)
 }
 
-// Status implements api.LogConsumer.
+// Status implements engine.LogConsumer.
 func (d *DockerLogConsumer) Status(container string, msg string) {
 	d.write(container, msg)
 }

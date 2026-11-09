@@ -20,9 +20,9 @@ import (
 	"time"
 
 	"github.com/arduino/go-paths-helper"
-	"github.com/docker/cli/cli/command"
 	yaml "github.com/goccy/go-yaml"
 
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
@@ -52,7 +52,7 @@ type ReleaseResult struct {
 // TODO: the unpacking needs a rewrite of its own.
 func InstallRelease(
 	ctx context.Context,
-	docker command.Cli,
+	docker engine.Engine,
 	provisioner *Provision,
 	archive *paths.Path,
 	idProvider *appid.Provider,

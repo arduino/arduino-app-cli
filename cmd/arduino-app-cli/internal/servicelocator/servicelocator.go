@@ -10,10 +10,10 @@ package servicelocator
 import (
 	"sync"
 
-	dockerCommand "github.com/docker/cli/cli/command"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
@@ -36,7 +36,7 @@ var (
 	})
 
 	GetModelsIndex = sync.OnceValue(func() *modelsindex.ModelsIndex {
-		return f.Must(modelsindex.Load(GetPlatform(), globalConfig.AssetDir(), globalConfig.ModelsDir(), globalConfig.CustomModelsDir(), GetDockerClient().Client(), globalConfig))
+		return f.Must(modelsindex.Load(GetPlatform(), globalConfig.AssetDir(), globalConfig.ModelsDir(), globalConfig.CustomModelsDir(), GetDockerClient(), globalConfig))
 	})
 
 	GetServicesIndex = sync.OnceValue(func() *servicesindex.ServicesIndex {
@@ -50,16 +50,16 @@ var (
 		))
 	})
 
-	docker *dockerCommand.DockerCli
+	docker *dockerhelper.Engine
 
-	GetDockerClient = sync.OnceValue(func() *dockerCommand.DockerCli {
-		docker = f.Must(dockerhelper.NewCli())
+	GetDockerClient = sync.OnceValue(func() engine.Engine {
+		docker = f.Must(dockerhelper.NewEngine())
 		return docker
 	})
 
 	CloseDockerClient = func() error {
 		if docker != nil {
-			return docker.Client().Close()
+			return docker.Close()
 		}
 		return nil
 	}

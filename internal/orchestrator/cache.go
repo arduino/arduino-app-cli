@@ -9,8 +9,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/docker/cli/cli/command"
-
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -29,7 +28,7 @@ var (
 // it tries to stop it first.
 func CleanAppCache(
 	ctx context.Context,
-	docker command.Cli,
+	docker engine.Engine,
 	app app.ArduinoApp,
 	req CleanAppCacheRequest,
 	platform platform.Platform,
@@ -39,7 +38,7 @@ func CleanAppCache(
 		return ErrCleanCacheReleaseApp
 	}
 
-	runningApp, err := getRunningApp(ctx, docker.Client())
+	runningApp, err := getRunningApp(ctx, docker)
 	if err != nil {
 		return err
 	}

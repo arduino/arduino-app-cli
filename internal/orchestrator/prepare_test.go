@@ -12,11 +12,11 @@ import (
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/containerd/errdefs"
-	"github.com/docker/cli/cli/command"
 	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
@@ -32,13 +32,6 @@ func (c preparedImageClient) ImageInspect(_ context.Context, image string, _ ...
 	return client.ImageInspectResult{}, c.inspect(image)
 }
 
-type preparedImageCLI struct {
-	command.Cli
-	docker client.APIClient
-}
-
-func (c preparedImageCLI) Client() client.APIClient { return c.docker }
-
 func TestCheckImages(t *testing.T) {
 	daemonError := errors.New("cannot reach Docker")
 	for _, tc := range []struct {
@@ -51,10 +44,10 @@ func TestCheckImages(t *testing.T) {
 		{name: "daemon failure", inspectErr: daemonError, wantErr: daemonError},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			docker := preparedImageCLI{docker: preparedImageClient{inspect: func(image string) error {
+			docker := dockerhelper.EngineOfClient(preparedImageClient{inspect: func(image string) error {
 				require.Equal(t, "viktoruj/ping_pong", image)
 				return tc.inspectErr
-			}}}
+			}})
 			prj := &types.Project{Services: types.Services{
 				"main": {Image: "viktoruj/ping_pong"},
 			}}

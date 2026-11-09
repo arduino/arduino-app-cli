@@ -22,22 +22,14 @@ import (
 	"github.com/moby/moby/client"
 	"go.bug.st/f"
 	"golang.org/x/sync/errgroup"
-)
 
-// RunOptions is what a container is run with. Only Image is required.
-type RunOptions struct {
-	Image      string
-	Entrypoint []string
-	Cmd        []string
-	Binds      []string
-	Env        map[string]string
-	Stdout     io.Writer
-	Stderr     io.Writer
-}
+	"github.com/arduino/arduino-app-cli/internal/engine"
+)
 
 // Run is `docker run --rm`: the container is started, waited for and removed, and what
 // it writes reaches the writers. A missing image is downloaded first.
-func Run(ctx context.Context, docker client.APIClient, opts RunOptions) error {
+func (e *Engine) Run(ctx context.Context, opts engine.RunOptions) error {
+	docker := e.cli.Client()
 	if opts.Stdout == nil {
 		opts.Stdout = io.Discard
 	}
@@ -55,7 +47,7 @@ func Run(ctx context.Context, docker client.APIClient, opts RunOptions) error {
 
 	launchStart := time.Now()
 
-	if err := ensureImage(ctx, docker, opts.Image); err != nil {
+	if err := e.ensureImage(ctx, opts.Image); err != nil {
 		return err
 	}
 
@@ -167,8 +159,8 @@ func IsExitError(err error) bool {
 
 // ensureImage downloads what the board has not, with the disk check and the retry that
 // every other pull has.
-func ensureImage(ctx context.Context, docker client.APIClient, img string) error {
-	return PullImages(ctx, docker, []string{img}, nil, nil)
+func (e *Engine) ensureImage(ctx context.Context, img string) error {
+	return e.PullImages(ctx, []string{img}, nil, nil)
 }
 
 func getCurrentUser() string {

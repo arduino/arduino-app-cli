@@ -22,6 +22,7 @@ import (
 // started and stopped: through the sdk, and by project name alone.
 func TestComposeRoundTrip(t *testing.T) {
 	docker := getDockerCli(t)
+	eng := EngineOf(docker)
 	const projectName = "arduino-app-cli-round-trip"
 
 	prj := &types.Project{
@@ -39,10 +40,10 @@ func TestComposeRoundTrip(t *testing.T) {
 		},
 	}
 	t.Cleanup(func() {
-		_ = ComposeDown(t.Context(), docker, projectName, nil)
+		_ = eng.ComposeDown(t.Context(), projectName, nil)
 	})
 
-	require.NoError(t, ComposeUp(t.Context(), docker, prj, nil))
+	require.NoError(t, eng.ComposeUp(t.Context(), prj, nil))
 
 	// The labels are what compose finds its containers by, and what an app is read from.
 	containers, err := docker.Client().ContainerList(t.Context(), dockerClient.ContainerListOptions{
@@ -54,12 +55,12 @@ func TestComposeRoundTrip(t *testing.T) {
 	require.Equal(t, container.StateRunning, containers.Items[0].State)
 	require.Equal(t, "main", containers.Items[0].Labels["com.docker.compose.service"])
 
-	require.NoError(t, ComposeStop(t.Context(), docker, projectName, nil))
+	require.NoError(t, eng.ComposeStop(t.Context(), projectName, nil))
 	stopped, err := docker.Client().ContainerInspect(t.Context(), containers.Items[0].ID, dockerClient.ContainerInspectOptions{})
 	require.NoError(t, err)
 	require.Equal(t, container.StateExited, stopped.Container.State.Status)
 
-	require.NoError(t, ComposeDown(t.Context(), docker, projectName, nil))
+	require.NoError(t, eng.ComposeDown(t.Context(), projectName, nil))
 	gone, err := docker.Client().ContainerList(t.Context(), dockerClient.ContainerListOptions{
 		All:     true,
 		Filters: make(dockerClient.Filters).Add("label", "com.docker.compose.project="+projectName),
@@ -72,6 +73,7 @@ func TestComposeRoundTrip(t *testing.T) {
 // image it replaces must not stay on the board.
 func TestComposeUpPrunesReplacedBuilds(t *testing.T) {
 	docker := getDockerCli(t)
+	eng := EngineOf(docker)
 	const projectName = "arduino-app-cli-rebuild"
 
 	buildDir := paths.New(t.TempDir())
@@ -106,19 +108,19 @@ func TestComposeUpPrunesReplacedBuilds(t *testing.T) {
 	t.Cleanup(func() {
 		// t.Context() is already canceled when cleanups run.
 		ctx := context.Background()
-		_ = ComposeDown(ctx, docker, projectName, nil)
+		_ = eng.ComposeDown(ctx, projectName, nil)
 		for _, id := range builtImages(ctx, false) {
 			_, _ = docker.Client().ImageRemove(ctx, id, dockerClient.ImageRemoveOptions{Force: true, PruneChildren: true})
 		}
 	})
 
 	require.NoError(t, buildDir.Join("message.txt").WriteFile([]byte("first")))
-	require.NoError(t, ComposeUp(t.Context(), docker, newProject(), nil))
+	require.NoError(t, eng.ComposeUp(t.Context(), newProject(), nil))
 	first := builtImages(t.Context(), false)
 	require.Len(t, first, 1)
 
 	require.NoError(t, buildDir.Join("message.txt").WriteFile([]byte("second")))
-	require.NoError(t, ComposeUp(t.Context(), docker, newProject(), nil))
+	require.NoError(t, eng.ComposeUp(t.Context(), newProject(), nil))
 	second := builtImages(t.Context(), false)
 	require.Len(t, second, 1)
 	require.NotEqual(t, first, second, "a changed context is built again")

@@ -18,12 +18,11 @@ import (
 
 	composetmpl "github.com/compose-spec/compose-go/v2/template"
 	"github.com/goccy/go-yaml"
-	"github.com/moby/moby/client"
 	"go.bug.st/f"
 
 	"github.com/arduino/go-paths-helper"
 
-	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -330,7 +329,7 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 	}, true
 }
 
-func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient, models []AIModel) ([]AIModel, error) {
+func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli engine.Engine, models []AIModel) ([]AIModel, error) {
 	if h == nil || h.listing == nil {
 		slog.Warn("handlers index or listing config is nil, cannot get model info")
 		return models, nil
@@ -360,12 +359,12 @@ func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient,
 	return modelsInfo, nil
 }
 
-func runListAction(ctx context.Context, cli client.APIClient, listing *ListingConfig, configEnv map[string]string) ([]handlerModelEntry, error) {
+func runListAction(ctx context.Context, cli engine.Engine, listing *ListingConfig, configEnv map[string]string) ([]handlerModelEntry, error) {
 	slog.Debug("running list action", "image", listing.Image)
 
 	var buf, stderr bytes.Buffer
 	start := time.Now()
-	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
+	err := cli.Run(ctx, engine.RunOptions{
 		Image:  ResolveVars(listing.Image, configEnv),
 		Cmd:    listing.Command,
 		Binds:  ResolveVarsSlice(listing.Volumes, configEnv),
@@ -586,7 +585,7 @@ type rawHandlersList struct {
 	Handlers []map[string]rawHandlerEntry `yaml:"handlers"`
 }
 
-func deleteInternalModel(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, plat platform.Platform, configEnv map[string]string) error {
+func deleteInternalModel(ctx context.Context, cli engine.Engine, model AIModel, handler ModelHandler, plat platform.Platform, configEnv map[string]string) error {
 	if model.Deployment == nil || model.Deployment.Handler == "" {
 		return fmt.Errorf("model %q has no deployment handler", model.ID)
 	}
@@ -595,7 +594,7 @@ func deleteInternalModel(ctx context.Context, cli client.APIClient, model AIMode
 	maps.Insert(envVars, maps.All(configEnv)) // include config env vars for template resolution
 
 	slog.Debug("running delete action", "model", model.ID)
-	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
+	return cli.Run(ctx, engine.RunOptions{
 		Image:  ResolveVars(handler.Image, envVars),
 		Cmd:    handler.Actions.Delete,
 		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
@@ -607,13 +606,13 @@ func deleteInternalModel(ctx context.Context, cli client.APIClient, model AIMode
 	})
 }
 
-func getModelSize(ctx context.Context, cli client.APIClient, handler ModelHandler, envVars map[string]string) (uint64, bool, error) {
+func getModelSize(ctx context.Context, cli engine.Engine, handler ModelHandler, envVars map[string]string) (uint64, bool, error) {
 	if len(handler.Actions.Info) == 0 {
 		return 0, false, nil
 	}
 
 	var buf, stderr bytes.Buffer
-	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
+	err := cli.Run(ctx, engine.RunOptions{
 		Image:  ResolveVars(handler.Image, envVars),
 		Cmd:    handler.Actions.Info,
 		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
@@ -629,13 +628,13 @@ func getModelSize(ctx context.Context, cli client.APIClient, handler ModelHandle
 	return outputSize, found, nil
 }
 
-func isModelInstalled(ctx context.Context, cli client.APIClient, handler ModelHandler, envVars map[string]string) bool {
+func isModelInstalled(ctx context.Context, cli engine.Engine, handler ModelHandler, envVars map[string]string) bool {
 	if len(handler.Actions.Check) == 0 {
 		return false
 	}
 
 	var buf, stderr bytes.Buffer
-	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
+	err := cli.Run(ctx, engine.RunOptions{
 		Image:  ResolveVars(handler.Image, envVars),
 		Cmd:    handler.Actions.Check,
 		Binds:  ResolveVarsSlice(handler.Volumes, envVars),

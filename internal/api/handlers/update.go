@@ -17,6 +17,9 @@ import (
 )
 
 func HandleCheckUpgradable(updater *update.Manager) http.HandlerFunc {
+	if updater == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 
@@ -60,6 +63,9 @@ type UpdateCheckResult struct {
 }
 
 func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
+	if updater == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 		onlyArduinoPackages := false
@@ -116,6 +122,9 @@ func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
 }
 
 func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
+	if updater == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		// HOTFIX: app-lab use HEAD requests to check endpoint availability
 		// so we need to handle them here by early return without opening SSE stream

@@ -10,9 +10,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/docker/cli/cli/command"
-
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
@@ -25,7 +24,7 @@ import (
 )
 
 func HandleAppStart(
-	dockerCli command.Cli,
+	dockerCli engine.Engine,
 	provisioner *orchestrator.Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
@@ -34,6 +33,9 @@ func HandleAppStart(
 	cfg config.Configuration,
 	platform platform.Platform,
 ) http.HandlerFunc {
+	if dockerCli == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {

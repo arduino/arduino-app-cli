@@ -14,11 +14,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/docker/cli/cli/command"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -83,7 +83,10 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	}
 }
 
-func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, idProvider *appid.Provider, platform platform.Platform) http.HandlerFunc {
+func HandlerDeleteModelByID(dockerClient engine.Engine, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, idProvider *appid.Provider, platform platform.Platform) http.HandlerFunc {
+	if dockerClient == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := modelIDFromPath(r)
 		if err != nil {
@@ -115,7 +118,10 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 	}
 }
 
-func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, platform platform.Platform) http.HandlerFunc {
+func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient engine.Engine, platform platform.Platform) http.HandlerFunc {
+	if dockerClient == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		projectID, err := strconv.Atoi(r.PathValue("projectID"))
 		if err != nil {
@@ -198,7 +204,10 @@ type sseLog struct {
 
 // HandleInstallModel installs a model from the internal model list. HandleDownloadModel
 // downloads a model that no entry declares.
-func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
+func HandleInstallModel(dockerClient engine.Engine, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
+	if dockerClient == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := modelIDFromPath(r)
 		if err != nil {
@@ -238,7 +247,10 @@ type DownloadModelRequest struct {
 
 // HandleDownloadModel downloads a model that no models-list.yaml entry declares. The id is
 // not an input: the downloader makes it from the file that arrives, and reports it.
-func HandleDownloadModel(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
+func HandleDownloadModel(dockerClient engine.Engine, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
+	if dockerClient == nil {
+		return NeedsBoard()
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req DownloadModelRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

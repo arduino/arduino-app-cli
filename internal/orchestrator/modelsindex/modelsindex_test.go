@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -166,7 +167,7 @@ func TestModelsIndex(t *testing.T) {
 			cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
 				return listingWith(`{"id":"a-model-not-preloaded-with-handler","installed":true}`), 0
 			})
-			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
+			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, dockerhelper.EngineOfClient(cli), config.Configuration{})
 			require.NoError(t, err)
 
 			model, err := modelsIndex.NewLookup().ByID(t.Context(), "a-model-not-preloaded-with-handler")
@@ -188,7 +189,7 @@ func TestModelsIndex(t *testing.T) {
 			cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
 				return listingWith(`{"id":"a-model-not-preloaded-with-handler","installed":false,"downloading":true}`), 0
 			})
-			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
+			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, dockerhelper.EngineOfClient(cli), config.Configuration{})
 			require.NoError(t, err)
 
 			model, err := modelsIndex.NewLookup().ByID(t.Context(), "a-model-not-preloaded-with-handler")
@@ -210,7 +211,7 @@ func TestModelsIndex(t *testing.T) {
 			cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
 				return listingWith(`{"id":"a-model-not-preloaded-with-handler","installed":false}`), 0
 			})
-			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
+			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, dockerhelper.EngineOfClient(cli), config.Configuration{})
 			require.NoError(t, err)
 
 			model, err := modelsIndex.NewLookup().ByID(t.Context(), "a-model-not-preloaded-with-handler")
