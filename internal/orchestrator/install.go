@@ -68,11 +68,11 @@ func InstallRelease(
 		return InstallReleaseResult{}, fmt.Errorf("%w: %s not found", ErrBadRequest, archive)
 	}
 
-	stagingDir, err := mkStagingDir(cfg.ReleasesDir())
+	stagingContainerDir, stagingDir, err := mkStagingDir(cfg.ReleasesDir())
 	if err != nil {
 		return InstallReleaseResult{}, err
 	}
-	defer removeStagingDir(stagingDir)
+	defer removeStagingDir(stagingContainerDir)
 
 	releaseName, err := extractRelease(archive, stagingDir, appLayout)
 	if err != nil {
@@ -314,15 +314,22 @@ func writeReleaseFile(destRoot *os.Root, target string, perm os.FileMode, conten
 
 // mkStagingDir stages an install beside what it installs, so that installing it is a
 // rename on the same filesystem and nothing half extracted is ever started.
-func mkStagingDir(installDir *paths.Path) (*paths.Path, error) {
+// mkStagingDir stages an install beside what it installs, so that installing it is a
+// rename on the same filesystem and nothing half extracted is ever started.
+func mkStagingDir(installDir *paths.Path) (container *paths.Path, stagingDir *paths.Path, err error) {
 	if err := installDir.MkdirAll(); err != nil {
-		return nil, fmt.Errorf("failed to create %s: %w", installDir, err)
+		return nil, nil, fmt.Errorf("failed to create %s: %w", installDir, err)
 	}
-	stagingDir, err := paths.MkTempDir(installDir.String(), "tmp_install_")
+	container, err = app.MkTmpAppDir(installDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create the staging dir: %w", err)
+		return nil, nil, fmt.Errorf("failed to create the staging dir: %w", err)
 	}
-	return stagingDir, nil
+	stagingDir = container.Join("release")
+	if err := stagingDir.Mkdir(); err != nil {
+		removeStagingDir(container)
+		return nil, nil, fmt.Errorf("failed to create the staging dir: %w", err)
+	}
+	return container, stagingDir, nil
 }
 
 func removeStagingDir(stagingDir *paths.Path) {

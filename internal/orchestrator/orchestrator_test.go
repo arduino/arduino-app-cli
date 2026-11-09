@@ -593,6 +593,30 @@ func TestListApp(t *testing.T) {
 		}
 	})
 
+	t.Run("ignore releases staged by an install", func(t *testing.T) {
+		containerPath, stagingDir, err := mkStagingDir(cfg.ReleasesDir())
+		require.NoError(t, err)
+		defer removeStagingDir(containerPath)
+		require.True(t, strings.HasPrefix(containerPath.Base(), ".tmp_"))
+		require.True(t, app.IsValidFolderName(stagingDir.Base()), "the staged release must be loadable")
+		require.NoError(t, stagingDir.Join("app.yaml").WriteFile([]byte("name: staged-release")))
+		require.NoError(t, stagingDir.Join("python").MkdirAll())
+		require.NoError(t, stagingDir.Join("python", "main.py").WriteFile([]byte("print('hi')\n")))
+
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
+			ShowApps:     true,
+			ShowReleases: true,
+		}, idProvider, nil, cfg, unoQPlatform)
+		require.NoError(t, err)
+
+		for _, a := range res.Apps {
+			assert.NotContains(t, a.ID.String(), containerPath.Base(), "the staged release should not be listed")
+		}
+		for _, b := range res.BrokenApps {
+			assert.NotContains(t, b.Name, "staged-release", "the staged release should not be in the broken apps list")
+		}
+	})
+
 	t.Run("test nested apps do not produce bogus broken apps in parent dirs", func(t *testing.T) {
 		// https://github.com/arduino/arduino-app-cli/issues/220
 
