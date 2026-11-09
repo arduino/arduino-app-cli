@@ -54,8 +54,17 @@ func IsTmpAppDir(p *paths.Path) bool {
 	return strings.HasPrefix(p.Base(), tmpAppPrefix)
 }
 
-// MkTmpAppDir creates a temporary app directory inside the given
-// parent directory.
-func MkTmpAppDir(parentDir *paths.Path) (*paths.Path, error) {
-	return paths.MkTempDir(parentDir.String(), tmpAppPrefix)
+// MkTmpAppDir creates parentDir/.tmp_XXX/name, skipped by the app list.
+// The caller removes it with its parent.
+func MkTmpAppDir(parentDir *paths.Path, name string) (*paths.Path, error) {
+	container, err := paths.MkTempDir(parentDir.String(), tmpAppPrefix)
+	if err != nil {
+		return nil, err
+	}
+	appDir := container.Join(name)
+	if err := appDir.Mkdir(); err != nil {
+		_ = container.RemoveAll()
+		return nil, err
+	}
+	return appDir, nil
 }
