@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/require"
 )
 
@@ -142,4 +143,50 @@ bricks:
 	require.NoError(t, err)
 	require.Equal(t, 1, len(desc.Bricks))
 	require.Equal(t, []string{"my-dev-1", "my-dev-2"}, desc.Bricks[0].Devices)
+}
+
+func TestAppParser_BrickVersion(t *testing.T) {
+	parse := func(t *testing.T, bricks string) ([]Brick, error) {
+		appYaml := paths.New(t.TempDir(), "app.yaml")
+		require.NoError(t, appYaml.WriteFile([]byte("name: App\nbricks:\n"+bricks)))
+		desc, err := ParseDescriptorFile(appYaml)
+		if err != nil {
+			return nil, err
+		}
+		return desc.Bricks, nil
+	}
+
+	t.Run("pinned and unpinned", func(t *testing.T) {
+		bricks, err := parse(t, `  - acme:camera (1.2.0)
+  - acme:noop
+  - acme:hello (1.0.0):
+      model: my-model
+`)
+		require.NoError(t, err)
+		require.Equal(t, []Brick{
+			{ID: "acme:camera", Version: "1.2.0"},
+			{ID: "acme:noop"},
+			{ID: "acme:hello", Version: "1.0.0", Model: "my-model"},
+		}, bricks)
+	})
+
+	for _, ref := range []string{"acme:camera ()", "acme:camera (latest)", "acme:camera (1.2.0.1)"} {
+		t.Run("invalid "+ref, func(t *testing.T) {
+			_, err := parse(t, "  - "+ref+"\n")
+			require.ErrorContains(t, err, "invalid version")
+		})
+	}
+
+	t.Run("version is written back", func(t *testing.T) {
+		out, err := yaml.Marshal(AppDescriptor{Name: "App", Bricks: []Brick{
+			{ID: "acme:camera", Version: "1.2.0"},
+			{ID: "acme:noop"},
+		}})
+		require.NoError(t, err)
+		appYaml := paths.New(t.TempDir(), "app.yaml")
+		require.NoError(t, appYaml.WriteFile(out))
+		desc, err := ParseDescriptorFile(appYaml)
+		require.NoError(t, err)
+		require.Equal(t, []Brick{{ID: "acme:camera", Version: "1.2.0"}, {ID: "acme:noop"}}, desc.Bricks)
+	})
 }
