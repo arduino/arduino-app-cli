@@ -12,7 +12,6 @@ import (
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/containerd/errdefs"
-	"github.com/docker/cli/cli/command"
 	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,13 +31,6 @@ type preparedImageClient struct {
 func (c preparedImageClient) ImageInspect(_ context.Context, image string, _ ...client.ImageInspectOption) (client.ImageInspectResult, error) {
 	return client.ImageInspectResult{}, c.inspect(image)
 }
-
-type preparedImageCLI struct {
-	command.Cli
-	docker client.APIClient
-}
-
-func (c preparedImageCLI) Client() client.APIClient { return c.docker }
 
 func TestCheckImages(t *testing.T) {
 	daemonError := errors.New("cannot reach Docker")

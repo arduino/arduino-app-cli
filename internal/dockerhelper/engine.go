@@ -13,11 +13,12 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/config"
 	"github.com/docker/cli/cli/flags"
 	"github.com/moby/moby/client"
+
+	"github.com/arduino/arduino-app-cli/internal/engine"
 )
 
 // NewCli is the docker client this binary talks to the engine with.

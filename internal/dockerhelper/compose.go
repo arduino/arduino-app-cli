@@ -15,13 +15,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v5/pkg/api"
 	"github.com/docker/compose/v5/pkg/compose"
 	dockerClient "github.com/moby/moby/client"
+
+	"github.com/arduino/arduino-app-cli/internal/engine"
 )
 
 // stopTimeout is what a container is given to stop before it is killed.

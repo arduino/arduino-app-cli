@@ -17,12 +17,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/arduino/arduino-app-cli/internal/engine"
 	"github.com/moby/moby/api/pkg/stdcopy"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 	"go.bug.st/f"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/arduino/arduino-app-cli/internal/engine"
 )
 
 // Run is `docker run --rm`: the container is started, waited for and removed, and what
