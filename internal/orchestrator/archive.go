@@ -288,7 +288,7 @@ func entryName(f *zip.File, rootPrefix string) string {
 
 	name := filepath.Clean(filepath.FromSlash(f.Name))
 	if prefix != "" {
-		if !strings.HasPrefix(name, prefix) {
+		if name != prefix && !strings.HasPrefix(name, prefix+string(os.PathSeparator)) {
 			return ""
 		}
 		name = strings.TrimPrefix(name, prefix)

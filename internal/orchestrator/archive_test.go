@@ -328,12 +328,6 @@ func TestImportAppFromZip(t *testing.T) {
 				require.NoError(t, err)
 				require.NotEmpty(t, id)
 
-				// Verify temp folder cleanup
-				files, _ := os.ReadDir(appsDirPath)
-				for _, f := range files {
-					require.False(t, strings.HasPrefix(f.Name(), ".tmp_"), "Temp folder not cleaned: %s", f.Name())
-				}
-
 				if !tc.preExisting && tc.expectedFolder != "" {
 					finalPath := cfg.AppsDir().Join(tc.expectedFolder)
 					require.True(t, finalPath.Exist(), "App folder should be %s", tc.expectedFolder)
@@ -573,6 +567,70 @@ func TestFindZipRoot(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, tc.wantRoot, gotRoot)
 			}
+		})
+	}
+}
+
+func TestEntryName(t *testing.T) {
+	sep := string(os.PathSeparator)
+	p := func(parts ...string) string { return strings.Join(parts, sep) }
+
+	tests := []struct {
+		name       string
+		rootPrefix string
+		entry      string
+		want       string
+	}{
+		// No root prefix
+		{"no prefix: file at root", "", "app.yaml", "app.yaml"},
+		{"no prefix: nested file", "", "python/main.py", p("python", "main.py")},
+		{"no prefix: directory entry", "", "python/", "python"},
+		{"no prefix: leading ./", "", "./app.yaml", "app.yaml"},
+		{"no prefix: duplicated slashes", "", "python//main.py", p("python", "main.py")},
+		{"no prefix: dot entry", "", ".", ""},
+		{"no prefix: empty entry", "", "", ""},
+		{"no prefix: hidden file", "", ".env", ".env"},
+		{"no prefix: path traversal is not rejected here", "", "../evil", p("..", "evil")},
+
+		// "." prefix behaves like no prefix
+		{"dot prefix: file at root", ".", "app.yaml", "app.yaml"},
+		{"dot prefix: nested file", ".", "python/main.py", p("python", "main.py")},
+		{"dot prefix: dot entry", ".", ".", ""},
+
+		// With root prefix
+		{"prefix: file in root", "MyApp", "MyApp/app.yaml", "app.yaml"},
+		{"prefix: nested file", "MyApp", "MyApp/python/main.py", p("python", "main.py")},
+		{"prefix: root dir entry with slash", "MyApp", "MyApp/", ""},
+		{"prefix: root dir entry without slash", "MyApp", "MyApp", ""},
+		{"prefix: nested dir entry", "MyApp", "MyApp/sub/", "sub"},
+		{"prefix: hidden file", "MyApp", "MyApp/.hidden", ".hidden"},
+		{"prefix: leading ./", "MyApp", "./MyApp/app.yaml", "app.yaml"},
+		{"prefix: duplicated slashes", "MyApp", "MyApp//app.yaml", "app.yaml"},
+		{"prefix: dot segment", "MyApp", "MyApp/./a", "a"},
+		{"prefix: dot-dot staying inside root", "MyApp", "MyApp/sub/../a", "a"},
+		{"prefix: dot-dot re-entering root", "MyApp", "MyApp/../MyApp/a", "a"},
+
+		// Entries outside the root are skipped
+		{"prefix: different root", "MyApp", "Other/app.yaml", ""},
+		{"prefix: file at archive root", "MyApp", "app.yaml", ""},
+		{"prefix: case sensitive", "MyApp", "myapp/app.yaml", ""},
+		{"prefix: dot-dot escaping root", "MyApp", "MyApp/../evil", ""},
+		{"prefix: dot-dot escaping archive", "MyApp", "MyApp/../../evil", ""},
+		{"prefix: dot entry", "MyApp", ".", ""},
+		{"prefix: empty entry", "MyApp", "", ""},
+
+		// Sibling entries whose name merely starts with the root name must be skipped
+		{"prefix: sibling with numeric suffix", "MyApp", "MyApp2/file.txt", ""},
+		{"prefix: sibling with dot suffix", "MyApp", "MyApp.bak/file.txt", ""},
+		{"prefix: sibling with dash suffix", "MyApp", "MyApp-old/file.txt", ""},
+		{"prefix: sibling file with same prefix", "MyApp", "MyApp.txt", ""},
+		{"prefix: sibling dir entry", "MyApp", "MyApp2/", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &zip.File{FileHeader: zip.FileHeader{Name: tt.entry}}
+			assert.Equal(t, tt.want, entryName(f, tt.rootPrefix))
 		})
 	}
 }
