@@ -15,6 +15,8 @@ chown -R "$USER_NAME":arduino /var/lib/arduino-app-cli \
 || chown -R :arduino /var/lib/arduino-app-cli
 
 chmod -R 775 /var/lib/arduino-app-cli
+# setgid on directories only, so new content inherits the arduino group
+find /var/lib/arduino-app-cli -type d -exec chmod g+s {} +
 
 if [ "$1" = "configure" ] && [ -n "$USER_HOME" ]; then
     rm -rf "$USER_HOME/.local/share/arduino-app-cli"
