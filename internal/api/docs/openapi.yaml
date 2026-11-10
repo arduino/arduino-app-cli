@@ -816,15 +816,6 @@ paths:
         dependecies. If the app contains a sketch it also flash it in the micro.
       operationId: startApp
       parameters:
-      - description: The firmware file (.fw) to flash when prebuilt_sketch is true.
-          The client compiles the sketch and writes it with arduino-cli upload --write-to-fw-file.
-        in: query
-        name: file
-        schema:
-          description: The firmware file (.fw) to flash when prebuilt_sketch is true.
-            The client compiles the sketch and writes it with arduino-cli upload --write-to-fw-file.
-          format: base64
-          type: string
       - description: Return a verbose output. Default is false.
         in: query
         name: verbose
@@ -852,15 +843,11 @@ paths:
           type: string
       requestBody:
         content:
-          application/x-www-form-urlencoded:
+          multipart/form-data:
             schema:
               properties:
                 file:
-                  description: The firmware file (.fw) to flash when prebuilt_sketch
-                    is true. The client compiles the sketch and writes it with arduino-cli
-                    upload --write-to-fw-file.
-                  format: base64
-                  type: string
+                  $ref: '#/components/schemas/File'
               type: object
       responses:
         "200":
@@ -2389,6 +2376,9 @@ components:
           nullable: true
           type: array
       type: object
+    File:
+      format: binary
+      type: string
     Library:
       properties:
         architectures:

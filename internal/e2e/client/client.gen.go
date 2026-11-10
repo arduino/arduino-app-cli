@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Defines values for ModelOrigin.
@@ -461,6 +462,9 @@ type ExampleResponse struct {
 	CoreAndFoundational *[]CategoryExamples `json:"core-and-foundational,omitempty"`
 }
 
+// File defines model for File.
+type File = openapi_types.File
+
 // Library defines model for Library.
 type Library struct {
 	Architectures *[]string `json:"architectures,omitempty"`
@@ -697,17 +701,13 @@ type GetAppLogsParams struct {
 	Nofollow *bool   `form:"nofollow,omitempty" json:"nofollow,omitempty"`
 }
 
-// StartAppFormdataBody defines parameters for StartApp.
-type StartAppFormdataBody struct {
-	// File The firmware file (.fw) to flash when prebuilt_sketch is true. The client compiles the sketch and writes it with arduino-cli upload --write-to-fw-file.
-	File *string `form:"file,omitempty" json:"file,omitempty"`
+// StartAppMultipartBody defines parameters for StartApp.
+type StartAppMultipartBody struct {
+	File *File `json:"file,omitempty"`
 }
 
 // StartAppParams defines parameters for StartApp.
 type StartAppParams struct {
-	// File The firmware file (.fw) to flash when prebuilt_sketch is true. The client compiles the sketch and writes it with arduino-cli upload --write-to-fw-file.
-	File *string `form:"file,omitempty" json:"file,omitempty"`
-
 	// Verbose Return a verbose output. Default is false.
 	Verbose *bool `form:"verbose,omitempty" json:"verbose,omitempty"`
 
@@ -808,8 +808,8 @@ type EditAppJSONRequestBody = EditRequest
 // CloneAppJSONRequestBody defines body for CloneApp for application/json ContentType.
 type CloneAppJSONRequestBody = CloneRequest
 
-// StartAppFormdataRequestBody defines body for StartApp for application/x-www-form-urlencoded ContentType.
-type StartAppFormdataRequestBody StartAppFormdataBody
+// StartAppMultipartRequestBody defines body for StartApp for multipart/form-data ContentType.
+type StartAppMultipartRequestBody StartAppMultipartBody
 
 // DownloadModelJSONRequestBody defines body for DownloadModel for application/json ContentType.
 type DownloadModelJSONRequestBody = DownloadModelRequest
@@ -993,8 +993,6 @@ type ClientInterface interface {
 
 	// StartAppWithBody request with any body
 	StartAppWithBody(ctx context.Context, id string, params *StartAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	StartAppWithFormdataBody(ctx context.Context, id string, params *StartAppParams, body StartAppFormdataRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StopApp request
 	StopApp(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1500,18 +1498,6 @@ func (c *Client) PrepareAppRelease(ctx context.Context, id string, reqEditors ..
 
 func (c *Client) StartAppWithBody(ctx context.Context, id string, params *StartAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStartAppRequestWithBody(c.Server, id, params, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) StartAppWithFormdataBody(ctx context.Context, id string, params *StartAppParams, body StartAppFormdataRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewStartAppRequestWithFormdataBody(c.Server, id, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3095,17 +3081,6 @@ func NewPrepareAppReleaseRequest(server string, id string) (*http.Request, error
 	return req, nil
 }
 
-// NewStartAppRequestWithFormdataBody calls the generic StartApp builder with application/x-www-form-urlencoded body
-func NewStartAppRequestWithFormdataBody(server string, id string, params *StartAppParams, body StartAppFormdataRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	bodyStr, err := runtime.MarshalForm(body, nil)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = strings.NewReader(bodyStr.Encode())
-	return NewStartAppRequestWithBody(server, id, params, "application/x-www-form-urlencoded", bodyReader)
-}
-
 // NewStartAppRequestWithBody generates requests for StartApp with any type of body
 func NewStartAppRequestWithBody(server string, id string, params *StartAppParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
@@ -3140,18 +3115,6 @@ func NewStartAppRequestWithBody(server string, id string, params *StartAppParams
 		// styled parameters, preserving literal commas as delimiters
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
-
-		if params.File != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "file", *params.File, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "base64"}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
 
 		if params.Verbose != nil {
 
@@ -4213,8 +4176,6 @@ type ClientWithResponsesInterface interface {
 
 	// StartAppWithBodyWithResponse request with any body
 	StartAppWithBodyWithResponse(ctx context.Context, id string, params *StartAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StartAppResp, error)
-
-	StartAppWithFormdataBodyWithResponse(ctx context.Context, id string, params *StartAppParams, body StartAppFormdataRequestBody, reqEditors ...RequestEditorFn) (*StartAppResp, error)
 
 	// StopAppWithResponse request
 	StopAppWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*StopAppResp, error)
@@ -6145,14 +6106,6 @@ func (c *ClientWithResponses) PrepareAppReleaseWithResponse(ctx context.Context,
 // StartAppWithBodyWithResponse request with arbitrary body returning *StartAppResp
 func (c *ClientWithResponses) StartAppWithBodyWithResponse(ctx context.Context, id string, params *StartAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StartAppResp, error) {
 	rsp, err := c.StartAppWithBody(ctx, id, params, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseStartAppResp(rsp)
-}
-
-func (c *ClientWithResponses) StartAppWithFormdataBodyWithResponse(ctx context.Context, id string, params *StartAppParams, body StartAppFormdataRequestBody, reqEditors ...RequestEditorFn) (*StartAppResp, error) {
-	rsp, err := c.StartAppWithFormdataBody(ctx, id, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

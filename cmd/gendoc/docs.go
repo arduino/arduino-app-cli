@@ -7,6 +7,7 @@ package main
 
 import (
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"path"
 	"reflect"
@@ -534,7 +535,7 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodPost,
 			Path:        "/v1/apps/{id}/start",
 			Request: (*struct {
-				File []byte `form:"file" description:"The firmware file (.fw) to flash when prebuilt_sketch is true. The client compiles the sketch and writes it with arduino-cli upload --write-to-fw-file."`
+				File multipart.File `formData:"file" description:"The firmware file (.fw) to flash when prebuilt_sketch is true. The client compiles the sketch and writes it with arduino-cli upload --write-to-fw-file."`
 			})(nil),
 			Parameters: (*struct {
 				ID             string `path:"id" description:"application identifier."`
