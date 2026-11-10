@@ -14,6 +14,14 @@ to `viktoruj/ping_pong:latest`. If that image is already local, it satisfies the
 app's readiness check and is not downloaded again during preparation.
 Use an explicit version tag or digest when you need a specific image version.
 
+## Third-party Bricks in Apps
+
+An App can use third-party Bricks from the bricks index, as described in the [App specification](app-specification.md#third-party-bricks). Add them when creating the App with `arduino-app-cli app new my-app --bricks acme:weather` or, to pin a version, `--bricks acme:weather@1.2.0`.
+
+- `app start` downloads the bricks index when it is missing from the board, or when it does not list a Brick the App uses, and installs the Bricks that are not installed yet.
+- `app start --no-prepare` never accesses the network: it fails if the bricks index or a Brick is missing.
+- Starting an App or building a release requires the bricks index, to reject the versions it no longer lists. Other commands, such as `app details` and `app logs`, also work without it for the Bricks already installed.
+
 ## Environment Variables
 
 The following environment variables are used to configure Arduino App CLI:
@@ -27,7 +35,7 @@ The following environment variables are used to configure Arduino App CLI:
 | `ARDUINO_APP_CLI__REQUIRED_RUNTIMES`           | `arduino-router:arduino-router,arduino-cloud-connector` | Comma separated list of host units whose socket is bind-mounted into the App containers, each in the form `<unit>[:<group>]` where the optional group is added to the container to access the socket |
 | `ARDUINO_APP_CLI__PLATFORM_VERSION_CONSTRAINT` | `<2.0.0-0`                                              | Semver constraint that limits the version of the Arduino platform installed and offered as an update                                                                                                 |
 | `LIBRARIES_API_URL`                            | `https://api2.arduino.cc/libraries/v1/libraries`        | URL of the external service used to search Arduino libraries                                                                                                                                         |
-| `ARDUINO_APP_CLI__BRICKS_INDEX_URL`            | none (required by `brick update-index`)                 | URL of the bricks index, downloaded by `arduino-app-cli brick update-index`, and by `brick search` and `brick install` when older than 24 hours                                                      |
+| `ARDUINO_APP_CLI__BRICKS_INDEX_URL`            | none (required by `brick update-index`)                 | URL of the bricks index, downloaded by `arduino-app-cli brick update-index`, by `app start` when missing, and by `brick search` and `brick install` when older than 24 hours                         |
 | `DOCKER_REGISTRY_BASE`                         | `ghcr.io/arduino/`                                      | Docker registry used to pull docker images                                                                                                                                                           |
 | `DOCKER_PYTHON_BASE_IMAGE`                     | `app-bricks/python-apps-base:<RUNNER_VERSION>`          | Tag of the Docker image for the Python runner                                                                                                                                                        |
 
