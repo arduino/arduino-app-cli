@@ -574,6 +574,7 @@ before the app is started again.
 `,
 			},
 			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
 				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 			},

@@ -5093,6 +5093,7 @@ func (r PrepareAppReleaseResp) ContentType() string {
 type StartAppResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON400      *BadRequest
 	JSON412      *PreconditionFailed
 	JSON500      *InternalServerError
 }
@@ -7438,6 +7439,13 @@ func ParseStartAppResp(rsp *http.Response) (*StartAppResp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
 		var dest PreconditionFailed
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

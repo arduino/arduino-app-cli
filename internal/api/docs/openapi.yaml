@@ -879,6 +879,8 @@ paths:
             (PUT /v1/apps/{appID}/prepare); otherwise the missing model must be installed
             before the app is started again.
             'data: {"code":"not_prepared","message":"the app is not prepared: the container \"...\" is not on the board"}'
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "412":
           $ref: '#/components/responses/PreconditionFailed'
         "500":
