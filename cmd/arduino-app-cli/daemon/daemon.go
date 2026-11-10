@@ -120,6 +120,7 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 		servicelocator.GetProvisioner(),
 		servicelocator.GetModelsIndex(),
 		servicelocator.GetBricksIndex(),
+		servicelocator.GetBricksSource(),
 		servicelocator.GetServicesIndex(),
 		servicelocator.GetBrickService(),
 		servicelocator.GetAppIDProvider(),

@@ -39,6 +39,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -107,7 +108,10 @@ func StartApp(
 		cb = func(StreamMessage) {}
 	}
 
-	bricksIndex = appToStart.Bricks(bricksIndex)
+	bricksIndex, err := appToStart.Bricks(bricksIndex, remotebricksindex.NewSource(cfg, platform))
+	if err != nil {
+		return err
+	}
 
 	modelsIndex = appToStart.Models(modelsIndex, docker, cfg, platform)
 
@@ -452,7 +456,7 @@ func StartDefaultApp(
 		return nil
 	}
 
-	status, err := AppDetails(ctx, docker, *app, bricksIndex, idProvider, cfg)
+	status, err := AppDetails(ctx, docker, *app, bricksIndex, remotebricksindex.NewSource(cfg, platform), idProvider, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to get app details: %w", err)
 	}
@@ -703,10 +707,14 @@ func AppDetails(
 	docker command.Cli,
 	userApp app.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
+	bricksSource remotebricksindex.Source,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (AppDetailedInfo, error) {
-	bricksIndex = bricksIndex.WithAppBricks(userApp.LocalBricks)
+	bricksIndex, err := userApp.ResolveBricks(bricksIndex, bricksSource)
+	if err != nil {
+		slog.Warn("cannot load the third-party bricks of the app", slog.String("app", userApp.Name), slog.String("error", err.Error()))
+	}
 	var wg sync.WaitGroup
 	wg.Add(2)
 	var defaultAppPath string

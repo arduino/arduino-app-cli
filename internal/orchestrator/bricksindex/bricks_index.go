@@ -30,11 +30,6 @@ type BricksIndex struct {
 	AppBricks        []Brick
 }
 
-func (b *BricksIndex) WithAppBricks(bricks []Brick) *BricksIndex {
-	b.AppBricks = bricks
-	return b
-}
-
 // ForApp returns a copy of the index with the bricks local to an app and the third-party
 // bricks it resolves to. The receiver is not modified, so it can be shared between apps.
 func (b *BricksIndex) ForApp(appBricks, thirdPartyBricks []Brick) *BricksIndex {
