@@ -394,7 +394,7 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 	t.Run("find a brick in local bricks", func(t *testing.T) {
 		bricksIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata/0.4.8"))
 		require.NoError(t, err)
-		brickWithLoca := bricksIndex.WithAppBricks([]Brick{{ID: "my-first-brick", Source: "another-source"}})
+		brickWithLoca := bricksIndex.ForApp([]Brick{{ID: "my-first-brick", Source: "another-source"}}, nil)
 		brick, found := brickWithLoca.FindBrickByID("my-first-brick")
 		require.True(t, found)
 		require.Equal(t, "my-first-brick", brick.ID)
@@ -426,7 +426,7 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 	t.Run("local brick has priority to yaml index", func(t *testing.T) {
 		bricksIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata/0.4.8"))
 		require.NoError(t, err)
-		brickWithLoca := bricksIndex.WithAppBricks([]Brick{{ID: "arduino:a-good-brick", Source: "another-source"}})
+		brickWithLoca := bricksIndex.ForApp([]Brick{{ID: "arduino:a-good-brick", Source: "another-source"}}, nil)
 		brick, found := brickWithLoca.FindBrickByID("arduino:a-good-brick")
 		require.True(t, found)
 		require.Equal(t, "arduino:a-good-brick", brick.ID)

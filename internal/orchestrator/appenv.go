@@ -92,7 +92,7 @@ type hostFacts struct {
 }
 
 // appEnvironment is what the app is wired with, from the app and the board it is built
-// for: nothing here is read off a machine.
+// for: nothing here is read off a machine. brickIndex is the one of the app, from Bricks.
 func appEnvironment(
 	ctx context.Context,
 	app app.ArduinoApp,
@@ -102,7 +102,6 @@ func appEnvironment(
 ) types.Mapping {
 	envs := make(types.Mapping)
 
-	brickIndex = brickIndex.WithAppBricks(app.LocalBricks)
 	models := modelsIndex.NewLookup()
 
 	for _, brick := range app.Descriptor.Bricks {

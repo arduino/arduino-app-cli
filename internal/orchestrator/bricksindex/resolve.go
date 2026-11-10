@@ -6,11 +6,14 @@
 package bricksindex
 
 import (
+	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -84,6 +87,56 @@ func LoadResolved(plat platform.Platform, resolved []ResolvedBrick) ([]bricksind
 		bricks = append(bricks, brick)
 	}
 	return bricks, nil
+}
+
+// Source is where the third-party bricks are loaded from: the saved index, the folder
+// they are installed in and the platform they are loaded for.
+type Source struct {
+	IndexDir  *paths.Path
+	BricksDir *paths.Path
+	Platform  platform.Platform
+}
+
+// NewSource returns the source of the third-party bricks of the board.
+func NewSource(cfg config.Configuration, plat platform.Platform) Source {
+	return Source{IndexDir: cfg.BricksIndexDir(), BricksDir: cfg.BricksDir(), Platform: plat}
+}
+
+// Load resolves the references against the saved index and loads the installed bricks
+// they resolve to, skipping the references that are not third-party. Each brick is
+// resolved on its own, so one that fails does not hide the others: on error, the bricks
+// that could be loaded are still returned.
+func (s Source) Load(refs []Reference) ([]bricksindex.Brick, error) {
+	if !slices.ContainsFunc(refs, func(r Reference) bool { return IsThirdParty(r.ID) || r.Version != "" }) {
+		return nil, nil
+	}
+	index, err := Load(s.IndexDir)
+	if err != nil && !errors.Is(err, ErrIndexNotFound) {
+		return nil, err
+	}
+
+	var bricks []bricksindex.Brick
+	var errs []error
+	for _, ref := range refs {
+		loaded, err := loadReference(index, s.BricksDir, s.Platform, ref)
+		if err == nil {
+			bricks = append(bricks, loaded...)
+			continue
+		}
+		if errors.Is(err, ErrIndexNotFound) && slices.Contains(errs, err) {
+			continue
+		}
+		errs = append(errs, err)
+	}
+	return bricks, errors.Join(errs...)
+}
+
+func loadReference(index *Index, bricksDir *paths.Path, plat platform.Platform, ref Reference) ([]bricksindex.Brick, error) {
+	resolved, err := Resolve(index, bricksDir, []Reference{ref})
+	if err != nil {
+		return nil, err
+	}
+	return LoadResolved(plat, resolved)
 }
 
 func resolve(index *Index, bricksDir *paths.Path, ref Reference) (ResolvedBrick, error) {

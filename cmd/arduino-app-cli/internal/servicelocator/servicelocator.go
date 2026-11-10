@@ -20,6 +20,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -33,6 +34,10 @@ func Init(cfg config.Configuration) {
 var (
 	GetBricksIndex = sync.OnceValue(func() *bricksindex.BricksIndex {
 		return f.Must(bricksindex.Load(GetPlatform(), globalConfig.AssetDir())).WithInstalledBricks(globalConfig.BricksDir())
+	})
+
+	GetBricksSource = sync.OnceValue(func() remotebricksindex.Source {
+		return remotebricksindex.NewSource(globalConfig, GetPlatform())
 	})
 
 	GetModelsIndex = sync.OnceValue(func() *modelsindex.ModelsIndex {
@@ -68,6 +73,7 @@ var (
 		return bricks.NewService(
 			GetModelsIndex(),
 			GetBricksIndex(),
+			GetBricksSource(),
 		)
 	})
 
