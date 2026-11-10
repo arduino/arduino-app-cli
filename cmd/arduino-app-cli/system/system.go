@@ -35,6 +35,7 @@ func NewSystemCmd(cfg config.Configuration) *cobra.Command {
 	cmd.AddCommand(newDownloadImageCmd(cfg))
 	cmd.AddCommand(newCleanUpCmd(cfg, servicelocator.GetDockerClient()))
 	cmd.AddCommand(newCheckCmd(servicelocator.GetDockerClient()))
+	cmd.AddCommand(newDownloadRunnerAssetsCmd())
 	if !buildtag.ImmutableOS {
 		cmd.AddCommand(newUpdateCmd(cfg))
 		cmd.AddCommand(newNetworkModeCmd())
