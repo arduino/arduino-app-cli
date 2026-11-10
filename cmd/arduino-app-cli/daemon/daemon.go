@@ -19,6 +19,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/internal/api"
+	"github.com/arduino/arduino-app-cli/internal/buildtag"
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/httprecover"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
@@ -113,10 +114,15 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 	apiSrv := api.NewHTTPRouter(
 		servicelocator.GetDockerClient(),
 		version,
-		update.NewManager(
-			apt.New(),
-			arduino.NewArduinoPlatformUpdater(servicelocator.GetPlatform(), cfg.ArduinoPlatformVersionConstraint),
-		).WithSelfRestart(),
+		func() *update.Manager {
+			if buildtag.ImmutableOS {
+				return nil
+			}
+			return update.NewManager(
+				apt.New(),
+				arduino.NewArduinoPlatformUpdater(servicelocator.GetPlatform(), cfg.ArduinoPlatformVersionConstraint),
+			).WithSelfRestart()
+		}(),
 		servicelocator.GetProvisioner(),
 		servicelocator.GetModelsIndex(),
 		servicelocator.GetBricksIndex(),

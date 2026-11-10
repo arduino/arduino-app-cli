@@ -58,9 +58,11 @@ func NewHTTPRouter(
 	mux.Handle("PUT /v1/properties/{key}", handlers.HandlePropertyUpsert(cfg))
 	mux.Handle("DELETE /v1/properties/{key}", handlers.HandlePropertyDelete(cfg))
 
-	mux.Handle("GET /v1/system/update/check", handlers.HandleCheckUpgradable(updater))
-	mux.Handle("GET /v1/system/update/events", handlers.HandleUpdateEvents(updater))
-	mux.Handle("PUT /v1/system/update/apply", handlers.HandleUpdateApply(updater))
+	if updater != nil {
+		mux.Handle("GET /v1/system/update/check", handlers.HandleCheckUpgradable(updater))
+		mux.Handle("GET /v1/system/update/events", handlers.HandleUpdateEvents(updater))
+		mux.Handle("PUT /v1/system/update/apply", handlers.HandleUpdateApply(updater))
+	}
 	mux.Handle("GET /v1/system/resources", handlers.HandleSystemResources(cfg))
 
 	mux.Handle("GET /v1/models", handlers.HandleModelsList(modelsIndex))
