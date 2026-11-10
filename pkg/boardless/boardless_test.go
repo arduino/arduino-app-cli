@@ -25,29 +25,30 @@ import (
 	"github.com/arduino/go-paths-helper"
 )
 
-// setEnv points the handler at a fresh workspace, with the testdata catalog where the
-// board keeps it, and returns the apps directory.
-func setEnv(t *testing.T) string {
+// newOptions points the handler at a fresh workspace, with the testdata catalog where
+// the board keeps it.
+func newOptions(t *testing.T) boardless.Options {
 	t.Helper()
 	dir := t.TempDir()
-	appsDir := filepath.Join(dir, "ArduinoApps")
-	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", appsDir)
-	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", filepath.Join(dir, "data"))
-	t.Setenv("ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR", filepath.Join(dir, "custom-models"))
-	cfg, err := config.NewFromEnv()
+	opts := boardless.Options{
+		AppsDir: filepath.Join(dir, "ArduinoApps"),
+		DataDir: filepath.Join(dir, "data"),
+		Version: "test",
+	}
+	cfg, err := config.New(config.Dirs{AppsDir: paths.New(opts.AppsDir), DataDir: paths.New(opts.DataDir)})
 	require.NoError(t, err)
 	require.NoError(t, paths.New("testdata", "assets").CopyDirTo(cfg.AssetDir()))
-	return appsDir
+	return opts
 }
 
 func newServer(t *testing.T) (*httptest.Server, string) {
 	t.Helper()
-	appsDir := setEnv(t)
-	h, err := boardless.NewHandler(boardless.Options{Version: "test"})
+	opts := newOptions(t)
+	h, err := boardless.NewHandler(opts)
 	require.NoError(t, err)
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
-	return srv, appsDir
+	return srv, opts.AppsDir
 }
 
 func do(t *testing.T, srv *httptest.Server, method, path string, body any) (int, []byte) {
@@ -82,21 +83,24 @@ func createApp(t *testing.T, srv *httptest.Server, name string) string {
 
 func TestNewHandlerErrors(t *testing.T) {
 	t.Run("unknown board", func(t *testing.T) {
-		setEnv(t)
-		_, err := boardless.NewHandler(boardless.Options{Board: "mega"})
+		opts := newOptions(t)
+		opts.Board = "mega"
+		_, err := boardless.NewHandler(opts)
 		require.ErrorIs(t, err, boardless.ErrUnknownBoard)
 	})
-	t.Run("missing catalog is an error, not a panic", func(t *testing.T) {
-		dir := t.TempDir()
-		t.Setenv("ARDUINO_APP_CLI__APPS_DIR", filepath.Join(dir, "a"))
-		t.Setenv("ARDUINO_APP_CLI__DATA_DIR", filepath.Join(dir, "d"))
-		t.Setenv("ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR", filepath.Join(dir, "m"))
+	t.Run("missing dirs", func(t *testing.T) {
 		_, err := boardless.NewHandler(boardless.Options{})
 		require.Error(t, err)
 	})
+	t.Run("missing catalog is an error, not a panic", func(t *testing.T) {
+		dir := t.TempDir()
+		_, err := boardless.NewHandler(boardless.Options{AppsDir: filepath.Join(dir, "a"), DataDir: filepath.Join(dir, "d")})
+		require.Error(t, err)
+	})
 	t.Run("ventunoq", func(t *testing.T) {
-		setEnv(t)
-		_, err := boardless.NewHandler(boardless.Options{Board: "ventunoq"})
+		opts := newOptions(t)
+		opts.Board = "ventunoq"
+		_, err := boardless.NewHandler(opts)
 		require.NoError(t, err)
 	})
 }

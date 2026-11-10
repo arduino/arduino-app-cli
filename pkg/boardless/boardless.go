@@ -26,13 +26,18 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
-// Options is what the Host states. The directories come from the daemon's environment
-// variables: ARDUINO_APP_CLI__APPS_DIR, ARDUINO_APP_CLI__DATA_DIR (the catalog in
-// assets/<runner version>) and ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR.
+// Options is what the Host states.
 type Options struct {
 	// Board is the board the apps are made for; empty is an UNO Q.
-	Board   string
-	Version string
+	Board string
+	// AppsDir is where the apps live. Required, created if missing.
+	AppsDir string
+	// DataDir holds the properties, and the catalog in assets/<runner version>.
+	// Required, created if missing.
+	DataDir string
+	// CustomModelsDir holds the custom models; empty is DataDir/custom-models.
+	CustomModelsDir string
+	Version         string
 }
 
 // ErrUnknownBoard is returned for an Options.Board that is not a supported board.
@@ -47,7 +52,15 @@ func NewHandler(opts Options) (http.Handler, error) {
 	if !ok {
 		return nil, fmt.Errorf("%w %q: supported are %v", ErrUnknownBoard, opts.Board, platform.SupportedBoards())
 	}
-	cfg, err := config.NewFromEnv()
+	if opts.AppsDir == "" || opts.DataDir == "" {
+		return nil, errors.New("AppsDir and DataDir are required")
+	}
+	dirs := config.Dirs{AppsDir: paths.New(opts.AppsDir), DataDir: paths.New(opts.DataDir)}
+	dirs.CustomModelsDir = dirs.DataDir.Join("custom-models")
+	if opts.CustomModelsDir != "" {
+		dirs.CustomModelsDir = paths.New(opts.CustomModelsDir)
+	}
+	cfg, err := config.New(dirs)
 	if err != nil {
 		return nil, err
 	}

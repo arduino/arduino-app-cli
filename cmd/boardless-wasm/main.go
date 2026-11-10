@@ -6,10 +6,9 @@
 //go:build js
 
 // Command boardless-wasm is the Boardless API for the PWA, as WebAssembly. It listens on
-// no port. The page mounts its fs (ZenFS over OPFS) and sets the daemon's env vars before
-// it runs this, then calls
+// no port. The page mounts its fs (ZenFS over OPFS) before it runs this, then calls
 //
-//	arduinoAppCli.start({board}) → Promise, rejected with why it cannot serve
+//	arduinoAppCli.start({board, appsDir, dataDir, customModelsDir}) → Promise, rejected with why it cannot serve
 //	arduinoAppCli.serve(request, sink) → cancel()
 //
 // start can be called again to switch board. The page learns that the module is up from
@@ -40,8 +39,17 @@ func main() {
 	// page's event loop, which a synchronous callback would block.
 	start := js.FuncOf(func(_ js.Value, args []js.Value) any {
 		opts := boardless.Options{Version: Version}
-		if len(args) > 0 && args[0].Truthy() && args[0].Get("board").Truthy() {
-			opts.Board = args[0].Get("board").String()
+		if len(args) > 0 && args[0].Truthy() {
+			str := func(key string) string {
+				if v := args[0].Get(key); v.Truthy() {
+					return v.String()
+				}
+				return ""
+			}
+			opts.Board = str("board")
+			opts.AppsDir = str("appsDir")
+			opts.DataDir = str("dataDir")
+			opts.CustomModelsDir = str("customModelsDir")
 		}
 		return js.Global().Get("Promise").New(js.FuncOf(func(_ js.Value, p []js.Value) any {
 			resolve, reject := p[0], p[1]
