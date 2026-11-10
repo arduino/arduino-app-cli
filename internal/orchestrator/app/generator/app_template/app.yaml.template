@@ -15,7 +15,7 @@ ports: [{{ joinInts .Ports }}]
 {{- if .Bricks }}
 bricks:
 {{- range .Bricks }}
-  - {{ printf "%q" .ID }}
+  - {{ printf "%q" .Reference }}
 {{- end }}
 {{- else }}
 bricks: []

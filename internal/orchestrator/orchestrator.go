@@ -812,6 +812,7 @@ type CreateAppResponse struct {
 func CreateApp(
 	req CreateAppRequest,
 	bricksIndex *bricksindex.BricksIndex,
+	bricksSource remotebricksindex.Source,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (CreateAppResponse, error) {
@@ -820,11 +821,12 @@ func CreateApp(
 	}
 
 	appBricks := make([]app.Brick, 0, len(req.Bricks))
-	for _, id := range req.Bricks {
-		if _, found := bricksIndex.FindBrickByID(id); !found {
-			return CreateAppResponse{}, fmt.Errorf("%w: brick %q not found", ErrBadRequest, id)
+	for _, ref := range req.Bricks {
+		brick, _, err := app.LookupBrick(bricksIndex, bricksSource, ref)
+		if err != nil {
+			return CreateAppResponse{}, fmt.Errorf("%w: %w", ErrBadRequest, err)
 		}
-		appBricks = append(appBricks, app.Brick{ID: id})
+		appBricks = append(appBricks, brick)
 	}
 
 	basePath, appExists := findAppPathByName(req.Name, cfg)
