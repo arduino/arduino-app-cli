@@ -26,7 +26,9 @@ import (
 
 type BricksIndex struct {
 	BuiltInBricks []Brick
-	AppBricks     []Brick
+	// ThirdPartyBricks are the third-party bricks an app resolves to, see ForApp.
+	ThirdPartyBricks []Brick
+	AppBricks        []Brick
 
 	// installedDir is the folder of the bricks installed from the bricks index, nil if they are not included.
 	installedDir *paths.Path
@@ -45,15 +47,28 @@ func (b *BricksIndex) WithInstalledBricks(dir *paths.Path) *BricksIndex {
 	return b
 }
 
+// ForApp returns a copy of the index with the bricks local to an app and the third-party
+// bricks it resolves to. The receiver is not modified, so it can be shared between apps.
+func (b *BricksIndex) ForApp(appBricks, thirdPartyBricks []Brick) *BricksIndex {
+	return &BricksIndex{
+		BuiltInBricks:    b.BuiltInBricks,
+		ThirdPartyBricks: thirdPartyBricks,
+		AppBricks:        appBricks,
+		installedDir:     b.installedDir,
+		platform:         b.platform,
+	}
+}
+
+// FindBrickByID looks the brick up in the app bricks, then in the third-party bricks, in the
+// built-in bricks and finally in the installed bricks.
 func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
 	searchFunc := func(brick Brick) bool {
 		return brick.ID == id
 	}
-	if idx := slices.IndexFunc(b.AppBricks, searchFunc); idx != -1 {
-		return &b.AppBricks[idx], true
-	}
-	if idx := slices.IndexFunc(b.BuiltInBricks, searchFunc); idx != -1 {
-		return &b.BuiltInBricks[idx], true
+	for _, bricks := range [][]Brick{b.AppBricks, b.ThirdPartyBricks, b.BuiltInBricks} {
+		if idx := slices.IndexFunc(bricks, searchFunc); idx != -1 {
+			return &bricks[idx], true
+		}
 	}
 	if brick, found := b.findInstalledBrick(id); found {
 		return &brick, true
@@ -63,9 +78,9 @@ func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
 
 // TODO: use iterator instead of returning a slice
 func (b *BricksIndex) ListBricks() []Brick {
-	bricks := slices.Concat(b.AppBricks, b.BuiltInBricks)
+	bricks := slices.Concat(b.AppBricks, b.ThirdPartyBricks, b.BuiltInBricks)
 	for _, installed := range b.installedBricks() {
-		// The bricks of the app and the built-in ones take precedence.
+		// The bricks of the app, the resolved third-party ones and the built-in ones take precedence.
 		if !slices.ContainsFunc(bricks, func(brick Brick) bool { return brick.ID == installed.ID }) {
 			bricks = append(bricks, installed)
 		}
@@ -297,7 +312,10 @@ func unmarshalBricksIndex(content io.Reader) (*YamlBricksIndex, error) {
 	return &index, nil
 }
 
-const bricksListFileName = "bricks-list.yaml"
+const (
+	bricksListFileName  = "bricks-list.yaml"
+	brickConfigFileName = "brick_config.yaml"
+)
 
 // WriteBricksList writes the bricks into dir as the index Load reads back.
 func WriteBricksList(dir *paths.Path, bricks []Brick) error {

@@ -11,6 +11,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 // BuiltInNamespace is the namespace of the bricks shipped with the cli. For now they are
@@ -63,6 +64,26 @@ func Resolve(index *Index, bricksDir *paths.Path, refs []Reference) ([]ResolvedB
 		res = append(res, resolved)
 	}
 	return res, nil
+}
+
+// LoadResolved loads the definitions of the resolved bricks for the platform. Every brick
+// must be installed and support the board's platform.
+func LoadResolved(plat platform.Platform, resolved []ResolvedBrick) ([]bricksindex.Brick, error) {
+	bricks := make([]bricksindex.Brick, 0, len(resolved))
+	for _, r := range resolved {
+		if !r.Installed {
+			return nil, fmt.Errorf("brick %s@%s is not installed, install it with 'arduino-app-cli brick install %s@%s'", r.ID, r.Version, r.ID, r.Version)
+		}
+		brick, err := loadInstalledBrick(plat, r.Path, r.ID)
+		if err != nil {
+			return nil, fmt.Errorf("loading brick %s@%s: %w", r.ID, r.Version, err)
+		}
+		if !brick.SupportsBoard(plat) {
+			return nil, fmt.Errorf("brick %s@%s does not support the board %s", r.ID, r.Version, plat.BoardName)
+		}
+		bricks = append(bricks, brick)
+	}
+	return bricks, nil
 }
 
 func resolve(index *Index, bricksDir *paths.Path, ref Reference) (ResolvedBrick, error) {
