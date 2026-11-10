@@ -711,7 +711,7 @@ type StartAppParams struct {
 	// Verbose Return a verbose output. Default is false.
 	Verbose *bool `form:"verbose,omitempty" json:"verbose,omitempty"`
 
-	// PrebuiltSketch Flash the firmware file sent in the 'file' form field instead of compiling the sketch on the board. A missing file fails with HTTP 400. A release app or a platform that flashes the sketch to RAM fails with the error code 'bad_request'. Default is false.
+	// PrebuiltSketch Flash the firmware file sent in the 'file' form field instead of compiling the sketch on the board. A missing, empty or larger than 32 MB file, or a value that is not a boolean, fails with HTTP 400. An app with no sketch, a release app or a platform that flashes the sketch to RAM fails with the error code 'bad_request'. A restart of the app compiles the sketch on the board. Default is false.
 	PrebuiltSketch *bool `form:"prebuilt_sketch,omitempty" json:"prebuilt_sketch,omitempty"`
 }
 
