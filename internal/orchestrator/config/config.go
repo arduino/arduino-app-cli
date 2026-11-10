@@ -49,8 +49,24 @@ type RequiredRuntime struct {
 	Group string
 }
 
+// Dirs are the directories the daemon works in. A nil one gets its default.
+type Dirs struct {
+	AppsDir         *paths.Path
+	DataDir         *paths.Path
+	CustomModelsDir *paths.Path
+}
+
 func NewFromEnv() (Configuration, error) {
-	appsDir := paths.New(os.Getenv("ARDUINO_APP_CLI__APPS_DIR"))
+	return New(Dirs{
+		AppsDir:         paths.New(os.Getenv("ARDUINO_APP_CLI__APPS_DIR")),
+		DataDir:         paths.New(os.Getenv("ARDUINO_APP_CLI__DATA_DIR")),
+		CustomModelsDir: paths.New(os.Getenv("ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR")),
+	})
+}
+
+// New is NewFromEnv with dirs in place of their environment variables.
+func New(dirs Dirs) (Configuration, error) {
+	appsDir := dirs.AppsDir
 	if appsDir == nil {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -67,7 +83,7 @@ func NewFromEnv() (Configuration, error) {
 		appsDir = wd.JoinPath(appsDir)
 	}
 
-	dataDir := paths.New(os.Getenv("ARDUINO_APP_CLI__DATA_DIR"))
+	dataDir := dirs.DataDir
 	if dataDir == nil {
 		dataDir = paths.New("/var/lib/arduino-app-cli")
 	}
@@ -103,7 +119,7 @@ func NewFromEnv() (Configuration, error) {
 	}
 
 	// Ensure the custom modules directory exists
-	customModelsDir := paths.New(os.Getenv("ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR"))
+	customModelsDir := dirs.CustomModelsDir
 	if customModelsDir == nil {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {

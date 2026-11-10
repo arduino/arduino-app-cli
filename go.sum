@@ -124,8 +124,6 @@ github.com/apparentlymart/go-textseg/v15 v15.0.0 h1:uYvfpb3DyLSCGWnctWKGj857c6ew
 github.com/apparentlymart/go-textseg/v15 v15.0.0/go.mod h1:K8XmNZdhEBkdlyDdvbmmsvpAG721bKi0joRfFdHIWJ4=
 github.com/apparentlymart/go-textseg/v17 v17.0.1 h1:bpMXRgQ5cEoRNuQke1a80/Nl6w3G5eoIbWo9f3gXkAs=
 github.com/apparentlymart/go-textseg/v17 v17.0.1/go.mod h1:fa8X4jgGeevslICIY6LcdjkSecWnXmYd9Lk34z/VxZs=
-github.com/arduino/arduino-cli v1.5.2-0.20261104130119-d82681ff36a6 h1:CVoSUlqwt40ZEe7m/s/PNd6D/TCHs1DECQzhsnTUzgE=
-github.com/arduino/arduino-cli v1.5.2-0.20261104130119-d82681ff36a6/go.mod h1:GFjpfBt6Blgb6MVvloYLgvmh5tygufVfRi6dFeMdCO4=
 github.com/arduino/go-paths-helper v1.14.0 h1:b4C8KJa7CNz2XnzTWg97M3LAmzWSWrj+m/o5/skzv3Y=
 github.com/arduino/go-paths-helper v1.14.0/go.mod h1:dDodKn2ZX4iwuoBMapdDO+5d0oDLBeM4BS0xS4i40Ak=
 github.com/arduino/go-properties-orderedmap v1.9.1 h1:c+qfKz1ceE2nEgbXNAJL3kAI8JxvNqWZoVSOL0zWhCc=
@@ -371,6 +369,8 @@ github.com/fvbommel/sortorder v1.2.0/go.mod h1:LbhO04ijZIeUuvz9B9BkI/qYrpZZEn1gW
 github.com/getkin/kin-openapi v0.144.0 h1:hIRcTH+KjLfkLpYU6bSSfdFpi0fZi1fp+hSPi4aQu9Y=
 github.com/getkin/kin-openapi v0.144.0/go.mod h1:3BH9M9XDe/y9M5DSvEocVYAYq1w0qrhJHjC/vZi0AaY=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
+github.com/giulio93/arduino-cli v0.0.0-20261105110352-3b1787a3efb4 h1:r67kiPMnaSvUHjOI7KPEQ+guee59Z6GD86TxXdtXaGg=
+github.com/giulio93/arduino-cli v0.0.0-20261105110352-3b1787a3efb4/go.mod h1:GFjpfBt6Blgb6MVvloYLgvmh5tygufVfRi6dFeMdCO4=
 github.com/gliderlabs/ssh v0.3.8 h1:a4YXD1V7xMF9g5nTkdfnja3Sxy1PVDCj1Zg4Wb8vY6c=
 github.com/gliderlabs/ssh v0.3.8/go.mod h1:xYoytBv1sV0aL3CavoDuJIQNURXkkfPA/wxQ1pL1fAU=
 github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 h1:+zs/tPmkDkHx3U66DAb0lQFJrpS6731Oaa12ikc+DiI=

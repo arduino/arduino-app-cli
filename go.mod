@@ -330,3 +330,5 @@ tool (
 	github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen
 	gotest.tools/gotestsum
 )
+
+replace github.com/arduino/arduino-cli => github.com/giulio93/arduino-cli v0.0.0-20261105110352-3b1787a3efb4
