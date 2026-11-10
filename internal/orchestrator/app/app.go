@@ -20,6 +20,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
 	yaml "github.com/goccy/go-yaml"
+	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -326,6 +327,36 @@ func (a *ArduinoApp) BrickReferences() []remotebricksindex.Reference {
 		refs = append(refs, remotebricksindex.Reference{ID: brick.ID, Version: brick.Version})
 	}
 	return refs
+}
+
+// LookupBrick parses a brick about to be added to an app, given as ID[@VERSION], and returns
+// it with its definition. The brick's variables cannot be checked until it is installed (definition is nil).
+func LookupBrick(index *bricksindex.BricksIndex, src remotebricksindex.Source, ref string) (Brick, *bricksindex.Brick, error) {
+	if !remotebricksindex.IsThirdParty(ref) {
+		if strings.Contains(ref, "@") {
+			return Brick{}, nil, fmt.Errorf("brick %q cannot be pinned to a version: only third-party bricks can", ref)
+		}
+		definition, found := index.FindBrickByID(ref)
+		if !found {
+			return Brick{}, nil, fmt.Errorf("brick %q not found", ref)
+		}
+		return Brick{ID: ref}, definition, nil
+	}
+
+	id, version, err := remotebricksindex.ParseBrickReference(ref)
+	if err != nil {
+		return Brick{}, nil, err
+	}
+	if version != "" {
+		if _, err := semver.Parse(version); err != nil {
+			return Brick{}, nil, fmt.Errorf("invalid version %q for brick %q", version, id)
+		}
+	}
+	definition, err := src.Lookup(remotebricksindex.Reference{ID: id, Version: version})
+	if err != nil {
+		return Brick{}, nil, err
+	}
+	return Brick{ID: id, Version: version}, definition, nil
 }
 
 // ReleaseBricks is the brick definitions a release ships in its .cache, which are the

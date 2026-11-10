@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
@@ -360,44 +361,43 @@ func (s *Service) BrickCreate(
 	req BrickCreateUpdateRequest,
 	appCurrent app.Editable,
 ) error {
-	brick, present := s.appBricks(appCurrent.App()).FindBrickByID(req.ID)
-	if !present {
-		return fmt.Errorf("brick %q not found", req.ID)
+	id, _, _ := strings.Cut(req.ID, "@")
+	brickIndex := slices.IndexFunc(appCurrent.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == id })
+
+	newBrick, brick, err := app.LookupBrick(s.bricksIndex.ForApp(appCurrent.App().LocalBricks, nil), s.bricksSource, req.ID)
+	if err != nil {
+		return err
 	}
 
-	for name, reqValue := range req.Variables {
-		value, exist := brick.GetVariable(name)
-		if !exist {
-			return fmt.Errorf("variable %q does not exist on brick %q", name, brick.ID)
+	// The variables of a third-party brick that is not installed yet are checked when the app starts.
+	if brick != nil {
+		for name, reqValue := range req.Variables {
+			value, exist := brick.GetVariable(name)
+			if !exist {
+				return fmt.Errorf("variable %q does not exist on brick %q", name, brick.ID)
+			}
+			if value.IsRequired() && reqValue == "" {
+				return fmt.Errorf("required variable %q cannot be empty", name)
+			}
 		}
-		if value.IsRequired() && reqValue == "" {
-			return fmt.Errorf("required variable %q cannot be empty", name)
-		}
-	}
 
-	for _, brickVar := range brick.Variables {
-		if brickVar.IsRequired() {
-			if _, exist := req.Variables[brickVar.Name]; !exist {
-				slog.Warn("[Skip] a required variable is not set by user", slog.String("variable", brickVar.Name), slog.String("brick", brickVar.Name))
+		for _, brickVar := range brick.Variables {
+			if brickVar.IsRequired() {
+				if _, exist := req.Variables[brickVar.Name]; !exist {
+					slog.Warn("[Skip] a required variable is not set by user", slog.String("variable", brickVar.Name), slog.String("brick", brickVar.Name))
+				}
 			}
 		}
 	}
 
-	brickIndex := -1
 	var brickInstance app.Brick
-
-	for index, b := range appCurrent.Descriptor.Bricks {
-		if b.ID == req.ID {
-			brickIndex = index
-			brickInstance = b
-			break
-		}
+	if brickIndex != -1 {
+		brickInstance = appCurrent.Descriptor.Bricks[brickIndex]
 	}
-
-	brickInstance.ID = req.ID
+	brickInstance.ID, brickInstance.Version = newBrick.ID, newBrick.Version
 
 	if req.Model != nil {
-		model, err := s.modelsIndex.NewLookup().ModelForBrick(ctx, *req.Model, req.ID)
+		model, err := s.modelsIndex.NewLookup().ModelForBrick(ctx, *req.Model, newBrick.ID)
 		if err != nil {
 			return fmt.Errorf("checking model %s: %w", *req.Model, err)
 		}
@@ -414,8 +414,7 @@ func (s *Service) BrickCreate(
 		appCurrent.Descriptor.Bricks[brickIndex] = brickInstance
 	}
 
-	err := appCurrent.Save()
-	if err != nil {
+	if err := appCurrent.Save(); err != nil {
 		return fmt.Errorf("cannot save brick instance with id %s", req.ID)
 	}
 	return nil

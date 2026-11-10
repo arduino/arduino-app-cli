@@ -246,12 +246,14 @@ paths:
         schema:
           description: application identifier.
           type: string
-      - description: brick identifier.
+      - description: brick identifier. A third-party brick can be pinned to a version
+          with ID@VERSION; without a version, it is unpinned.
         in: path
         name: brickID
         required: true
         schema:
-          description: brick identifier.
+          description: brick identifier. A third-party brick can be pinned to a version
+            with ID@VERSION; without a version, it is unpinned.
           type: string
       requestBody:
         content:
