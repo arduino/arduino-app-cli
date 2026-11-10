@@ -36,6 +36,20 @@ func TestSavePrebuiltSketch(t *testing.T) {
 		require.Equal(t, "fw content", string(content))
 	})
 
+	t.Run("empty file", func(t *testing.T) {
+		var body bytes.Buffer
+		mw := multipart.NewWriter(&body)
+		_, err := mw.CreateFormFile("file", "sketch-prebuilt.fw")
+		require.NoError(t, err)
+		require.NoError(t, mw.Close())
+
+		r := httptest.NewRequest(http.MethodPost, "/v1/apps/x/start?prebuilt_sketch=true", &body)
+		r.Header.Set("Content-Type", mw.FormDataContentType())
+
+		_, err = savePrebuiltSketch(r)
+		require.Error(t, err)
+	})
+
 	t.Run("no file field", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodPost, "/v1/apps/x/start?prebuilt_sketch=true", bytes.NewBufferString("{}"))
 		r.Header.Set("Content-Type", "application/json")

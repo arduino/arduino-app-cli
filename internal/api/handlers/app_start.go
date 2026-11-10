@@ -58,8 +58,18 @@ func HandleAppStart(
 
 		// The whole body is read before the SSE stream opens: net/http may close the
 		// connection when a handler writes its response before it has read the request.
+		// A bare "prebuilt_sketch" means true, as for "verbose".
+		usePrebuiltSketch := r.URL.Query().Has("prebuilt_sketch")
+		if v := r.URL.Query().Get("prebuilt_sketch"); v != "" {
+			usePrebuiltSketch, err = strconv.ParseBool(v)
+			if err != nil {
+				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid prebuilt_sketch parameter"})
+				return
+			}
+		}
 		var prebuiltSketch *paths.Path
-		if ok, _ := strconv.ParseBool(r.URL.Query().Get("prebuilt_sketch")); ok {
+		if usePrebuiltSketch {
+			r.Body = http.MaxBytesReader(w, r.Body, maxPrebuiltSketchSize)
 			fwFile, err := savePrebuiltSketch(r)
 			if err != nil {
 				slog.Error("unable to read the prebuilt sketch", slog.String("error", err.Error()))
@@ -111,6 +121,9 @@ func HandleAppStart(
 	}
 }
 
+// maxPrebuiltSketchSize caps the start request body, so a prebuilt sketch upload cannot fill the board's disk.
+const maxPrebuiltSketchSize = 32 << 20
+
 // savePrebuiltSketch writes the "file" form field of r to a temp file.
 func savePrebuiltSketch(r *http.Request) (*paths.Path, error) {
 	file, _, err := r.FormFile("file")
@@ -124,9 +137,12 @@ func savePrebuiltSketch(r *http.Request) (*paths.Path, error) {
 		return nil, err
 	}
 	tempFilePath := paths.NewFromFile(tempFile)
-	_, err = io.Copy(tempFile, file)
+	n, err := io.Copy(tempFile, file)
 	if closeErr := tempFile.Close(); err == nil {
 		err = closeErr
+	}
+	if err == nil && n == 0 {
+		err = errors.New("the file is empty")
 	}
 	if err != nil {
 		_ = tempFilePath.Remove()
