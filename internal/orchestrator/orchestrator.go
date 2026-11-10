@@ -102,10 +102,20 @@ func StartApp(
 	platform platform.Platform,
 	verbose bool,
 	prepare bool,
+	prebuiltSketch *paths.Path,
 	cb func(StreamMessage),
 ) error {
 	if cb == nil {
 		cb = func(StreamMessage) {}
+	}
+
+	if prebuiltSketch != nil {
+		if err := checkPrebuiltSketch(appToStart, prebuiltSketch); err != nil {
+			return err
+		}
+		if err := checkPrebuiltSketchPlatform(ctx, platform); err != nil {
+			return err
+		}
 	}
 
 	bricksIndex = appToStart.Bricks(bricksIndex)
@@ -207,6 +217,12 @@ func StartApp(
 			// The firmware of a release is the one the build compiled: a start only uploads it.
 			fwFile := appToStart.ProvisioningStateDir().Join(ReleaseFirmwareFileName)
 			if err := uploadFirmwareFile(ctx, verbose, fwFile, sketchCallbackWriter); err != nil {
+				return err
+			}
+		} else if prebuiltSketch != nil {
+			cb(StreamMessage{progress: &Progress{Name: "uploading prebuilt sketch", Progress: 0.0}})
+
+			if err := uploadFirmwareFile(ctx, verbose, prebuiltSketch, sketchCallbackWriter); err != nil {
 				return err
 			}
 		} else {
@@ -434,7 +450,7 @@ func RestartApp(
 		}
 	}
 
-	return StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, !appToStart.IsRelease(), cb)
+	return StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, !appToStart.IsRelease(), nil, cb)
 }
 
 func StartDefaultApp(
@@ -466,7 +482,7 @@ func StartDefaultApp(
 	}
 
 	// TODO: we need to stop all other running app before starting the default app.
-	if err := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, *app, cfg, platform, false, !app.IsRelease(), func(sm StreamMessage) {}); err != nil {
+	if err := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, *app, cfg, platform, false, !app.IsRelease(), nil, func(sm StreamMessage) {}); err != nil {
 		return fmt.Errorf("failed to start app: %w", err)
 	}
 
@@ -1174,7 +1190,7 @@ func compileUploadSketch(
 	if menuOptions.Has(WaitForApp) {
 		fqbn += ":" + WaitForApp.String()
 	}
-	useLegacyFlashToRam := !menuOptions.Has(WaitForApp) && platform.SupportFlashToRam()
+	useLegacyFlashToRam := usesLegacyFlashToRam(menuOptions, platform)
 
 	// Compile the sketch
 	if err := compileSketch(
@@ -1197,6 +1213,42 @@ func compileUploadSketch(
 	}
 
 	return nil
+}
+
+// checkPrebuiltSketch checks a start that flashes fwFile, a firmware file the client
+// compiled on its own computer, instead of compiling the sketch on the board.
+func checkPrebuiltSketch(a app.ArduinoApp, fwFile *paths.Path) error {
+	if a.IsRelease() {
+		return fmt.Errorf("%w: an app installed from a release flashes its own firmware", ErrBadRequest)
+	}
+	if _, ok := a.GetSketchPath(); !ok {
+		return fmt.Errorf("%w: the app has no sketch", ErrBadRequest)
+	}
+	if !fwFile.Exist() {
+		return fmt.Errorf("%w: the prebuilt sketch %s does not exist", ErrBadRequest, fwFile)
+	}
+	return nil
+}
+
+// checkPrebuiltSketchPlatform checks that the board can run a prebuilt sketch. It runs
+// before the start does any work, as the answer depends only on the board and its core.
+func checkPrebuiltSketchPlatform(ctx context.Context, platform platform.Platform) error {
+	menuOptions, err := GetPlatformMenuOptions(ctx, platform)
+	if err != nil {
+		return fmt.Errorf("failed to get platform menu options: %w", err)
+	}
+	// uploadFirmwareFile has no flash-to-RAM path, so a board that needs it cannot run a
+	// binary built on the computer.
+	if usesLegacyFlashToRam(menuOptions, platform) {
+		return fmt.Errorf("%w: the platform flashes the sketch to RAM, which a prebuilt sketch does not support", ErrBadRequest)
+	}
+	return nil
+}
+
+// usesLegacyFlashToRam reports whether the board loads the sketch into RAM: a board that
+// supports it, with a core that lacks the wait_linux_boot=app menu option.
+func usesLegacyFlashToRam(menuOptions MenuOptions, platform platform.Platform) bool {
+	return !menuOptions.Has(WaitForApp) && platform.SupportFlashToRam()
 }
 
 func uploadFirmwareFile(

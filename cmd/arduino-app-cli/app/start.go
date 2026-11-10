@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
@@ -23,6 +24,7 @@ import (
 func newStartCmd(cfg config.Configuration) *cobra.Command {
 	var verbose bool
 	var noPrepare bool
+	var prebuiltSketch string
 	cmd := &cobra.Command{
 		Use:   "start app_path",
 		Short: "Start an Arduino App",
@@ -35,7 +37,11 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return startHandler(cmd.Context(), cfg, app, verbose, !noPrepare)
+			var fwFile *paths.Path
+			if prebuiltSketch != "" {
+				fwFile = paths.New(prebuiltSketch)
+			}
+			return startHandler(cmd.Context(), cfg, app, verbose, !noPrepare, fwFile)
 		},
 		ValidArgsFunction: completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
 			return apps.Status != orchestrator.StatusStarting &&
@@ -45,11 +51,12 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	cmd.Flags().BoolVar(&noPrepare, "no-prepare", false, "Start the app without preparing it first, failing if its containers or models are not already on the board")
+	cmd.Flags().StringVar(&prebuiltSketch, "prebuilt-sketch", "", "Flash this firmware file (.fw) instead of compiling the sketch")
 
 	return cmd
 }
 
-func startHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, verbose bool, prepare bool) error {
+func startHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, verbose bool, prepare bool, prebuiltSketch *paths.Path) error {
 	out, _, getResult := feedback.OutputStreams()
 
 	streamCb := func(message orchestrator.StreamMessage) {
@@ -89,6 +96,7 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 		servicelocator.GetPlatform(),
 		verbose,
 		prepare,
+		prebuiltSketch,
 		streamCb,
 	)
 	if err != nil {
