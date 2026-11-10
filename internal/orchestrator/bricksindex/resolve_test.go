@@ -168,6 +168,50 @@ func TestSourceLoad(t *testing.T) {
 	})
 }
 
+func TestSourceLookup(t *testing.T) {
+	bricksDir := paths.New(t.TempDir())
+	brickDir := bricksDir.Join("acme", "hello@1.2.0")
+	require.NoError(t, brickDir.MkdirAll())
+	require.NoError(t, brickDir.Join(brickConfigFileName).WriteFile([]byte("id: acme:hello\nname: Hello\n")))
+	require.NoError(t, brickDir.Join("brick_compose.yaml").WriteFile([]byte("services: {}\n")))
+
+	indexDir := paths.New(t.TempDir())
+	index := `{"bricks": [
+		{"id": "acme:hello", "namespace": "acme", "latest": "1.2.0", "releases": [{"version": "1.2.0"}]},
+		{"id": "acme:missing", "namespace": "acme", "latest": "1.0.0", "releases": [{"version": "1.0.0"}]}
+	]}`
+	require.NoError(t, indexDir.Join(IndexFileName).WriteFile([]byte(index)))
+	src := Source{IndexDir: indexDir, BricksDir: bricksDir}
+
+	t.Run("installed brick", func(t *testing.T) {
+		brick, err := src.Lookup(Reference{ID: "acme:hello", Version: "1.2.0"})
+		require.NoError(t, err)
+		require.Equal(t, "Hello", brick.Name)
+	})
+
+	t.Run("brick listed in the index but not installed", func(t *testing.T) {
+		brick, err := src.Lookup(Reference{ID: "acme:missing"})
+		require.NoError(t, err)
+		require.Nil(t, brick)
+	})
+
+	t.Run("version not listed in the index", func(t *testing.T) {
+		_, err := src.Lookup(Reference{ID: "acme:missing", Version: "2.0.0"})
+		require.ErrorIs(t, err, ErrReleaseNotFound)
+	})
+
+	t.Run("brick not listed in the index", func(t *testing.T) {
+		_, err := src.Lookup(Reference{ID: "acme:other"})
+		require.ErrorIs(t, err, ErrBrickNotFound)
+	})
+
+	t.Run("brick not installed without the index", func(t *testing.T) {
+		noIndex := Source{IndexDir: paths.New(t.TempDir()), BricksDir: bricksDir}
+		_, err := noIndex.Lookup(Reference{ID: "acme:missing"})
+		require.ErrorIs(t, err, ErrIndexNotFound)
+	})
+}
+
 func TestSourceInstall(t *testing.T) {
 	release := archiveRelease(t, makeZip(t, map[string]string{
 		"hello/brick_config.yaml":  "id: acme:hello\n",
