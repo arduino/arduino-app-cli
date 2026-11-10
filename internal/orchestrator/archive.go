@@ -26,15 +26,19 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 )
 
 func ExportAppZip(
 	bricksIndex *bricksindex.BricksIndex,
+	bricksSource remotebricksindex.Source,
 	appTarget app.ArduinoApp,
 	includeData bool,
 ) ([]byte, string, error) {
-
-	bricksIndex = bricksIndex.WithAppBricks(appTarget.LocalBricks)
+	bricksIndex, err := appTarget.ResolveBricks(bricksIndex, bricksSource)
+	if err != nil {
+		return nil, "", err
+	}
 
 	appName := strings.ToLower(strings.ReplaceAll(appTarget.Name, " ", "-"))
 	if appName == "" {

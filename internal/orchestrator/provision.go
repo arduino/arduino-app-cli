@@ -107,6 +107,7 @@ func NewProvision(
 // Resolve turns the app bricks and services into the compose templates it is started
 // from, deriving them from the app and the target board and never from this host. The
 // app runs under the app launcher, which can replace it in the same container.
+// bricksIndex is the one of the app, from Bricks.
 func (p *Provision) Resolve(
 	arduinoApp *app.ArduinoApp,
 	genPath *paths.Path,
@@ -155,10 +156,7 @@ func (p *Provision) resolve(
 		}
 	}
 
-	bricksIndex = bricksIndex.WithAppBricks(arduinoApp.LocalBricks)
-
-	return generateComposeTemplate(arduinoApp, genPath, bricksIndex, servicesIndex, p.pythonImage, cfg, appEnv, platform, launcher)
-}
+	return generateComposeTemplate(arduinoApp, genPath, bricksIndex, servicesIndex, p.pythonImage, cfg, appEnv, platform, launcher)}
 
 // Render evaluates the templates against the board the app is being started on and
 // writes the single compose file docker is given.

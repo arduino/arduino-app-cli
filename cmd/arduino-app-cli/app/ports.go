@@ -40,7 +40,7 @@ func newPortsCmd(cfg config.Configuration) *cobra.Command {
 }
 
 func portsHandler(app app.ArduinoApp) error {
-	ports, err := orchestrator.AppPorts(app, servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex())
+	ports, err := orchestrator.AppPorts(app, servicelocator.GetBricksIndex(), servicelocator.GetBricksSource(), servicelocator.GetServicesIndex())
 	if err != nil {
 		return err
 	}
