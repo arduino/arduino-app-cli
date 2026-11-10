@@ -105,3 +105,40 @@ func TestLoadResolved(t *testing.T) {
 		require.ErrorContains(t, err, "brick install acme:hello@1.2.0")
 	})
 }
+
+func TestSourceLoad(t *testing.T) {
+	bricksDir := paths.New(t.TempDir())
+	brickDir := bricksDir.Join("acme", "hello@1.2.0")
+	require.NoError(t, brickDir.MkdirAll())
+	require.NoError(t, brickDir.Join(brickConfigFileName).WriteFile([]byte("id: acme:hello\nname: Hello\n")))
+	require.NoError(t, brickDir.Join("brick_compose.yaml").WriteFile([]byte("services: {}\n")))
+
+	indexDir := paths.New(t.TempDir())
+	index := `{"bricks": [
+		{"id": "acme:hello", "namespace": "acme", "latest": "1.2.0", "releases": [{"version": "1.2.0"}]},
+		{"id": "acme:missing", "namespace": "acme", "latest": "1.0.0", "releases": [{"version": "1.0.0"}]}
+	]}`
+	require.NoError(t, indexDir.Join(IndexFileName).WriteFile([]byte(index)))
+
+	t.Run("loads the bricks it can and reports the others", func(t *testing.T) {
+		src := Source{IndexDir: indexDir, BricksDir: bricksDir}
+		bricks, err := src.Load([]Reference{{ID: "arduino:camera"}, {ID: "acme:hello"}, {ID: "acme:missing"}})
+		require.ErrorContains(t, err, "brick install acme:missing@1.0.0")
+		require.Len(t, bricks, 1)
+		require.Equal(t, "acme:hello", bricks[0].ID)
+	})
+
+	t.Run("no third-party bricks do not need the index", func(t *testing.T) {
+		src := Source{IndexDir: paths.New(t.TempDir()), BricksDir: bricksDir}
+		bricks, err := src.Load([]Reference{{ID: "arduino:camera"}, {ID: "my-local-brick"}})
+		require.NoError(t, err)
+		require.Empty(t, bricks)
+	})
+
+	t.Run("missing index is reported once", func(t *testing.T) {
+		src := Source{IndexDir: paths.New(t.TempDir()), BricksDir: bricksDir}
+		_, err := src.Load([]Reference{{ID: "acme:hello"}, {ID: "acme:missing"}})
+		require.ErrorIs(t, err, ErrIndexNotFound)
+		require.Equal(t, ErrIndexNotFound.Error(), err.Error())
+	})
+}

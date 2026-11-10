@@ -7,10 +7,12 @@ package orchestrator
 
 import (
 	"fmt"
+	"log/slog"
 	"strconv"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 )
 
@@ -26,9 +28,13 @@ type PortInfo struct {
 func AppPorts(
 	a app.ArduinoApp,
 	index *bricksindex.BricksIndex,
+	bricksSource remotebricksindex.Source,
 	servicesIndex *servicesindex.ServicesIndex,
 ) ([]PortInfo, error) {
-	index = index.WithAppBricks(a.LocalBricks)
+	index, err := a.ResolveBricks(index, bricksSource)
+	if err != nil {
+		slog.Warn("cannot load the third-party bricks of the app", slog.String("app", a.Name), slog.String("error", err.Error()))
+	}
 
 	ports := make([]PortInfo, 0, len(a.Descriptor.Ports)+len(a.Descriptor.Bricks))
 

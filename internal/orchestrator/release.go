@@ -35,6 +35,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/pkg/release"
@@ -98,7 +99,10 @@ func BuildRelease(
 		return BuildReleaseResult{}, nil, err
 	}
 
-	bricksIndex = bricksIndex.WithAppBricks(appToBuild.LocalBricks)
+	bricksIndex, err = appToBuild.ResolveBricks(bricksIndex, remotebricksindex.NewSource(cfg, plat))
+	if err != nil {
+		return BuildReleaseResult{}, nil, err
+	}
 	if err := checkBricks(ctx, appToBuild.Descriptor.Bricks, bricksIndex, modelsIndex, false); err != nil {
 		return BuildReleaseResult{}, nil, err
 	}

@@ -25,6 +25,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -36,18 +37,31 @@ var (
 )
 
 type Service struct {
-	modelsIndex *modelsindex.ModelsIndex
-	bricksIndex *bricksindex.BricksIndex
+	modelsIndex  *modelsindex.ModelsIndex
+	bricksIndex  *bricksindex.BricksIndex
+	bricksSource remotebricksindex.Source
 }
 
 func NewService(
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
+	bricksSource remotebricksindex.Source,
 ) *Service {
 	return &Service{
-		modelsIndex: modelsIndex,
-		bricksIndex: bricksIndex,
+		modelsIndex:  modelsIndex,
+		bricksIndex:  bricksIndex,
+		bricksSource: bricksSource,
 	}
+}
+
+// appBricks is the index of the app. A third-party brick that cannot be loaded is left
+// out, so the app can still be inspected and fixed.
+func (s *Service) appBricks(a *app.ArduinoApp) *bricksindex.BricksIndex {
+	index, err := a.Bricks(s.bricksIndex, s.bricksSource)
+	if err != nil {
+		slog.Warn("cannot load the third-party bricks of the app", slog.String("app", a.Name), slog.String("error", err.Error()))
+	}
+	return index
 }
 
 func (s *Service) List() BrickListResult {
@@ -70,7 +84,7 @@ func (s *Service) List() BrickListResult {
 
 func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) AppBrickInstancesResult {
 	res := AppBrickInstancesResult{BrickInstances: make([]AppBrickInstanceListItem, len(a.Descriptor.Bricks))}
-	bricksIndex := a.Bricks(s.bricksIndex)
+	bricksIndex := s.appBricks(a)
 	for i, brickInstance := range a.Descriptor.Bricks {
 		brick, found := bricksIndex.FindBrickByID(brickInstance.ID)
 		if !found {
@@ -119,7 +133,7 @@ func compatibleModels(ctx context.Context, models *modelsindex.Lookup, brickID s
 }
 
 func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp, brickID string) (AppBrickInstanceDetails, error) {
-	brick, found := a.Bricks(s.bricksIndex).FindBrickByID(brickID)
+	brick, found := s.appBricks(a).FindBrickByID(brickID)
 	if !found {
 		return AppBrickInstanceDetails{}, ErrBrickNotFound
 	}
@@ -346,7 +360,7 @@ func (s *Service) BrickCreate(
 	req BrickCreateUpdateRequest,
 	appCurrent app.Editable,
 ) error {
-	brick, present := appCurrent.Bricks(s.bricksIndex).FindBrickByID(req.ID)
+	brick, present := s.appBricks(appCurrent.App()).FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick %q not found", req.ID)
 	}
@@ -420,7 +434,8 @@ func (s *Service) BrickUpdate(
 	// froze every value but the secrets.
 	isRelease := appCurrent.IsRelease()
 
-	brickFromIndex, present := appCurrent.Bricks(s.bricksIndex).FindBrickByID(req.ID)
+	appBricks := s.appBricks(&appCurrent)
+	brickFromIndex, present := appBricks.FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick %q not found into the brick index", req.ID)
 	}
@@ -489,7 +504,7 @@ func (s *Service) BrickUpdate(
 	}
 
 	if len(secretValues) > 0 {
-		if err := appCurrent.UpdateSecrets(s.bricksIndex, req.ID, secretValues); err != nil {
+		if err := appCurrent.UpdateSecrets(appBricks, req.ID, secretValues); err != nil {
 			return fmt.Errorf("cannot save the secrets of brick %s: %w", req.ID, err)
 		}
 	}
@@ -529,7 +544,7 @@ func (s *Service) LocalBrickRename(appCurrent app.Editable, oldID, newID, newNam
 		return LocalBrickRenameResult{}, ErrBrickNotFound
 	}
 
-	if _, exist := s.bricksIndex.WithAppBricks(appCurrent.LocalBricks).FindBrickByID(newID); exist {
+	if _, exist := s.bricksIndex.ForApp(appCurrent.LocalBricks, nil).FindBrickByID(newID); exist {
 		return LocalBrickRenameResult{}, ErrBrickIDConflict
 	}
 

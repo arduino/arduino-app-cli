@@ -35,11 +35,6 @@ type BricksIndex struct {
 	platform     platform.Platform
 }
 
-func (b *BricksIndex) WithAppBricks(bricks []Brick) *BricksIndex {
-	b.AppBricks = bricks
-	return b
-}
-
 // WithInstalledBricks includes the bricks installed in dir from the bricks index. They are read
 // on every query, so a brick installed after the index is loaded is found too.
 func (b *BricksIndex) WithInstalledBricks(dir *paths.Path) *BricksIndex {

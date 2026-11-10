@@ -20,6 +20,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -28,7 +29,7 @@ var unoQPlatform = platform.Platform{BoardName: "unoq"}
 func TestBrickCreate(t *testing.T) {
 	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 	require.Nil(t, err)
-	brickService := NewService(nil, bricksIndex)
+	brickService := NewService(nil, bricksIndex, remotebricksindex.Source{})
 
 	t.Run("fails if brick id does not exist", func(t *testing.T) {
 		err = brickService.BrickCreate(t.Context(), BrickCreateUpdateRequest{ID: "not-existing-id"}, mustEdit(t, paths.New("testdata/dummy-app")))
@@ -98,7 +99,7 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, err)
 		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.Nil(t, err)
-		brickService := NewService(nil, bricksIndex)
+		brickService := NewService(nil, bricksIndex, remotebricksindex.Source{})
 
 		deviceID := "this-is-a-device-id"
 		secret := "this-is-a-secret"
@@ -125,7 +126,7 @@ func TestBrickCreate(t *testing.T) {
 func TestUpdateBrick(t *testing.T) {
 	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 	require.Nil(t, err)
-	brickService := NewService(nil, bricksIndex)
+	brickService := NewService(nil, bricksIndex, remotebricksindex.Source{})
 
 	t.Run("fails if brick id does not exist into brick index", func(t *testing.T) {
 		err = brickService.BrickUpdate(t.Context(), BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
@@ -185,7 +186,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.Nil(t, err)
-		brickService := NewService(nil, bricksIndex)
+		brickService := NewService(nil, bricksIndex, remotebricksindex.Source{})
 
 		deviceID := "updated-device-id"
 		secret := "updated-secret"
@@ -214,7 +215,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app-for-update").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.Nil(t, err)
-		brickService := NewService(nil, bricksIndex)
+		brickService := NewService(nil, bricksIndex, remotebricksindex.Source{})
 
 		secret := "updated-the-secret"
 		req := BrickCreateUpdateRequest{
@@ -244,7 +245,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.NoError(t, err)
 		modelsIndex, err := modelsindex.Load(unoQPlatform, paths.New("testdata"), paths.New("not_exixsting_path"), paths.New("not_exixsting_path"), nil, config.Configuration{})
 		require.NoError(t, err)
-		brickService := NewService(modelsIndex, bricksIndex)
+		brickService := NewService(modelsIndex, bricksIndex, remotebricksindex.Source{})
 
 		modelPath := "/home/arduino/.arduino-bricks/ei-model-123-1/model.eim"
 		modelId := "ei-model-123-1"
@@ -280,7 +281,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.NoError(t, err)
 		modelsIndex, err := modelsindex.Load(unoQPlatform, paths.New("testdata"), paths.New("not_exixsting_path"), paths.New("not_exixsting_path"), nil, config.Configuration{})
 		require.NoError(t, err)
-		brickService := NewService(modelsIndex, bricksIndex)
+		brickService := NewService(modelsIndex, bricksIndex, remotebricksindex.Source{})
 
 		modelID := "ei-model-123-1"
 		req := BrickCreateUpdateRequest{
@@ -1073,7 +1074,7 @@ func TestLocalBrickRename(t *testing.T) {
 
 	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 	require.NoError(t, err)
-	svc := NewService(nil, bricksIndex)
+	svc := NewService(nil, bricksIndex, remotebricksindex.Source{})
 
 	t.Run("fails when old and new id are the same", func(t *testing.T) {
 		a := setup(t)
