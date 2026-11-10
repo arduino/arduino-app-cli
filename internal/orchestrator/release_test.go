@@ -261,6 +261,18 @@ handlers:
 	assert.True(t, found, "handlers of built-in models should be included in the frozen index")
 }
 
+func TestBuildReleaseRejectsThirdPartyBricks(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	appToBuild := app.ArduinoApp{
+		Name:       "my-app",
+		Descriptor: app.AppDescriptor{Bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "acme:hello", Version: "1.0.0"}}},
+	}
+
+	_, _, err := BuildRelease(context.Background(), nil, nil, appToBuild, BuildReleaseRequest{}, cfg, nil)
+	require.ErrorIs(t, err, ErrBadRequest)
+	assert.ErrorContains(t, err, `"acme:hello"`)
+}
+
 func TestBuildSketch(t *testing.T) {
 	// Never the real data dir: the arduino-cli writes into it as soon as it starts.
 	t.Setenv("ARDUINO_DIRECTORIES_DATA", t.TempDir())
