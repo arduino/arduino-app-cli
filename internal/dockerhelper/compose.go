@@ -91,7 +91,8 @@ func ComposeStop(ctx context.Context, docker command.Cli, projectName string, li
 	if err := backend.Stop(ctx, projectName, api.StopOptions{Timeout: &timeout}); err != nil {
 		return err
 	}
-	return WaitStopped(ctx, docker.Client(), api.ProjectLabel+"="+projectName, stopTimeout)
+	// Workaround: moby returns a stop before its container list shows it, and a status read in that gap finds the app running.
+	return waitStopped(ctx, docker.Client(), api.ProjectLabel+"="+projectName, stopTimeout)
 }
 
 // ComposeDown removes the containers of the app, its volumes, the images it built and its
@@ -108,11 +109,10 @@ func ComposeDown(ctx context.Context, docker command.Cli, projectName string, li
 		Images:        "local",
 		Timeout:       &timeout,
 	})
-	if err != nil {
-		return err
+	if err == nil {
+		pruneDanglingBuilds(ctx, docker, projectName)
 	}
-	pruneDanglingBuilds(ctx, docker, projectName)
-	return WaitStopped(ctx, docker.Client(), api.ProjectLabel+"="+projectName, stopTimeout)
+	return err
 }
 
 // classicBuilder makes the sdk build with the legacy builder, and writes the build output

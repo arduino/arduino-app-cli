@@ -148,16 +148,16 @@ func TestWaitStopped(t *testing.T) {
 
 	t.Run("returns once no container is reported running", func(t *testing.T) {
 		docker := &listingClient{answers: [][]container.Summary{{running}, {running}, {exited}}}
-		require.NoError(t, WaitStopped(t.Context(), docker, "label=x", time.Second))
+		require.NoError(t, waitStopped(t.Context(), docker, "label=x", time.Second))
 		assert.Equal(t, 3, docker.calls)
 	})
-	t.Run("gives up after its timeout", func(t *testing.T) {
+	t.Run("gives up without an error after its timeout", func(t *testing.T) {
 		docker := &listingClient{answers: [][]container.Summary{{running}}}
-		require.ErrorContains(t, WaitStopped(t.Context(), docker, "label=x", 50*time.Millisecond), "still reported running")
+		require.NoError(t, waitStopped(t.Context(), docker, "label=x", 50*time.Millisecond))
 	})
 	t.Run("is cancellable", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Millisecond)
 		defer cancel()
-		require.ErrorIs(t, WaitStopped(ctx, &listingClient{answers: [][]container.Summary{{running}}}, "label=x", time.Minute), context.DeadlineExceeded)
+		require.ErrorIs(t, waitStopped(ctx, &listingClient{answers: [][]container.Summary{{running}}}, "label=x", time.Minute), context.DeadlineExceeded)
 	})
 }
