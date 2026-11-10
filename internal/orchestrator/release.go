@@ -99,7 +99,7 @@ func BuildRelease(
 		return BuildReleaseResult{}, nil, err
 	}
 
-	bricksIndex, err = appToBuild.ResolveBricks(bricksIndex, remotebricksindex.NewSource(cfg, plat))
+	bricksIndex, err = appToBuild.ResolveBricks(bricksIndex, remotebricksindex.NewStrictSource(cfg, plat))
 	if err != nil {
 		return BuildReleaseResult{}, nil, err
 	}
