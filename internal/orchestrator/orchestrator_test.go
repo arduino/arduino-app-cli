@@ -573,6 +573,26 @@ func TestListApp(t *testing.T) {
 		}
 	})
 
+	t.Run("ignore apps staged inside a .tmp_ container", func(t *testing.T) {
+		containerPath, err := app.MkTmpAppDir(cfg.AppsDir())
+		require.NoError(t, err)
+		stagedAppPath := containerPath.Join("staged-app")
+		require.NoError(t, stagedAppPath.MkdirAll())
+		require.NoError(t, stagedAppPath.Join("app.yaml").WriteFile([]byte("name: staged-app")))
+
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
+			ShowApps: true,
+		}, idProvider, nil, cfg, unoQPlatform)
+		require.NoError(t, err)
+
+		for _, a := range res.Apps {
+			assert.NotContains(t, a.ID.String(), containerPath.Base(), "the staged app should not be listed")
+		}
+		for _, b := range res.BrokenApps {
+			assert.NotContains(t, b.Name, "staged-app", "the staged app should not be in the broken apps list")
+		}
+	})
+
 	t.Run("test nested apps do not produce bogus broken apps in parent dirs", func(t *testing.T) {
 		// https://github.com/arduino/arduino-app-cli/issues/220
 
