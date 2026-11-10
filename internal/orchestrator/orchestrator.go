@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"slices"
 	"strings"
@@ -52,6 +53,10 @@ var (
 	ErrNotPrepared      = fmt.Errorf("app is not prepared")
 	ErrAppRunning       = fmt.Errorf("app is running")
 )
+
+// bricksUserAgent identifies the downloads of the bricks a start installs.
+// TODO: add the version of the cli, as brick install and update-index do.
+const bricksUserAgent = "arduino-app-cli"
 
 type AppStreamMessage struct {
 	Type string `json:"type"`
@@ -108,7 +113,19 @@ func StartApp(
 		cb = func(StreamMessage) {}
 	}
 
-	bricksIndex, err := appToStart.Bricks(bricksIndex, remotebricksindex.NewSource(cfg, platform))
+	bricksSource := remotebricksindex.NewStrictSource(cfg, platform)
+	if prepare && !appToStart.IsRelease() {
+		if err := bricksSource.Install(ctx, http.DefaultClient, bricksUserAgent, appToStart.BrickReferences(), func(msg string) {
+			cb(StreamMessage{data: msg})
+		}); err != nil {
+			return fmt.Errorf("failed to install the bricks of the app: %w", err)
+		}
+	}
+
+	bricksIndex, err := appToStart.Bricks(bricksIndex, bricksSource)
+	if errors.Is(err, remotebricksindex.ErrNotInstalled) || errors.Is(err, remotebricksindex.ErrIndexNotFound) {
+		return fmt.Errorf("%w: %w", ErrNotPrepared, err)
+	}
 	if err != nil {
 		return err
 	}
