@@ -1447,7 +1447,7 @@ also when 'error' events were received.
 			Path:        "/v1/apps/{appID}/bricks/{brickID}",
 			Parameters: (*struct {
 				ID      string `path:"appID" description:"application identifier."`
-				BrickID string `path:"brickID" description:"brick identifier."`
+				BrickID string `path:"brickID" description:"brick identifier. A third-party brick can be pinned to a version with ID@VERSION; without a version, it is unpinned."`
 			})(nil),
 			Request: bricks.BrickCreateUpdateRequest{},
 			CustomSuccessResponse: &CustomResponseDef{

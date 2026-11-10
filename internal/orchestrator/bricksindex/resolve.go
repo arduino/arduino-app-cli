@@ -163,6 +163,27 @@ func (s Source) Install(ctx context.Context, client *http.Client, userAgent stri
 	return nil
 }
 
+// Lookup resolves a third-party reference. It returns the definition of the brick when the version it resolves to is
+// installed, and nil when the saved index lists it but it is not installed yet.
+func (s Source) Lookup(ref Reference) (*bricksindex.Brick, error) {
+	index, err := Load(s.IndexDir)
+	if err != nil && (s.RequireIndex || !errors.Is(err, ErrIndexNotFound)) {
+		return nil, err
+	}
+	resolved, err := Resolve(index, s.BricksDir, []Reference{ref})
+	if err != nil {
+		return nil, err
+	}
+	if len(resolved) == 0 || !resolved[0].Installed {
+		return nil, nil
+	}
+	bricks, err := LoadResolved(s.Platform, resolved)
+	if err != nil {
+		return nil, err
+	}
+	return &bricks[0], nil
+}
+
 // Load resolves the references against the saved index and loads the installed bricks
 // they resolve to, skipping the references that are not third-party. Each brick is
 // resolved on its own, so one that fails does not hide the others: on error, the bricks
