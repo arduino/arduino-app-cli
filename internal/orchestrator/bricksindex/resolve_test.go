@@ -8,7 +8,10 @@ package bricksindex
 import (
 	"testing"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
+
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 func TestResolve(t *testing.T) {
@@ -69,5 +72,36 @@ func TestResolve(t *testing.T) {
 	t.Run("only third-party bricks can be pinned", func(t *testing.T) {
 		_, err := Resolve(index, installedBricks(t), []Reference{{ID: "arduino:camera", Version: "1.0.0"}})
 		require.ErrorContains(t, err, "only third-party bricks")
+	})
+}
+
+func TestLoadResolved(t *testing.T) {
+	bricksDir := paths.New(t.TempDir())
+	brickDir := bricksDir.Join("acme", "hello@1.0.0")
+	require.NoError(t, brickDir.MkdirAll())
+	require.NoError(t, brickDir.Join(brickConfigFileName).WriteFile([]byte("id: acme:hello\nname: Hello\nsupported_boards: [board-a]\n")))
+	require.NoError(t, brickDir.Join("brick_compose.yaml").WriteFile([]byte("services: {}\n")))
+	require.NoError(t, brickDir.Join("brick_compose.board-a.yaml").WriteFile([]byte("services: {}\n")))
+	hello := ResolvedBrick{ID: "acme:hello", Version: "1.0.0", Path: brickDir, Installed: true}
+
+	t.Run("installed", func(t *testing.T) {
+		bricks, err := LoadResolved(platform.Platform{BoardName: "board-a"}, []ResolvedBrick{hello})
+		require.NoError(t, err)
+		require.Len(t, bricks, 1)
+		require.Equal(t, "Hello", bricks[0].Name)
+		require.Equal(t, "acme", bricks[0].Source)
+		require.Equal(t, brickDir, bricks[0].FullPath)
+		require.Equal(t, brickDir.Join("brick_compose.board-a.yaml"), bricks[0].ComposeFile)
+	})
+
+	t.Run("board not supported", func(t *testing.T) {
+		_, err := LoadResolved(platform.Platform{BoardName: "board-b"}, []ResolvedBrick{hello})
+		require.ErrorContains(t, err, "does not support the board board-b")
+	})
+
+	t.Run("not installed", func(t *testing.T) {
+		missing := ResolvedBrick{ID: "acme:hello", Version: "1.2.0", Path: bricksDir.Join("acme", "hello@1.2.0")}
+		_, err := LoadResolved(platform.Platform{}, []ResolvedBrick{missing})
+		require.ErrorContains(t, err, "brick install acme:hello@1.2.0")
 	})
 }
