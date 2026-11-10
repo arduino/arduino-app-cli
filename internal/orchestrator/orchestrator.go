@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"slices"
 	"strings"
@@ -39,6 +40,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -51,6 +53,10 @@ var (
 	ErrNotPrepared      = fmt.Errorf("app is not prepared")
 	ErrAppRunning       = fmt.Errorf("app is running")
 )
+
+// bricksUserAgent identifies the downloads of the bricks a start installs.
+// TODO: add the version of the cli, as brick install and update-index do.
+const bricksUserAgent = "arduino-app-cli"
 
 type AppStreamMessage struct {
 	Type string `json:"type"`
@@ -107,7 +113,22 @@ func StartApp(
 		cb = func(StreamMessage) {}
 	}
 
-	bricksIndex = appToStart.Bricks(bricksIndex)
+	bricksSource := remotebricksindex.NewStrictSource(cfg, platform)
+	if prepare && !appToStart.IsRelease() {
+		if err := bricksSource.Install(ctx, http.DefaultClient, bricksUserAgent, appToStart.BrickReferences(), func(msg string) {
+			cb(StreamMessage{data: msg})
+		}); err != nil {
+			return fmt.Errorf("failed to install the bricks of the app: %w", err)
+		}
+	}
+
+	bricksIndex, err := appToStart.Bricks(bricksIndex, bricksSource)
+	if errors.Is(err, remotebricksindex.ErrNotInstalled) || errors.Is(err, remotebricksindex.ErrIndexNotFound) {
+		return fmt.Errorf("%w: %w", ErrNotPrepared, err)
+	}
+	if err != nil {
+		return err
+	}
 
 	modelsIndex = appToStart.Models(modelsIndex, docker, cfg, platform)
 
@@ -452,7 +473,7 @@ func StartDefaultApp(
 		return nil
 	}
 
-	status, err := AppDetails(ctx, docker, *app, bricksIndex, idProvider, cfg)
+	status, err := AppDetails(ctx, docker, *app, bricksIndex, remotebricksindex.NewSource(cfg, platform), idProvider, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to get app details: %w", err)
 	}
@@ -703,10 +724,14 @@ func AppDetails(
 	docker command.Cli,
 	userApp app.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
+	bricksSource remotebricksindex.Source,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (AppDetailedInfo, error) {
-	bricksIndex = bricksIndex.WithAppBricks(userApp.LocalBricks)
+	bricksIndex, err := userApp.ResolveBricks(bricksIndex, bricksSource)
+	if err != nil {
+		slog.Warn("cannot load the third-party bricks of the app", slog.String("app", userApp.Name), slog.String("error", err.Error()))
+	}
 	var wg sync.WaitGroup
 	wg.Add(2)
 	var defaultAppPath string
@@ -787,6 +812,7 @@ type CreateAppResponse struct {
 func CreateApp(
 	req CreateAppRequest,
 	bricksIndex *bricksindex.BricksIndex,
+	bricksSource remotebricksindex.Source,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (CreateAppResponse, error) {
@@ -795,11 +821,12 @@ func CreateApp(
 	}
 
 	appBricks := make([]app.Brick, 0, len(req.Bricks))
-	for _, id := range req.Bricks {
-		if _, found := bricksIndex.FindBrickByID(id); !found {
-			return CreateAppResponse{}, fmt.Errorf("%w: brick %q not found", ErrBadRequest, id)
+	for _, ref := range req.Bricks {
+		brick, _, err := app.LookupBrick(bricksIndex, bricksSource, ref)
+		if err != nil {
+			return CreateAppResponse{}, fmt.Errorf("%w: %w", ErrBadRequest, err)
 		}
-		appBricks = append(appBricks, app.Brick{ID: id})
+		appBricks = append(appBricks, brick)
 	}
 
 	basePath, appExists := findAppPathByName(req.Name, cfg)

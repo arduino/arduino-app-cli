@@ -16,6 +16,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/releasebuild"
@@ -36,6 +37,7 @@ func NewHTTPRouter(
 	provisioner *orchestrator.Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
+	bricksSource remotebricksindex.Source,
 	servicesIndex *servicesindex.ServicesIndex,
 	brickService *bricks.Service,
 	idProvider *appid.Provider,
@@ -71,11 +73,11 @@ func NewHTTPRouter(
 	mux.Handle("DELETE /v1/models/{modelID}", handlers.HandlerDeleteModelByID(dockerClient, cfg, modelsIndex, bricksIndex, idProvider, platform))
 
 	mux.Handle("GET /v1/apps", handlers.HandleAppList(dockerClient, idProvider, bricksIndex, cfg, platform))
-	mux.Handle("POST /v1/apps", handlers.HandleAppCreate(bricksIndex, idProvider, cfg))
+	mux.Handle("POST /v1/apps", handlers.HandleAppCreate(bricksIndex, bricksSource, idProvider, cfg))
 	mux.Handle("GET /v1/apps/events", handlers.HandlerAppStatus(dockerClient, idProvider, bricksIndex, cfg, platform))
-	mux.Handle("GET /v1/apps/{appID}", handlers.HandleAppDetails(dockerClient, bricksIndex, idProvider, cfg))
-	mux.Handle("PATCH /v1/apps/{appID}", handlers.HandleAppDetailsEdits(dockerClient, bricksIndex, idProvider, cfg))
-	mux.Handle("GET /v1/apps/{appID}/logs", handlers.HandleAppLogs(dockerClient, idProvider, bricksIndex, servicesIndex, cfg))
+	mux.Handle("GET /v1/apps/{appID}", handlers.HandleAppDetails(dockerClient, bricksIndex, bricksSource, idProvider, cfg))
+	mux.Handle("PATCH /v1/apps/{appID}", handlers.HandleAppDetailsEdits(dockerClient, bricksIndex, bricksSource, idProvider, cfg))
+	mux.Handle("GET /v1/apps/{appID}/logs", handlers.HandleAppLogs(dockerClient, idProvider, bricksIndex, bricksSource, servicesIndex, cfg))
 	mux.Handle("POST /v1/apps/{appID}/start", handlers.HandleAppStart(dockerClient, provisioner, modelsIndex, bricksIndex, servicesIndex, idProvider, cfg, platform))
 	mux.Handle("POST /v1/apps/{appID}/stop", handlers.HandleAppStop(dockerClient, idProvider, platform, cfg))
 	mux.Handle("POST /v1/apps/{appID}/build", handlers.HandleAppBuild(dockerClient, provisioner, idProvider, cfg, buildEvents))
@@ -84,9 +86,9 @@ func NewHTTPRouter(
 	mux.Handle("PUT /v1/apps/install", handlers.HandleAppInstall(dockerClient, provisioner, idProvider, cfg, platform))
 	mux.Handle("PUT /v1/apps/{appID}/prepare", handlers.HandleAppPrepare(dockerClient, provisioner, idProvider, cfg, platform))
 	mux.Handle("DELETE /v1/apps/{appID}", handlers.HandleAppDelete(dockerClient, idProvider, platform, cfg))
-	mux.Handle("GET /v1/apps/{appID}/export", handlers.HandleAppExport(idProvider, bricksIndex))
+	mux.Handle("GET /v1/apps/{appID}/export", handlers.HandleAppExport(idProvider, bricksIndex, bricksSource))
 	mux.Handle("POST /v1/apps/import", handlers.HandleAppImport(cfg, idProvider))
-	mux.Handle("GET /v1/apps/{appID}/exposed-ports", handlers.HandleAppPorts(bricksIndex, servicesIndex, idProvider))
+	mux.Handle("GET /v1/apps/{appID}/exposed-ports", handlers.HandleAppPorts(bricksIndex, bricksSource, servicesIndex, idProvider))
 	mux.Handle("PUT /v1/apps/{appID}/sketch/libraries/{libRef}", handlers.HandleSketchAddLibrary(idProvider))
 	mux.Handle("DELETE /v1/apps/{appID}/sketch/libraries/{libRef}", handlers.HandleSketchRemoveLibrary(idProvider))
 	mux.Handle("GET /v1/apps/{appID}/sketch/libraries", handlers.HandleSketchListLibraries(idProvider))

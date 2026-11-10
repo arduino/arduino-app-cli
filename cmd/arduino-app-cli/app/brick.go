@@ -72,8 +72,13 @@ func brickConfigHandler(ctx context.Context, appRef, brickID string, variableArg
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 	}
 
-	brick, ok := arduinoApp.Bricks(servicelocator.GetBricksIndex()).FindBrickByID(brickID)
+	// A third-party brick that cannot be loaded matters only if it is the one to configure.
+	appBricks, err := arduinoApp.Bricks(servicelocator.GetBricksIndex(), servicelocator.GetBricksSource())
+	brick, ok := appBricks.FindBrickByID(brickID)
 	if !ok {
+		if err != nil {
+			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+		}
 		feedback.Fatal(fmt.Sprintf("Cannot find the brick with ID %q", brickID), feedback.ErrBadArgument)
 	}
 

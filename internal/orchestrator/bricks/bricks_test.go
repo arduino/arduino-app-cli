@@ -8,6 +8,7 @@ package bricks
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -20,6 +21,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -28,7 +30,7 @@ var unoQPlatform = platform.Platform{BoardName: "unoq"}
 func TestBrickCreate(t *testing.T) {
 	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 	require.Nil(t, err)
-	brickService := NewService(nil, bricksIndex)
+	brickService := NewService(nil, bricksIndex, remotebricksindex.Source{})
 
 	t.Run("fails if brick id does not exist", func(t *testing.T) {
 		err = brickService.BrickCreate(t.Context(), BrickCreateUpdateRequest{ID: "not-existing-id"}, mustEdit(t, paths.New("testdata/dummy-app")))
@@ -98,7 +100,7 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, err)
 		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.Nil(t, err)
-		brickService := NewService(nil, bricksIndex)
+		brickService := NewService(nil, bricksIndex, remotebricksindex.Source{})
 
 		deviceID := "this-is-a-device-id"
 		secret := "this-is-a-secret"
@@ -120,12 +122,60 @@ func TestBrickCreate(t *testing.T) {
 		require.Equal(t, deviceID, after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"])
 		require.Equal(t, secret, after.Descriptor.Bricks[0].Variables["ARDUINO_SECRET"])
 	})
+
+	t.Run("third-party bricks", func(t *testing.T) {
+		indexDir := paths.New(t.TempDir())
+		index := `{"bricks": [
+			{"id": "acme:hello", "namespace": "acme", "latest": "1.2.0", "releases": [{"version": "1.0.0"}, {"version": "1.2.0"}]},
+			{"id": "acme:installed", "namespace": "acme", "latest": "1.0.0", "releases": [{"version": "1.0.0"}]}
+		]}`
+		require.NoError(t, indexDir.Join(remotebricksindex.IndexFileName).WriteFile([]byte(index)))
+		bricksDir := paths.New(t.TempDir())
+		installedDir := bricksDir.Join("acme", "installed@1.0.0")
+		require.NoError(t, installedDir.MkdirAll())
+		require.NoError(t, installedDir.Join("brick_config.yaml").WriteFile([]byte("id: acme:installed\nname: Installed\nvariables:\n  - name: GREETING\n")))
+		require.NoError(t, installedDir.Join("brick_compose.yaml").WriteFile([]byte("services: {}\n")))
+		svc := NewService(nil, bricksIndex, remotebricksindex.Source{IndexDir: indexDir, BricksDir: bricksDir})
+
+		appDir := paths.New(t.TempDir()).Join("app")
+		require.NoError(t, paths.New("testdata/dummy-app").CopyDirTo(appDir))
+		thirdPartyBricks := func() []app.Brick {
+			after, err := app.Load(appDir)
+			require.NoError(t, err)
+			return slices.DeleteFunc(after.Descriptor.Bricks, func(b app.Brick) bool { return !remotebricksindex.IsThirdParty(b.ID) })
+		}
+
+		t.Run("a brick that is not installed is added without checking its variables", func(t *testing.T) {
+			req := BrickCreateUpdateRequest{ID: "acme:hello@1.0.0", Variables: map[string]string{"ANY": "value"}}
+			require.NoError(t, svc.BrickCreate(t.Context(), req, mustEdit(t, appDir)))
+			require.Equal(t, []app.Brick{{ID: "acme:hello", Version: "1.0.0", Variables: map[string]string{"ANY": "value"}}}, thirdPartyBricks())
+		})
+
+		t.Run("without a version, the brick is unpinned", func(t *testing.T) {
+			req := BrickCreateUpdateRequest{ID: "acme:hello", Variables: map[string]string{"ANY": "other"}}
+			require.NoError(t, svc.BrickCreate(t.Context(), req, mustEdit(t, appDir)))
+			require.Equal(t, []app.Brick{{ID: "acme:hello", Variables: map[string]string{"ANY": "other"}}}, thirdPartyBricks())
+		})
+
+		t.Run("the variables of an installed brick are checked", func(t *testing.T) {
+			req := BrickCreateUpdateRequest{ID: "acme:installed", Variables: map[string]string{"UNKNOWN": "value"}}
+			err := svc.BrickCreate(t.Context(), req, mustEdit(t, appDir))
+			require.EqualError(t, err, `variable "UNKNOWN" does not exist on brick "acme:installed"`)
+		})
+
+		for _, ref := range []string{"acme:other", "acme:hello@2.0.0"} {
+			t.Run("rejects "+ref, func(t *testing.T) {
+				require.Error(t, svc.BrickCreate(t.Context(), BrickCreateUpdateRequest{ID: ref}, mustEdit(t, appDir)))
+				require.Len(t, thirdPartyBricks(), 1)
+			})
+		}
+	})
 }
 
 func TestUpdateBrick(t *testing.T) {
 	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 	require.Nil(t, err)
-	brickService := NewService(nil, bricksIndex)
+	brickService := NewService(nil, bricksIndex, remotebricksindex.Source{})
 
 	t.Run("fails if brick id does not exist into brick index", func(t *testing.T) {
 		err = brickService.BrickUpdate(t.Context(), BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
@@ -185,7 +235,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.Nil(t, err)
-		brickService := NewService(nil, bricksIndex)
+		brickService := NewService(nil, bricksIndex, remotebricksindex.Source{})
 
 		deviceID := "updated-device-id"
 		secret := "updated-secret"
@@ -214,7 +264,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app-for-update").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.Nil(t, err)
-		brickService := NewService(nil, bricksIndex)
+		brickService := NewService(nil, bricksIndex, remotebricksindex.Source{})
 
 		secret := "updated-the-secret"
 		req := BrickCreateUpdateRequest{
@@ -244,7 +294,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.NoError(t, err)
 		modelsIndex, err := modelsindex.Load(unoQPlatform, paths.New("testdata"), paths.New("not_exixsting_path"), paths.New("not_exixsting_path"), nil, config.Configuration{})
 		require.NoError(t, err)
-		brickService := NewService(modelsIndex, bricksIndex)
+		brickService := NewService(modelsIndex, bricksIndex, remotebricksindex.Source{})
 
 		modelPath := "/home/arduino/.arduino-bricks/ei-model-123-1/model.eim"
 		modelId := "ei-model-123-1"
@@ -280,7 +330,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.NoError(t, err)
 		modelsIndex, err := modelsindex.Load(unoQPlatform, paths.New("testdata"), paths.New("not_exixsting_path"), paths.New("not_exixsting_path"), nil, config.Configuration{})
 		require.NoError(t, err)
-		brickService := NewService(modelsIndex, bricksIndex)
+		brickService := NewService(modelsIndex, bricksIndex, remotebricksindex.Source{})
 
 		modelID := "ei-model-123-1"
 		req := BrickCreateUpdateRequest{
@@ -1073,7 +1123,7 @@ func TestLocalBrickRename(t *testing.T) {
 
 	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 	require.NoError(t, err)
-	svc := NewService(nil, bricksIndex)
+	svc := NewService(nil, bricksIndex, remotebricksindex.Source{})
 
 	t.Run("fails when old and new id are the same", func(t *testing.T) {
 		a := setup(t)

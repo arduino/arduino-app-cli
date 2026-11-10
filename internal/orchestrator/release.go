@@ -35,6 +35,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/pkg/release"
@@ -92,13 +93,23 @@ func BuildRelease(
 		cb = func(StreamMessage) {}
 	}
 
+	// TODO: ship third-party bricks in the release
+	for _, ref := range appToBuild.BrickReferences() {
+		if remotebricksindex.IsThirdParty(ref.ID) {
+			return BuildReleaseResult{}, nil, fmt.Errorf("%w: the app uses the third-party brick %q: releases do not support third-party bricks yet", ErrBadRequest, ref.ID)
+		}
+	}
+
 	// Loaded per build, never by the caller: an index must be the target's own.
 	plat, bricksIndex, servicesIndex, modelsIndex, err := targetIndexes(cfg, docker, req.Target)
 	if err != nil {
 		return BuildReleaseResult{}, nil, err
 	}
 
-	bricksIndex = bricksIndex.WithAppBricks(appToBuild.LocalBricks)
+	bricksIndex, err = appToBuild.ResolveBricks(bricksIndex, remotebricksindex.NewStrictSource(cfg, plat))
+	if err != nil {
+		return BuildReleaseResult{}, nil, err
+	}
 	if err := checkBricks(ctx, appToBuild.Descriptor.Bricks, bricksIndex, modelsIndex, false); err != nil {
 		return BuildReleaseResult{}, nil, err
 	}
