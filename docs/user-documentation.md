@@ -20,7 +20,7 @@ An App can use third-party Bricks from the bricks index, as described in the [Ap
 
 - `app start` downloads the bricks index when it is missing from the board, or when it does not list a Brick the App uses, and installs the Bricks that are not installed yet.
 - `app start --no-prepare` never accesses the network: it fails if the bricks index or a Brick is missing.
-- Starting an App or building a release requires the bricks index, to reject the versions it no longer lists. Other commands, such as `app details` and `app logs`, also work without it for the Bricks already installed.
+- Releases do not support third-party Bricks yet: building a release of an App that uses them fails.
 
 ## Environment Variables
 
