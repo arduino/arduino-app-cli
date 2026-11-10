@@ -401,6 +401,28 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 		require.Equal(t, "another-source", brick.Source)
 	})
 
+	t.Run("for app returns a copy with app and third-party bricks first", func(t *testing.T) {
+		bricksIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata/0.4.8"))
+		require.NoError(t, err)
+		appIndex := bricksIndex.ForApp(
+			[]Brick{{ID: "my-first-brick", Source: "App"}},
+			[]Brick{{ID: "acme:hello", Source: "acme"}, {ID: "arduino:a-good-brick", Source: "acme"}},
+		)
+
+		brick, found := appIndex.FindBrickByID("acme:hello")
+		require.True(t, found)
+		require.Equal(t, "acme", brick.Source)
+		brick, found = appIndex.FindBrickByID("arduino:a-good-brick")
+		require.True(t, found)
+		require.Equal(t, "acme", brick.Source)
+		require.Len(t, appIndex.ListBricks(), 6)
+
+		_, found = bricksIndex.FindBrickByID("acme:hello")
+		require.False(t, found)
+		_, found = bricksIndex.FindBrickByID("my-first-brick")
+		require.False(t, found)
+	})
+
 	t.Run("local brick has priority to yaml index", func(t *testing.T) {
 		bricksIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata/0.4.8"))
 		require.NoError(t, err)

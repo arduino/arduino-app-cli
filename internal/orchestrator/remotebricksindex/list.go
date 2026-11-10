@@ -13,10 +13,10 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
-	yaml "github.com/goccy/go-yaml"
 	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 type InstalledBrick struct {
@@ -56,7 +56,7 @@ func ListInstalled(bricksDir *paths.Path) ([]InstalledBrick, error) {
 			if _, err := semver.Parse(version); version == "" || err != nil {
 				continue
 			}
-			brick, err := loadInstalledBrick(brickDir, namespace+":"+name)
+			brick, err := loadInstalledBrick(platform.Platform{}, brickDir, namespace+":"+name)
 			if err != nil {
 				slog.Warn("skipping invalid installed brick", "path", brickDir, "error", err)
 				continue
@@ -75,18 +75,17 @@ func ListInstalled(bricksDir *paths.Path) ([]InstalledBrick, error) {
 	return res, nil
 }
 
-func loadInstalledBrick(brickDir *paths.Path, id string) (bricksindex.Brick, error) {
-	data, err := brickDir.Join(brickConfigFileName).ReadFile()
+func loadInstalledBrick(plat platform.Platform, brickDir *paths.Path, id string) (bricksindex.Brick, error) {
+	namespace, _, err := bricksindex.ParseBrickID(id)
 	if err != nil {
 		return bricksindex.Brick{}, err
 	}
-	var brick bricksindex.Brick
-	if err := yaml.Unmarshal(data, &brick); err != nil {
-		return bricksindex.Brick{}, fmt.Errorf("invalid %s: %w", brickConfigFileName, err)
+	brick, err := bricksindex.LoadBrickDir(plat, brickDir, namespace)
+	if err != nil {
+		return bricksindex.Brick{}, err
 	}
 	if brick.ID != id {
 		return bricksindex.Brick{}, fmt.Errorf("%s declares id %q instead of %q", brickConfigFileName, brick.ID, id)
 	}
-	brick.FullPath = brickDir
 	return brick, nil
 }
