@@ -312,6 +312,12 @@ func (a *ArduinoApp) Bricks(board *bricksindex.BricksIndex, src remotebricksinde
 // uses, without switching to the index of a release. Like Bricks, the returned index
 // holds every other brick on error.
 func (a *ArduinoApp) ResolveBricks(board *bricksindex.BricksIndex, src remotebricksindex.Source) (*bricksindex.BricksIndex, error) {
+	thirdParty, err := src.Load(a.BrickReferences())
+	return board.ForApp(a.LocalBricks, thirdParty), err
+}
+
+// BrickReferences returns the bricks the app uses, apart from the ones local to it.
+func (a *ArduinoApp) BrickReferences() []remotebricksindex.Reference {
 	refs := make([]remotebricksindex.Reference, 0, len(a.Descriptor.Bricks))
 	for _, brick := range a.Descriptor.Bricks {
 		if slices.ContainsFunc(a.LocalBricks, func(local bricksindex.Brick) bool { return local.ID == brick.ID }) {
@@ -319,8 +325,7 @@ func (a *ArduinoApp) ResolveBricks(board *bricksindex.BricksIndex, src remotebri
 		}
 		refs = append(refs, remotebricksindex.Reference{ID: brick.ID, Version: brick.Version})
 	}
-	thirdParty, err := src.Load(refs)
-	return board.ForApp(a.LocalBricks, thirdParty), err
+	return refs
 }
 
 // ReleaseBricks is the brick definitions a release ships in its .cache, which are the
