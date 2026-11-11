@@ -15,7 +15,6 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/cmdutil"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
-	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/tablestyle"
 )
@@ -50,7 +49,7 @@ func psHandler(ctx context.Context, showAll bool) {
 	}
 
 	feedback.PrintResult(appPsResult{
-		Apps: f.Filter(apps, func(a appbook.AppInfo) bool {
+		Apps: f.Filter(apps, func(a orchestrator.AppInfo) bool {
 			switch a.Status {
 			case orchestrator.StatusStarting,
 				orchestrator.StatusRunning,
@@ -67,7 +66,7 @@ func psHandler(ctx context.Context, showAll bool) {
 }
 
 type appPsResult struct {
-	Apps []appbook.AppInfo `json:"apps"`
+	Apps []orchestrator.AppInfo `json:"apps"`
 }
 
 func (r appPsResult) String() string {

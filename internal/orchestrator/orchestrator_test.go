@@ -39,10 +39,10 @@ func TestCreateAppAlreadyExisting(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	existingApp, err := appbook.CreateApp(appbook.CreateAppRequest{Name: "existing-app"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+	existingApp, err := CreateApp(CreateAppRequest{Name: "existing-app"}, &bricksindex.BricksIndex{}, idProvider, cfg)
 	require.NoError(t, err)
 
-	_, err = appbook.CreateApp(appbook.CreateAppRequest{Name: "existing-app"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+	_, err = CreateApp(CreateAppRequest{Name: "existing-app"}, &bricksindex.BricksIndex{}, idProvider, cfg)
 	require.ErrorIs(t, err, ErrAppAlreadyExists)
 	require.Contains(t, err.Error(), existingApp.ID.String())
 }
@@ -53,14 +53,14 @@ func TestCloneApp(t *testing.T) {
 
 	originalAppID := f.Must(idProvider.ParseID("user:original-app"))
 	originalAppPath := originalAppID.ToPath()
-	r, err := appbook.CreateApp(appbook.CreateAppRequest{Name: "original-app"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+	r, err := CreateApp(CreateAppRequest{Name: "original-app"}, &bricksindex.BricksIndex{}, idProvider, cfg)
 	require.NoError(t, err)
 	require.Equal(t, originalAppID, r.ID)
 	require.DirExists(t, originalAppPath.String())
 
 	t.Run("valid clone", func(t *testing.T) {
 		t.Run("without name", func(t *testing.T) {
-			resp, err := appbook.CloneApp(appbook.CloneAppRequest{FromID: originalAppID}, idProvider, cfg)
+			resp, err := CloneApp(CloneAppRequest{FromID: originalAppID}, idProvider, cfg)
 			require.NoError(t, err)
 			require.Equal(t, f.Must(idProvider.ParseID("user:original-app-copy0")), resp.ID)
 			appDir := cfg.AppsDir().Join("original-app-copy0")
@@ -90,7 +90,7 @@ func TestCloneApp(t *testing.T) {
 			}
 		})
 		t.Run("with name", func(t *testing.T) {
-			resp, err := appbook.CloneApp(appbook.CloneAppRequest{
+			resp, err := CloneApp(CloneAppRequest{
 				FromID: originalAppID,
 				Name:   new("new-name"),
 			}, idProvider, cfg)
@@ -107,7 +107,7 @@ func TestCloneApp(t *testing.T) {
 			require.Equal(t, "new-name", clonedApp.Name)
 		})
 		t.Run("with icon", func(t *testing.T) {
-			resp, err := appbook.CloneApp(appbook.CloneAppRequest{
+			resp, err := CloneApp(CloneAppRequest{
 				FromID: originalAppID,
 				Name:   new("with-icon"),
 				Icon:   new("🦄"),
@@ -131,7 +131,7 @@ func TestCloneApp(t *testing.T) {
 			require.NoError(t, baseApp.Join("data").MkdirAll())
 			require.NoError(t, baseApp.Join("app.yaml").WriteFile([]byte("name: app-with-cache")))
 
-			resp, err := appbook.CloneApp(appbook.CloneAppRequest{FromID: f.Must(idProvider.ParseID("user:app-with-cache"))}, idProvider, cfg)
+			resp, err := CloneApp(CloneAppRequest{FromID: f.Must(idProvider.ParseID("user:app-with-cache"))}, idProvider, cfg)
 			require.NoError(t, err)
 			require.Equal(t, f.Must(idProvider.ParseID("user:app-with-cache-copy0")), resp.ID)
 			appDir := resp.ID.ToPath()
@@ -158,7 +158,7 @@ func TestCloneApp(t *testing.T) {
 			require.NoError(t, releaseDir.Join("app.yaml").WriteFile([]byte("name: a-release")))
 			require.NoError(t, releaseDir.Join(app.ReleaseManifestFileName).WriteFile([]byte("schema: 1\nname: a-release\ntarget: unoq\n")))
 
-			resp, err := appbook.CloneApp(appbook.CloneAppRequest{FromID: f.Must(idProvider.ParseID("release:a-release")), Name: new("from-release")}, idProvider, cfg)
+			resp, err := CloneApp(CloneAppRequest{FromID: f.Must(idProvider.ParseID("release:a-release")), Name: new("from-release")}, idProvider, cfg)
 			require.NoError(t, err)
 			require.Equal(t, f.Must(idProvider.ParseID("user:from-release")), resp.ID)
 			appDir := resp.ID.ToPath()
@@ -180,17 +180,17 @@ func TestCloneApp(t *testing.T) {
 
 	t.Run("invalid app", func(t *testing.T) {
 		t.Run("not existing origin", func(t *testing.T) {
-			_, err := appbook.CloneApp(appbook.CloneAppRequest{FromID: f.Must(idProvider.ParseID("user:not-existing"))}, idProvider, cfg)
+			_, err := CloneApp(CloneAppRequest{FromID: f.Must(idProvider.ParseID("user:not-existing"))}, idProvider, cfg)
 			require.ErrorIs(t, err, ErrAppDoesntExists)
 		})
 		t.Run("missing app yaml", func(t *testing.T) {
 			err := cfg.AppsDir().Join("app-without-yaml").Mkdir()
 			require.NoError(t, err)
-			_, err = appbook.CloneApp(appbook.CloneAppRequest{FromID: f.Must(idProvider.ParseID("user:app-without-yaml"))}, idProvider, cfg)
+			_, err = CloneApp(CloneAppRequest{FromID: f.Must(idProvider.ParseID("user:app-without-yaml"))}, idProvider, cfg)
 			require.ErrorIs(t, err, app.ErrInvalidApp)
 		})
 		t.Run("name already exists", func(t *testing.T) {
-			_, err = appbook.CloneApp(appbook.CloneAppRequest{
+			_, err = CloneApp(CloneAppRequest{
 				FromID: originalAppID,
 				Name:   new("original-app"),
 			}, idProvider, cfg)
@@ -204,7 +204,7 @@ func TestEditApp(t *testing.T) {
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 	docker := newFakeDockerCli(t, nil)
 	// The flow of the appbook router with Docker: the Docker check, then the edit.
-	editApp := func(ctx context.Context, docker command.Cli, req appbook.AppEditRequest, a *app.ArduinoApp, cfg config.Configuration) error {
+	editApp := func(ctx context.Context, docker command.Cli, req AppEditRequest, a *app.ArduinoApp, cfg config.Configuration) error {
 		if req.Name != nil {
 			if err := CheckAppNotRunning(ctx, docker, *a); err != nil {
 				return err
@@ -214,37 +214,37 @@ func TestEditApp(t *testing.T) {
 	}
 
 	t.Run("with default", func(t *testing.T) {
-		_, err := appbook.CreateApp(appbook.CreateAppRequest{Name: "app-default"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+		_, err := CreateApp(CreateAppRequest{Name: "app-default"}, &bricksindex.BricksIndex{}, idProvider, cfg)
 		require.NoError(t, err)
 		appDir := cfg.AppsDir().Join("app-default")
 
 		t.Run("previously not default", func(t *testing.T) {
 			app := f.Must(app.Load(appDir))
 
-			previousDefaultApp, err := appbook.GetDefaultApp(cfg)
+			previousDefaultApp, err := GetDefaultApp(cfg)
 			require.NoError(t, err)
 			require.Nil(t, previousDefaultApp)
 
-			err = editApp(t.Context(), docker, appbook.AppEditRequest{Default: new(true)}, &app, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Default: new(true)}, &app, cfg)
 			require.NoError(t, err)
 
-			currentDefaultApp, err := appbook.GetDefaultApp(cfg)
+			currentDefaultApp, err := GetDefaultApp(cfg)
 			require.NoError(t, err)
 			require.True(t, appDir.EquivalentTo(currentDefaultApp.FullPath))
 		})
 		t.Run("previously default", func(t *testing.T) {
 			app := f.Must(app.Load(appDir))
-			err := appbook.SetDefaultApp(&app, cfg)
+			err := SetDefaultApp(&app, cfg)
 			require.NoError(t, err)
 
-			previousDefaultApp, err := appbook.GetDefaultApp(cfg)
+			previousDefaultApp, err := GetDefaultApp(cfg)
 			require.NoError(t, err)
 			require.True(t, appDir.EquivalentTo(previousDefaultApp.FullPath))
 
-			err = editApp(t.Context(), docker, appbook.AppEditRequest{Default: new(false)}, &app, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Default: new(false)}, &app, cfg)
 			require.NoError(t, err)
 
-			currentDefaultApp, err := appbook.GetDefaultApp(cfg)
+			currentDefaultApp, err := GetDefaultApp(cfg)
 			require.NoError(t, err)
 			require.Nil(t, currentDefaultApp)
 		})
@@ -252,13 +252,13 @@ func TestEditApp(t *testing.T) {
 
 	t.Run("with name", func(t *testing.T) {
 		originalAppName := "original-name"
-		_, err := appbook.CreateApp(appbook.CreateAppRequest{Name: originalAppName}, &bricksindex.BricksIndex{}, idProvider, cfg)
+		_, err := CreateApp(CreateAppRequest{Name: originalAppName}, &bricksindex.BricksIndex{}, idProvider, cfg)
 		require.NoError(t, err)
 		appDir := cfg.AppsDir().Join(originalAppName)
 		userApp := f.Must(app.Load(appDir))
 		originalPath := userApp.FullPath
 
-		err = editApp(t.Context(), docker, appbook.AppEditRequest{Name: new("new-name")}, &userApp, cfg)
+		err = editApp(t.Context(), docker, AppEditRequest{Name: new("new-name")}, &userApp, cfg)
 		require.NoError(t, err)
 		editedApp, err := app.Load(cfg.AppsDir().Join("new-name"))
 		require.NoError(t, err)
@@ -267,12 +267,12 @@ func TestEditApp(t *testing.T) {
 
 		t.Run("already existing name", func(t *testing.T) {
 			existingAppName := "existing-name"
-			_, err := appbook.CreateApp(appbook.CreateAppRequest{Name: existingAppName}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			_, err := CreateApp(CreateAppRequest{Name: existingAppName}, &bricksindex.BricksIndex{}, idProvider, cfg)
 			require.NoError(t, err)
 			appDir := cfg.AppsDir().Join(existingAppName)
 			existingApp := f.Must(app.Load(appDir))
 
-			err = editApp(t.Context(), docker, appbook.AppEditRequest{Name: new("new-name")}, &existingApp, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Name: new("new-name")}, &existingApp, cfg)
 			require.NoError(t, err)
 			require.Equal(t, cfg.AppsDir().Join("new-name-1").String(), existingApp.FullPath.String())
 			require.True(t, appDir.NotExist())
@@ -281,21 +281,21 @@ func TestEditApp(t *testing.T) {
 			require.Equal(t, "new-name", editedApp.Name)
 
 			// The app already sits in the first free suffixed folder: it stays there.
-			err = editApp(t.Context(), docker, appbook.AppEditRequest{Name: new("New-Name")}, &existingApp, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Name: new("New-Name")}, &existingApp, cfg)
 			require.NoError(t, err)
 			require.Equal(t, cfg.AppsDir().Join("new-name-1").String(), existingApp.FullPath.String())
 		})
 
 		t.Run("name with an empty slug", func(t *testing.T) {
 			appName := "empty-slug"
-			_, err := appbook.CreateApp(appbook.CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			_, err := CreateApp(CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, idProvider, cfg)
 			require.NoError(t, err)
 			appDir := cfg.AppsDir().Join(appName)
 			emptySlugApp := f.Must(app.Load(appDir))
 
-			err = editApp(t.Context(), docker, appbook.AppEditRequest{Name: new("$$$"), Default: new(true)}, &emptySlugApp, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Name: new("$$$"), Default: new(true)}, &emptySlugApp, cfg)
 			require.ErrorIs(t, err, app.ErrInvalidApp)
-			defaultApp, err := appbook.GetDefaultApp(cfg)
+			defaultApp, err := GetDefaultApp(cfg)
 			require.NoError(t, err)
 			require.Nil(t, defaultApp) // A rejected edit must not set the default app
 			require.Equal(t, appDir.String(), emptySlugApp.FullPath.String())
@@ -307,12 +307,12 @@ func TestEditApp(t *testing.T) {
 
 		t.Run("same slug as the current folder", func(t *testing.T) {
 			appName := "same-slug"
-			_, err := appbook.CreateApp(appbook.CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			_, err := CreateApp(CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, idProvider, cfg)
 			require.NoError(t, err)
 			appDir := cfg.AppsDir().Join(appName)
 			sameSlugApp := f.Must(app.Load(appDir))
 
-			err = editApp(t.Context(), docker, appbook.AppEditRequest{Name: new("Same-Slug")}, &sameSlugApp, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Name: new("Same-Slug")}, &sameSlugApp, cfg)
 			require.NoError(t, err)
 			require.Equal(t, appDir.String(), sameSlugApp.FullPath.String())
 			editedApp, err := app.Load(appDir)
@@ -322,7 +322,7 @@ func TestEditApp(t *testing.T) {
 
 		t.Run("running app", func(t *testing.T) {
 			appName := "running-app"
-			_, err := appbook.CreateApp(appbook.CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			_, err := CreateApp(CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, idProvider, cfg)
 			require.NoError(t, err)
 			appDir := cfg.AppsDir().Join(appName)
 			runningApp := f.Must(app.Load(appDir))
@@ -332,58 +332,58 @@ func TestEditApp(t *testing.T) {
 				Status: "Up 5 minutes",
 			}})
 
-			err = editApp(t.Context(), runningDocker, appbook.AppEditRequest{Name: new("running-renamed")}, &runningApp, cfg)
+			err = editApp(t.Context(), runningDocker, AppEditRequest{Name: new("running-renamed")}, &runningApp, cfg)
 			require.ErrorIs(t, err, ErrAppRunning)
 			require.True(t, appDir.Exist())
 			require.True(t, cfg.AppsDir().Join("running-renamed").NotExist())
 
 			// Only the rename is refused: other fields can still be edited.
-			err = editApp(t.Context(), runningDocker, appbook.AppEditRequest{Description: new("new desc")}, &runningApp, cfg)
+			err = editApp(t.Context(), runningDocker, AppEditRequest{Description: new("new desc")}, &runningApp, cfg)
 			require.NoError(t, err)
 		})
 
 		t.Run("renaming the default app keeps it default", func(t *testing.T) {
-			_, err := appbook.CreateApp(appbook.CreateAppRequest{Name: "default-to-rename"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			_, err := CreateApp(CreateAppRequest{Name: "default-to-rename"}, &bricksindex.BricksIndex{}, idProvider, cfg)
 			require.NoError(t, err)
 			defaultApp := f.Must(app.Load(cfg.AppsDir().Join("default-to-rename")))
-			_, err = appbook.CreateApp(appbook.CreateAppRequest{Name: "other-to-rename"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			_, err = CreateApp(CreateAppRequest{Name: "other-to-rename"}, &bricksindex.BricksIndex{}, idProvider, cfg)
 			require.NoError(t, err)
 			otherApp := f.Must(app.Load(cfg.AppsDir().Join("other-to-rename")))
-			require.NoError(t, appbook.SetDefaultApp(&defaultApp, cfg))
-			t.Cleanup(func() { _ = appbook.SetDefaultApp(nil, cfg) })
+			require.NoError(t, SetDefaultApp(&defaultApp, cfg))
+			t.Cleanup(func() { _ = SetDefaultApp(nil, cfg) })
 
 			// Renaming another app leaves the default app untouched.
-			err = editApp(t.Context(), docker, appbook.AppEditRequest{Name: new("other-renamed")}, &otherApp, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Name: new("other-renamed")}, &otherApp, cfg)
 			require.NoError(t, err)
-			currentDefaultApp, err := appbook.GetDefaultApp(cfg)
+			currentDefaultApp, err := GetDefaultApp(cfg)
 			require.NoError(t, err)
 			require.NotNil(t, currentDefaultApp)
 			require.True(t, cfg.AppsDir().Join("default-to-rename").EqualsTo(currentDefaultApp.FullPath))
 
-			err = editApp(t.Context(), docker, appbook.AppEditRequest{Name: new("default-renamed")}, &defaultApp, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Name: new("default-renamed")}, &defaultApp, cfg)
 			require.NoError(t, err)
-			currentDefaultApp, err = appbook.GetDefaultApp(cfg)
+			currentDefaultApp, err = GetDefaultApp(cfg)
 			require.NoError(t, err)
 			require.NotNil(t, currentDefaultApp)
 			require.True(t, cfg.AppsDir().Join("default-renamed").EqualsTo(currentDefaultApp.FullPath))
 		})
 
 		t.Run("default and name in the same request", func(t *testing.T) {
-			_, err := appbook.CreateApp(appbook.CreateAppRequest{Name: "set-and-rename"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			_, err := CreateApp(CreateAppRequest{Name: "set-and-rename"}, &bricksindex.BricksIndex{}, idProvider, cfg)
 			require.NoError(t, err)
 			userApp := f.Must(app.Load(cfg.AppsDir().Join("set-and-rename")))
-			t.Cleanup(func() { _ = appbook.SetDefaultApp(nil, cfg) })
+			t.Cleanup(func() { _ = SetDefaultApp(nil, cfg) })
 
-			err = editApp(t.Context(), docker, appbook.AppEditRequest{Name: new("set-and-renamed"), Default: new(true)}, &userApp, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Name: new("set-and-renamed"), Default: new(true)}, &userApp, cfg)
 			require.NoError(t, err)
-			currentDefaultApp, err := appbook.GetDefaultApp(cfg)
+			currentDefaultApp, err := GetDefaultApp(cfg)
 			require.NoError(t, err)
 			require.NotNil(t, currentDefaultApp)
 			require.True(t, cfg.AppsDir().Join("set-and-renamed").EqualsTo(currentDefaultApp.FullPath))
 
-			err = editApp(t.Context(), docker, appbook.AppEditRequest{Name: new("unset-and-renamed"), Default: new(false)}, &userApp, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Name: new("unset-and-renamed"), Default: new(false)}, &userApp, cfg)
 			require.NoError(t, err)
-			currentDefaultApp, err = appbook.GetDefaultApp(cfg)
+			currentDefaultApp, err = GetDefaultApp(cfg)
 			require.NoError(t, err)
 			require.Nil(t, currentDefaultApp)
 		})
@@ -391,12 +391,12 @@ func TestEditApp(t *testing.T) {
 
 	t.Run("with icon and description", func(t *testing.T) {
 		commonAppName := "common-app"
-		_, err := appbook.CreateApp(appbook.CreateAppRequest{Name: commonAppName}, &bricksindex.BricksIndex{}, idProvider, cfg)
+		_, err := CreateApp(CreateAppRequest{Name: commonAppName}, &bricksindex.BricksIndex{}, idProvider, cfg)
 		require.NoError(t, err)
 		commonAppDir := cfg.AppsDir().Join(commonAppName)
 		commonApp := f.Must(app.Load(commonAppDir))
 
-		err = editApp(t.Context(), docker, appbook.AppEditRequest{
+		err = editApp(t.Context(), docker, AppEditRequest{
 			Icon:        new("💻"),
 			Description: new("new desc"),
 		}, &commonApp, cfg)
@@ -443,7 +443,7 @@ func TestListApp(t *testing.T) {
 			}
 		}
 
-		res, err := ListApps(t.Context(), dockerCli, appbook.ListAppRequest{ShowApps: true, ShowReleases: true}, idProvider, nil, cfg, unoQPlatform)
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowApps: true, ShowReleases: true}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
 		require.Empty(t, res.BrokenApps)
 		require.Len(t, res.Apps, 4)
@@ -465,13 +465,13 @@ func TestListApp(t *testing.T) {
 	})
 
 	t.Run("list all apps", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, appbook.ListAppRequest{
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps:     true,
 			ShowExamples: true,
 		}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
-		assert.Empty(t, gCmp.Diff([]appbook.AppInfo{
+		assert.Empty(t, gCmp.Diff([]AppInfo{
 			{
 				ID:          f.Must(idProvider.ParseID("examples:inspirational/example1")),
 				Name:        "example1",
@@ -503,13 +503,13 @@ func TestListApp(t *testing.T) {
 	})
 
 	t.Run("list only apps", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, appbook.ListAppRequest{
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps:     true,
 			ShowExamples: false,
 		}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
-		assert.Empty(t, gCmp.Diff([]appbook.AppInfo{
+		assert.Empty(t, gCmp.Diff([]AppInfo{
 			{
 				ID:          f.Must(idProvider.ParseID("user:app1")),
 				Name:        "app1",
@@ -532,13 +532,13 @@ func TestListApp(t *testing.T) {
 	})
 
 	t.Run("list only examples", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, appbook.ListAppRequest{
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps:     false,
 			ShowExamples: true,
 		}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
-		assert.Empty(t, gCmp.Diff([]appbook.AppInfo{
+		assert.Empty(t, gCmp.Diff([]AppInfo{
 			{
 				ID:          f.Must(idProvider.ParseID("examples:inspirational/example1")),
 				Name:        "example1",
@@ -561,7 +561,7 @@ func TestListApp(t *testing.T) {
 		_, err = os.Create(tmpAppPath.Join("app.yaml").String())
 		require.NoError(t, err)
 
-		res, err := ListApps(t.Context(), dockerCli, appbook.ListAppRequest{
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps: true,
 		}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
@@ -587,7 +587,7 @@ func TestListApp(t *testing.T) {
 		require.NoError(t, stagedAppPath.MkdirAll())
 		require.NoError(t, stagedAppPath.Join("app.yaml").WriteFile([]byte("name: staged-app")))
 
-		res, err := ListApps(t.Context(), dockerCli, appbook.ListAppRequest{
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps: true,
 		}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
@@ -612,7 +612,7 @@ func TestListApp(t *testing.T) {
 		t.Cleanup(func() { _ = nestedAppDir.RemoveAll() })
 		require.NoError(t, outsideAppDir.Rename(nestedAppDir.Join("inside")))
 
-		res, err := ListApps(t.Context(), dockerCli, appbook.ListAppRequest{
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps: true,
 		}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
@@ -668,14 +668,14 @@ bricks:
 	require.NoError(t, err)
 
 	t.Run("compatible example is listed", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, appbook.ListAppRequest{ShowExamples: true}, idProvider, idx, cfg, unoQPlatform)
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, idx, cfg, unoQPlatform)
 		require.NoError(t, err)
 		require.Len(t, res.Apps, 1)
 		assert.Equal(t, compatibleExID, res.Apps[0].ID)
 	})
 
 	t.Run("incompatible example is excluded", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, appbook.ListAppRequest{ShowExamples: true}, idProvider, idx, cfg, unoQPlatform)
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, idx, cfg, unoQPlatform)
 		require.NoError(t, err)
 		for _, a := range res.Apps {
 			assert.NotEqual(t, incompatibleExID, a.ID, "incompatible example should be filtered out")
@@ -683,14 +683,14 @@ bricks:
 	})
 
 	t.Run("user app with incompatible brick is still listed", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, appbook.ListAppRequest{ShowApps: true}, idProvider, idx, cfg, unoQPlatform)
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowApps: true}, idProvider, idx, cfg, unoQPlatform)
 		require.NoError(t, err)
 		require.Len(t, res.Apps, 1)
 		assert.Equal(t, userAppID, res.Apps[0].ID)
 	})
 
 	t.Run("nil bricks index disables filtering", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, appbook.ListAppRequest{ShowExamples: true}, idProvider, nil, cfg, unoQPlatform)
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
 		assert.Len(t, res.Apps, 2)
 	})
@@ -731,7 +731,7 @@ func TestListAppsLocalBricksCompatibility(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("example with only local bricks is listed even when index is empty", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, appbook.ListAppRequest{ShowExamples: true}, idProvider, idx, cfg, unoQPlatform)
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, idx, cfg, unoQPlatform)
 		require.NoError(t, err)
 		require.Len(t, res.Apps, 1)
 		assert.Equal(t, exampleID, res.Apps[0].ID)
@@ -798,7 +798,7 @@ func TestListActiveApps(t *testing.T) {
 
 		apps, err := ListActiveApps(t.Context(), cli, idProvider)
 		require.NoError(t, err)
-		assert.Empty(t, gCmp.Diff([]appbook.AppInfo{
+		assert.Empty(t, gCmp.Diff([]AppInfo{
 			{
 				ID:          app1ID,
 				Name:        "app1",
@@ -828,7 +828,7 @@ func TestListActiveApps(t *testing.T) {
 		apps, err := ListActiveApps(t.Context(), cli, idProvider)
 		require.NoError(t, err)
 		require.Len(t, apps, 1)
-		assert.Empty(t, gCmp.Diff(appbook.AppInfo{
+		assert.Empty(t, gCmp.Diff(AppInfo{
 			ID:          exampleID,
 			Name:        "example1",
 			Description: "",
@@ -853,7 +853,7 @@ func TestListActiveApps(t *testing.T) {
 		apps, err := ListActiveApps(t.Context(), cli, idProvider)
 		require.NoError(t, err)
 		require.Len(t, apps, 1)
-		assert.Empty(t, gCmp.Diff(appbook.AppInfo{
+		assert.Empty(t, gCmp.Diff(AppInfo{
 			ID:          f.Must(idProvider.IDFromPath(unknownAppPath)),
 			Name:        "My App",
 			Description: "",
@@ -877,7 +877,7 @@ func TestListActiveApps(t *testing.T) {
 		apps, err := ListActiveApps(t.Context(), cli, idProvider)
 		require.NoError(t, err)
 		require.Len(t, apps, 1)
-		assert.Empty(t, gCmp.Diff(appbook.AppInfo{
+		assert.Empty(t, gCmp.Diff(AppInfo{
 			ID:          f.Must(idProvider.ParseID("user:broken-app")),
 			Name:        "broken-app",
 			Description: "",
@@ -900,7 +900,7 @@ func TestListActiveApps(t *testing.T) {
 		require.Len(t, apps, 1)
 		// The app directory does not exist: the ID is computed from the Docker label
 		// path and only the path name is available as fallback for the name.
-		assert.Empty(t, gCmp.Diff(appbook.AppInfo{
+		assert.Empty(t, gCmp.Diff(AppInfo{
 			ID:     f.Must(idProvider.ParseID("user:gone-app")),
 			Name:   "gone-app",
 			Status: StatusRunning,
@@ -948,7 +948,7 @@ func createApp(
 ) appid.ID {
 	t.Helper()
 
-	res, err := appbook.CreateApp(appbook.CreateAppRequest{
+	res, err := CreateApp(CreateAppRequest{
 		Name: name,
 		Icon: "😃",
 	}, &bricksindex.BricksIndex{}, idProvider, cfg)

@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
-	"github.com/arduino/arduino-app-cli/internal/appbook"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -39,12 +39,12 @@ func newConfigGetCmd(cfg config.Configuration) *cobra.Command {
 
 func getConfigHandler(cfg config.Configuration) {
 	feedback.PrintResult(configResult{
-		Config: appbook.GetConfig(cfg),
+		Config: orchestrator.GetOrchestratorConfig(cfg),
 	})
 }
 
 type configResult struct {
-	Config appbook.ConfigResponse
+	Config orchestrator.ConfigResponse
 }
 
 func (r configResult) String() string {

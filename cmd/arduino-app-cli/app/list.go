@@ -15,7 +15,6 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/cmdutil"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
-	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/tablestyle"
@@ -54,7 +53,7 @@ func listHandler(ctx context.Context, cfg config.Configuration, showExamples, sh
 
 	res, err := orchestrator.ListApps(ctx,
 		servicelocator.GetDockerClient(),
-		appbook.ListAppRequest{
+		orchestrator.ListAppRequest{
 			ShowApps:     showAll || !restricted,
 			ShowExamples: showAll || showExamples,
 			ShowReleases: showAll || showReleases || !restricted,
@@ -83,8 +82,8 @@ func listHandler(ctx context.Context, cfg config.Configuration, showExamples, sh
 }
 
 type appListResult struct {
-	Apps           []appbook.AppInfo       `json:"apps"`
-	BrokenApps     []appbook.BrokenAppInfo `json:"brokenApps"`
+	Apps           []orchestrator.AppInfo       `json:"apps"`
+	BrokenApps     []orchestrator.BrokenAppInfo `json:"brokenApps"`
 	showBrokenApps bool
 }
 

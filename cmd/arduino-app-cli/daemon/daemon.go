@@ -46,7 +46,7 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 				slog.Warn("Failed to stop containers", slog.String("error", err.Error()))
 			}
 
-			app, err := appbook.GetDefaultApp(cfg)
+			app, err := orchestrator.GetDefaultApp(cfg)
 			if err != nil {
 				slog.Warn("failed to get default app", slog.String("error", err.Error()))
 			}
@@ -124,7 +124,7 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 			AppsStatus: func(ctx context.Context) (map[string]appbook.Status, error) {
 				return orchestrator.AppsStatus(ctx, servicelocator.GetDockerClient())
 			},
-			BeforeEdit: func(ctx context.Context, req appbook.AppEditRequest, a app.ArduinoApp) error {
+			BeforeEdit: func(ctx context.Context, req orchestrator.AppEditRequest, a app.ArduinoApp) error {
 				// The containers keep the old app path in their labels: a running app cannot be renamed.
 				if req.Name == nil {
 					return nil

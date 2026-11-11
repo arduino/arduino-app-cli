@@ -452,7 +452,7 @@ func StartDefaultApp(
 	cfg config.Configuration,
 	platform platform.Platform,
 ) error {
-	app, err := appbook.GetDefaultApp(cfg)
+	app, err := GetDefaultApp(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to get default app: %w", err)
 	}
@@ -481,12 +481,12 @@ func StartDefaultApp(
 func ListApps(
 	ctx context.Context,
 	docker command.Cli,
-	req appbook.ListAppRequest,
+	req ListAppRequest,
 	idProvider *appid.Provider,
 	bricksIndex *bricksindex.BricksIndex,
 	cfg config.Configuration,
 	platform platform.Platform,
-) (appbook.ListAppResult, error) {
+) (ListAppResult, error) {
 	res, err := appbook.ListApps(req, idProvider, bricksIndex, cfg, platform)
 	if err != nil {
 		return res, err
@@ -514,7 +514,7 @@ func ListActiveApps(
 	ctx context.Context,
 	docker command.Cli,
 	idProvider *appid.Provider,
-) ([]appbook.AppInfo, error) {
+) ([]AppInfo, error) {
 	// The statuses returned by getAppsStatus come only from Docker containers that have
 	// been started, so StatusUninitialized is never present.
 	appsStatus, err := getAppsStatus(ctx, docker.Client())
@@ -527,8 +527,8 @@ func ListActiveApps(
 		return strings.Compare(a.AppPath.String(), b.AppPath.String())
 	})
 
-	return f.Map(appsStatus, func(s AppStatusInfo) appbook.AppInfo {
-		info := appbook.AppInfo{Status: s.Status}
+	return f.Map(appsStatus, func(s AppStatusInfo) AppInfo {
+		info := AppInfo{Status: s.Status}
 
 		// The app directory can be removed while the app is running: compute the ID from
 		// the path in the Docker labels without requiring it to exist on disk.
@@ -561,7 +561,7 @@ func AppDetails(
 	bricksIndex *bricksindex.BricksIndex,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
-) (appbook.AppDetailedInfo, error) {
+) (AppDetailedInfo, error) {
 	return appbook.AppDetails(ctx, userApp, func(ctx context.Context) (map[string]Status, error) {
 		status := StatusStopped
 		if app, err := getAppStatus(ctx, docker.Client(), userApp); err != nil {

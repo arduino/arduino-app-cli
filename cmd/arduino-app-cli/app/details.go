@@ -16,7 +16,6 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
-	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	appmodel "github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -89,7 +88,7 @@ type appDetailsVariable struct {
 }
 
 func newAppDetailsResult(
-	details appbook.AppDetailedInfo,
+	details orchestrator.AppDetailedInfo,
 	arduinoApp appmodel.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
 ) appDetailsResult {

@@ -21,7 +21,6 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
-	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/appbook/httpapi"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
@@ -479,7 +478,7 @@ func (g *Generator) InitOperations() {
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: appbook.CloneAppResponse{},
+				DataStructure: orchestrator.CloneAppResponse{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusCreated,
 			},
@@ -756,7 +755,7 @@ Contains a JSON object with the details of an error.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: appbook.AppDetailedInfo{},
+				DataStructure: orchestrator.AppDetailedInfo{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
@@ -779,7 +778,7 @@ Contains a JSON object with the details of an error.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: appbook.AppDetailedInfo{},
+				DataStructure: orchestrator.AppDetailedInfo{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
@@ -919,7 +918,7 @@ Contains a JSON object with the details of an error.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: appbook.CreateAppResponse{},
+				DataStructure: orchestrator.CreateAppResponse{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusCreated,
 			},
@@ -936,7 +935,7 @@ Contains a JSON object with the details of an error.
 			OperationId: "getApps",
 			Method:      http.MethodGet,
 			Path:        "/v1/apps",
-			Request:     (*appbook.ListAppRequest)(nil),
+			Request:     (*orchestrator.ListAppRequest)(nil),
 			Parameters: (*struct {
 				Filter string              `query:"filter" description:"Filters apps by apps,examples,releases,default"`
 				Status orchestrator.Status `query:"status" description:"Filters applications by status"`
@@ -958,7 +957,7 @@ Contains a JSON object with the details of an error.
 			OperationId: "getAppsCatalog",
 			Method:      http.MethodGet,
 			Path:        "/v2/apps",
-			Request:     (*appbook.ListAppRequest)(nil),
+			Request:     (*orchestrator.ListAppRequest)(nil),
 			Parameters: (*struct {
 				Filter string `query:"filter" description:"Filters apps by apps,examples,releases,default"`
 			})(nil),
@@ -1038,7 +1037,7 @@ Contains a JSON object with the details of an error.
 			Request:     nil,
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: appbook.ConfigResponse{},
+				DataStructure: orchestrator.ConfigResponse{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
@@ -1056,7 +1055,7 @@ Contains a JSON object with the details of an error.
 			Request:     nil,
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: appbook.ExampleResponse{},
+				DataStructure: orchestrator.ExampleResponse{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},

@@ -23,7 +23,7 @@ import (
 )
 
 type AppsStatusResponse struct {
-	Apps []appbook.AppInfo `json:"apps" description:"The apps started at least once, with their status"`
+	Apps []orchestrator.AppInfo `json:"apps" description:"The apps started at least once, with their status"`
 }
 
 // HandleAppList is the catalog with the status of each app: GET /v2/apps and GET /v2/apps/status in one.
@@ -52,7 +52,7 @@ func HandleAppList(
 			return
 		}
 		if statusFilter != "" {
-			res.Apps = f.Filter(res.Apps, func(a appbook.AppInfo) bool { return a.Status == statusFilter })
+			res.Apps = f.Filter(res.Apps, func(a orchestrator.AppInfo) bool { return a.Status == statusFilter })
 		}
 		render.EncodeResponse(w, http.StatusOK, httpapi.AppListResponse{Apps: res.Apps, BrokenApps: res.BrokenApps})
 	}

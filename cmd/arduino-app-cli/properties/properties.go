@@ -12,7 +12,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/app"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
-	"github.com/arduino/arduino-app-cli/internal/appbook"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	arduinoApp "github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
@@ -33,7 +33,7 @@ func NewPropertiesCmd(cfg config.Configuration) *cobra.Command {
 			if len(args) == 0 {
 				return cmd.Help()
 			}
-			def, err := appbook.GetDefaultApp(cfg)
+			def, err := orchestrator.GetDefaultApp(cfg)
 			if err != nil {
 				feedback.Fatal(err.Error(), feedback.ErrGeneric)
 			}
@@ -54,7 +54,7 @@ func NewPropertiesCmd(cfg config.Configuration) *cobra.Command {
 			}
 			// Remove default app.
 			if len(args) == 1 || args[1] == "none" {
-				if err := appbook.SetDefaultApp(nil, cfg); err != nil {
+				if err := orchestrator.SetDefaultApp(nil, cfg); err != nil {
 					feedback.Fatal(err.Error(), feedback.ErrGeneric)
 					return nil
 				}
@@ -67,7 +67,7 @@ func NewPropertiesCmd(cfg config.Configuration) *cobra.Command {
 				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 				return nil
 			}
-			if err := appbook.SetDefaultApp(&app, cfg); err != nil {
+			if err := orchestrator.SetDefaultApp(&app, cfg); err != nil {
 				feedback.Fatal(err.Error(), feedback.ErrGeneric)
 				return nil
 			}
