@@ -7,6 +7,7 @@ package brick
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"strings"
 
@@ -18,7 +19,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func newSearchCmd(cfg config.Configuration) *cobra.Command {
+func newSearchCmd(cfg config.Configuration, version string) *cobra.Command {
 	var allVersions, deprecated bool
 	cmd := &cobra.Command{
 		Use:     "search [keywords...]",
@@ -27,7 +28,7 @@ func newSearchCmd(cfg config.Configuration) *cobra.Command {
 		Example: "  arduino-app-cli brick search camera usb --all --deprecated",
 		Args:    cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			searchHandler(args, allVersions, deprecated, cfg)
+			searchHandler(cmd.Context(), args, allVersions, deprecated, cfg, version)
 		},
 	}
 	cmd.Flags().BoolVarP(&allVersions, "all", "a", false, "Show the details of all the versions of the bricks")
@@ -35,11 +36,8 @@ func newSearchCmd(cfg config.Configuration) *cobra.Command {
 	return cmd
 }
 
-func searchHandler(keywords []string, allVersions, deprecated bool, cfg config.Configuration) {
-	index, err := bricksindex.LoadRemoteIndex(cfg.BricksIndexDir())
-	if err != nil {
-		feedback.Fatal(err.Error(), feedback.ErrGeneric)
-	}
+func searchHandler(ctx context.Context, keywords []string, allVersions, deprecated bool, cfg config.Configuration, version string) {
+	index := loadRemoteIndex(ctx, cfg, version)
 	platform := servicelocator.GetPlatform()
 	res := searchResult{Bricks: []searchItem{}, allVersions: allVersions}
 	for _, latest := range index.Search(strings.Join(keywords, " "), deprecated, platform) {

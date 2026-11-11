@@ -7,7 +7,8 @@ package brick
 
 import (
 	"context"
-	"net/http"
+	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -27,24 +28,50 @@ func newUpdateIndexCmd(cfg config.Configuration, version string) *cobra.Command 
 	}
 }
 
+// remoteIndexMaxAge is how old the bricks index can be before search and install update it.
+const remoteIndexMaxAge = 24 * time.Hour
+
 func updateIndexHandler(ctx context.Context, cfg config.Configuration, version string) {
-	res, err := bricksindex.UpdateRemoteIndex(ctx, http.DefaultClient, cfg.BricksIndexURL,
-		cfg.BricksIndexDir(), "arduino-app-cli/"+version)
+	_, err := bricksindex.UpdateRemoteIndex(ctx, bricksindex.DownloadConfig(userAgent(version)),
+		cfg.BricksIndexURL, cfg.BricksIndexDir())
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
-	feedback.PrintResult(updateIndexResult{Updated: res.Updated})
+	feedback.PrintResult(updateIndexResult{})
 }
 
-type updateIndexResult struct {
-	Updated bool `json:"updated"`
+// loadRemoteIndex returns the bricks index, updating it first if it is older than remoteIndexMaxAge.
+// If the update fails, the saved index is used.
+func loadRemoteIndex(ctx context.Context, cfg config.Configuration, version string) *bricksindex.RemoteIndex {
+	dir := cfg.BricksIndexDir()
+	if bricksindex.RemoteIndexIsRecent(dir, remoteIndexMaxAge) {
+		if index, err := bricksindex.LoadRemoteIndex(dir); err == nil {
+			return index
+		}
+	}
+	out, _, _ := feedback.OutputStreams()
+	fmt.Fprintln(out, "Updating the bricks index...")
+	index, err := bricksindex.UpdateRemoteIndex(ctx, bricksindex.DownloadConfig(userAgent(version)),
+		cfg.BricksIndexURL, dir)
+	if err == nil {
+		return index
+	}
+	saved, loadErr := bricksindex.LoadRemoteIndex(dir)
+	if loadErr != nil {
+		feedback.Fatal(err.Error(), feedback.ErrGeneric)
+	}
+	feedback.Warnf("Cannot update the bricks index, using the saved one: %v", err)
+	return saved
 }
+
+func userAgent(version string) string {
+	return "arduino-app-cli/" + version
+}
+
+type updateIndexResult struct{}
 
 func (r updateIndexResult) String() string {
-	if r.Updated {
-		return "Bricks index updated"
-	}
-	return "Bricks index already up to date"
+	return "Bricks index updated"
 }
 
 func (r updateIndexResult) Data() any {

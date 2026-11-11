@@ -8,7 +8,7 @@ package brick
 import (
 	"context"
 	"fmt"
-	"net/http"
+	"io"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -36,10 +36,7 @@ func newInstallCmd(cfg config.Configuration, version string) *cobra.Command {
 
 func installHandler(ctx context.Context, args []string, cfg config.Configuration, version string) {
 	refs := parseBrickReferences(args)
-	index, err := bricksindex.LoadRemoteIndex(cfg.BricksIndexDir())
-	if err != nil {
-		feedback.Fatal(err.Error(), feedback.ErrGeneric)
-	}
+	index := loadRemoteIndex(ctx, cfg, version)
 
 	// Everything is resolved first, so that an unknown brick does not leave the others half done.
 	platform := servicelocator.GetPlatform()
@@ -52,6 +49,7 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 		resolved = append(resolved, brick)
 	}
 
+	out, _, _ := feedback.OutputStreams()
 	var res installResult
 	for _, brick := range resolved {
 		if brick.Deprecated {
@@ -61,8 +59,8 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 			}
 			feedback.Warnf("%s", msg)
 		}
-		installed, err := bricksindex.Install(ctx, http.DefaultClient, cfg.BricksDir(),
-			brick, platform, "arduino-app-cli/"+version)
+		installed, err := bricksindex.Install(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksDir(),
+			brick, platform, downloadProgress(out, brick.ID+"@"+brick.Version.String()))
 		if err != nil {
 			if len(res.Bricks) > 0 {
 				feedback.PrintResult(res)
@@ -77,6 +75,18 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 		})
 	}
 	feedback.PrintResult(res)
+}
+
+// downloadProgress prints the progress of the download of a brick, once per percent.
+func downloadProgress(out io.Writer, ref string) func(downloaded, total int64) {
+	last := -1
+	return func(downloaded, total int64) {
+		percent := int(downloaded * 100 / total)
+		if percent != last {
+			last = percent
+			fmt.Fprintf(out, "Downloading %s: %d%%\n", ref, percent)
+		}
+	}
 }
 
 type brickReference struct {

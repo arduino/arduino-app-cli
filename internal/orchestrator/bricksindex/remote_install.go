@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"net/http"
 	"os"
 	"path"
 	"slices"
@@ -26,6 +25,7 @@ import (
 	yaml "github.com/goccy/go-yaml"
 	"github.com/gofrs/flock"
 	"github.com/shirou/gopsutil/v4/disk"
+	"go.bug.st/downloader/v3"
 	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
@@ -155,8 +155,9 @@ type InstallResult struct {
 }
 
 // Install downloads the release of the brick and installs it in bricksDir. Releases are
-// never replaced: each version is installed in its own folder.
-func Install(ctx context.Context, client *http.Client, bricksDir *paths.Path, brick *RemoteBrick, platform platform.Platform, userAgent string) (InstallResult, error) {
+// never replaced: each version is installed in its own folder. progress, if not nil, is called
+// periodically during the download with the bytes downloaded and the size of the archive.
+func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Path, brick *RemoteBrick, platform platform.Platform, progress func(downloaded, total int64)) (InstallResult, error) {
 	// The release usually comes from a validated index: this protects the paths built from it.
 	if err := brick.validate(); err != nil {
 		return InstallResult{}, err
@@ -194,7 +195,11 @@ func Install(ctx context.Context, client *http.Client, bricksDir *paths.Path, br
 	if err := checkFreeSpace(bricksDir, uint64(brick.Size)); err != nil { // nolint:gosec // validate checks that the size is positive
 		return InstallResult{}, fmt.Errorf("downloading brick %s: %w", ref, err)
 	}
-	if err := download(ctx, client, brick.URL, archivePath, brick.Size, expectedHash, userAgent); err != nil {
+	var downloadProgress func(int64)
+	if progress != nil {
+		downloadProgress = func(downloaded int64) { progress(downloaded, brick.Size) }
+	}
+	if err := downloadArchive(ctx, config, brick, archivePath, expectedHash, downloadProgress); err != nil {
 		return InstallResult{}, fmt.Errorf("downloading brick %s: %w", ref, err)
 	}
 
@@ -235,40 +240,28 @@ func checkFreeSpace(dir *paths.Path, required uint64) error {
 	return nil
 }
 
-func download(ctx context.Context, client *http.Client, url string, dest *paths.Path, size int64, expectedHash []byte, userAgent string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
+// downloadArchive downloads the archive of the brick into dest and checks its size and hash.
+func downloadArchive(ctx context.Context, config downloader.Config, brick *RemoteBrick, dest *paths.Path, expectedHash []byte, progress func(int64)) error {
+	if err := downloadFile(ctx, config, brick.URL, dest.String(), brick.Size, brick.Size, progress); err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", userAgent)
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status %s from %s", resp.Status, url)
-	}
-
-	file, err := dest.Create()
+	file, err := dest.Open()
 	if err != nil {
 		return err
 	}
 	defer file.Close()
-
 	hasher := sha256.New()
-	// One byte more than expected, to detect a bigger archive without reading all of it.
-	written, err := io.Copy(io.MultiWriter(file, hasher), io.LimitReader(resp.Body, size+1))
+	size, err := io.Copy(hasher, file)
 	if err != nil {
 		return err
 	}
-	if written != size {
-		return fmt.Errorf("size mismatch: expected %d bytes, got %d", size, written)
+	if size != brick.Size {
+		return fmt.Errorf("size mismatch: expected %d bytes, got %d", brick.Size, size)
 	}
 	if actual := hasher.Sum(nil); !bytes.Equal(actual, expectedHash) {
 		return fmt.Errorf("SHA-256 mismatch: expected %x, got %x", expectedHash, actual)
 	}
-	return file.Close()
+	return nil
 }
 
 // extractZip extracts the archive into destDir and returns the name of its root folder.

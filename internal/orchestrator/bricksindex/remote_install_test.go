@@ -11,7 +11,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -38,17 +37,18 @@ func makeZip(t *testing.T, files map[string]string) []byte {
 // archiveRelease serves archive and returns a release of acme:camera that points to it.
 func archiveRelease(t *testing.T, archive []byte) *RemoteBrick {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write(archive)
-	}))
-	t.Cleanup(srv.Close)
+	return archiveReleaseAt(t, archive, serveFile(t, http.StatusOK, archive, false))
+}
+
+func archiveReleaseAt(t *testing.T, archive []byte, url string) *RemoteBrick {
+	t.Helper()
 	sum := sha256.Sum256(archive)
 	return &RemoteBrick{
 		ID:        "acme:camera",
 		Namespace: "acme",
 		Name:      "Camera",
 		Version:   semver.MustParse("1.0.0"),
-		URL:       srv.URL + "/brick.zip",
+		URL:       url,
 		Hash:      hex.EncodeToString(sum[:]),
 		Size:      int64(len(archive)),
 	}
@@ -133,14 +133,18 @@ func TestInstall(t *testing.T) {
 		"__MACOSX/camera/._file.md": "metadata",
 	}))
 
-	res, err := Install(t.Context(), http.DefaultClient, bricksDir, brick, platform.Platform{}, "test")
+	var downloaded, total int64
+	progress := func(d, tot int64) { downloaded, total = d, tot }
+	res, err := Install(t.Context(), DownloadConfig("test"), bricksDir, brick, platform.Platform{}, progress)
 	require.NoError(t, err)
 	require.False(t, res.AlreadyInstalled)
+	require.Equal(t, brick.Size, downloaded)
+	require.Equal(t, brick.Size, total)
 	require.Equal(t, bricksDir.Join("acme", "camera", "1.0.0").String(), res.Path.String())
 	require.FileExists(t, res.Path.Join("brick_config.yaml").String())
 	require.FileExists(t, res.Path.Join("README.md").String())
 
-	res, err = Install(t.Context(), http.DefaultClient, bricksDir, brick, platform.Platform{}, "test")
+	res, err = Install(t.Context(), DownloadConfig("test"), bricksDir, brick, platform.Platform{}, nil)
 	require.NoError(t, err)
 	require.True(t, res.AlreadyInstalled)
 
@@ -173,7 +177,32 @@ func TestInstallFailures(t *testing.T) {
 				r.Size--
 				return r
 			},
+			wantErr: "the server declares",
+		},
+		{
+			name: "smaller archive without declared size",
+			brick: func(t *testing.T) *RemoteBrick {
+				r := archiveReleaseAt(t, validArchive, serveFile(t, http.StatusOK, validArchive, true))
+				r.Size++
+				return r
+			},
 			wantErr: "size mismatch",
+		},
+		{
+			name: "larger archive without declared size",
+			brick: func(t *testing.T) *RemoteBrick {
+				r := archiveReleaseAt(t, validArchive, serveFile(t, http.StatusOK, validArchive, true))
+				r.Size--
+				return r
+			},
+			wantErr: "larger than",
+		},
+		{
+			name: "server error",
+			brick: func(t *testing.T) *RemoteBrick {
+				return archiveReleaseAt(t, validArchive, serveFile(t, http.StatusNotFound, nil, false))
+			},
+			wantErr: "404",
 		},
 		{
 			name: "not enough disk space",
@@ -247,7 +276,7 @@ func TestInstallFailures(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			bricksDir := paths.New(t.TempDir())
-			_, err := Install(t.Context(), http.DefaultClient, bricksDir, tc.brick(t), platform.Platform{BoardName: "unoq"}, "test")
+			_, err := Install(t.Context(), DownloadConfig("test"), bricksDir, tc.brick(t), platform.Platform{BoardName: "unoq"}, nil)
 			require.ErrorContains(t, err, tc.wantErr)
 
 			// Nothing is installed and no temporary folders are left behind.

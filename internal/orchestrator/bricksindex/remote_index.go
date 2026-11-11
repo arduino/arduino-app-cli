@@ -12,28 +12,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
-	"log/slog"
-	"net/http"
 	"net/url"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/arduino/go-paths-helper"
-	"github.com/gofrs/flock"
+	"go.bug.st/downloader/v3"
 	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
-const (
-	RemoteIndexFileName     = "brick-index.json"
-	remoteIndexEtagFileName = RemoteIndexFileName + ".etag"
-	remoteIndexLockFileName = RemoteIndexFileName + ".lock"
-)
+const RemoteIndexFileName = "brick-index.json"
 
 var ErrIndexNotFound = errors.New("bricks index not found, run 'arduino-app-cli brick update-index' to download it")
 
@@ -135,85 +127,43 @@ func (b RemoteBrick) validate() error {
 	return nil
 }
 
-type UpdateRemoteIndexResult struct {
-	// Updated is false when the server reported that the local index is already up to date.
-	Updated bool
-	Index   *RemoteIndex
+// RemoteIndexIsRecent returns true if the index saved in dir was updated less than maxAge ago.
+func RemoteIndexIsRecent(dir *paths.Path, maxAge time.Duration) bool {
+	info, err := dir.Join(RemoteIndexFileName).Stat()
+	return err == nil && time.Since(info.ModTime()) < maxAge
 }
 
-// UpdateRemoteIndex downloads the index from indexURL and saves it in dir. The previous index is
-// replaced only if the new one is valid.
-func UpdateRemoteIndex(ctx context.Context, client *http.Client, indexURL *url.URL, dir *paths.Path, userAgent string) (UpdateRemoteIndexResult, error) {
+// UpdateRemoteIndex downloads the index from indexURL and saves it in dir.
+func UpdateRemoteIndex(ctx context.Context, config downloader.Config, indexURL *url.URL, dir *paths.Path) (*RemoteIndex, error) {
+	indexPath := dir.Join(RemoteIndexFileName)
 	if indexURL == nil {
-		return UpdateRemoteIndexResult{}, errors.New("bricks index URL not configured, set ARDUINO_APP_CLI__BRICKS_INDEX_URL")
+		return nil, errors.New("bricks index URL not configured, set ARDUINO_APP_CLI__BRICKS_INDEX_URL")
 	}
 	if err := dir.MkdirAll(); err != nil {
-		return UpdateRemoteIndexResult{}, fmt.Errorf("creating bricks index directory: %w", err)
+		return nil, fmt.Errorf("creating bricks index directory: %w", err)
 	}
-
-	// The lock keeps the index and its etag consistent when two updates run together.
-	lock := flock.New(dir.Join(remoteIndexLockFileName).String())
-	if _, err := lock.TryLockContext(ctx, 100*time.Millisecond); err != nil {
-		return UpdateRemoteIndexResult{}, fmt.Errorf("locking bricks index: %w", err)
-	}
-	defer func() { _ = lock.Unlock() }()
-
-	etagPath := dir.Join(remoteIndexEtagFileName)
-
-	// Ask for a conditional download only if there is a valid index to fall back to.
-	var etag string
-	current, err := LoadRemoteIndex(dir)
-	if err == nil {
-		if data, err := etagPath.ReadFile(); err == nil {
-			etag = strings.TrimSpace(string(data))
-		}
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, indexURL.String(), nil)
+	// Each update downloads to its own file, so concurrent updates do not need a lock.
+	tempFile, err := paths.WriteToTempFile(nil, dir, "."+RemoteIndexFileName+"-")
 	if err != nil {
-		return UpdateRemoteIndexResult{}, err
+		return nil, fmt.Errorf("creating temporary file: %w", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
-	if etag != "" {
-		req.Header.Set("If-None-Match", etag)
-	}
+	defer func() { _ = tempFile.Remove() }()
 
-	resp, err := client.Do(req)
+	if err := downloadFile(ctx, config, indexURL.String(), tempFile.String(), 0, 0, nil); err != nil {
+		return nil, fmt.Errorf("updating bricks index: %w", err)
+	}
+	data, err := tempFile.ReadFile()
 	if err != nil {
-		return UpdateRemoteIndexResult{}, fmt.Errorf("downloading bricks index: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNotModified && etag != "" {
-		return UpdateRemoteIndexResult{Updated: false, Index: current}, nil
-	}
-	if resp.StatusCode != http.StatusOK {
-		return UpdateRemoteIndexResult{}, fmt.Errorf("downloading bricks index from %s: unexpected status %s", indexURL, resp.Status)
-	}
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return UpdateRemoteIndexResult{}, fmt.Errorf("downloading bricks index: %w", err)
+		return nil, fmt.Errorf("updating bricks index: %w", err)
 	}
 
 	// TODO: verify the signature of the index before trusting it.
 	index, err := parseRemoteIndex(data)
 	if err != nil {
-		return UpdateRemoteIndexResult{}, err
+		return nil, err
 	}
-
-	if err := fatomic.WriteFile(dir.Join(RemoteIndexFileName).String(), data, 0o644); err != nil {
-		return UpdateRemoteIndexResult{}, fmt.Errorf("saving bricks index: %w", err)
+	if err := fatomic.WriteFile(indexPath.String(), data, 0o644); err != nil {
+		return nil, fmt.Errorf("saving bricks index: %w", err)
 	}
-
-	// A stale etag would make the next update skip a changed index: drop it when it can't be refreshed.
-	newEtag := resp.Header.Get("ETag")
-	if newEtag == "" {
-		_ = etagPath.RemoveAll()
-	} else if err := fatomic.WriteFile(etagPath.String(), []byte(newEtag), 0o644); err != nil {
-		slog.Warn("cannot save bricks index etag", "error", err)
-		_ = etagPath.RemoveAll()
-	}
-
-	return UpdateRemoteIndexResult{Updated: true, Index: index}, nil
+	return index, nil
 }

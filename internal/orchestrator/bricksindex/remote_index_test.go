@@ -11,9 +11,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -87,77 +92,112 @@ func TestParseRemoteIndexValidation(t *testing.T) {
 	})
 }
 
-// indexServer serves body with the given etag, answering 304 when the client already has it.
-func indexServer(t *testing.T, status int, body, etag string) *url.URL {
+// serveFile serves body at the returned URL. With chunked, the size of the body is not declared.
+func serveFile(t *testing.T, status int, body []byte, chunked bool) string {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if etag != "" && r.Header.Get("If-None-Match") == etag {
-			w.WriteHeader(http.StatusNotModified)
-			return
-		}
-		if etag != "" {
-			w.Header().Set("ETag", etag)
+		if !chunked {
+			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 		}
 		w.WriteHeader(status)
-		_, _ = w.Write([]byte(body))
+		if chunked {
+			w.(http.Flusher).Flush()
+		}
+		if r.Method != http.MethodHead {
+			_, _ = w.Write(body)
+		}
 	}))
 	t.Cleanup(srv.Close)
-	u, err := url.Parse(srv.URL + "/brick-index.json")
+	return srv.URL + "/file"
+}
+
+func mustParseURL(t *testing.T, s string) *url.URL {
+	t.Helper()
+	u, err := url.Parse(s)
 	require.NoError(t, err)
 	return u
 }
 
 func TestUpdate(t *testing.T) {
 	dir := paths.New(t.TempDir()).Join("bricks-index")
-	u := indexServer(t, http.StatusOK, validIndex, `"v1"`)
+	body := validIndex
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "test-agent", r.Header.Get("User-Agent"))
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	u := mustParseURL(t, srv.URL)
+	config := DownloadConfig("test-agent")
 
-	res, err := UpdateRemoteIndex(t.Context(), http.DefaultClient, u, dir, "test")
+	index, err := UpdateRemoteIndex(t.Context(), config, u, dir)
 	require.NoError(t, err)
-	require.True(t, res.Updated)
-	require.Len(t, res.Index.Bricks, 1)
-
+	require.Equal(t, "acme:camera", index.Bricks[0].ID)
 	saved, err := dir.Join(RemoteIndexFileName).ReadFile()
 	require.NoError(t, err)
 	require.Equal(t, validIndex, string(saved), "the index must be saved as downloaded")
 
-	t.Run("an unchanged index is not downloaded again", func(t *testing.T) {
-		res, err := UpdateRemoteIndex(t.Context(), http.DefaultClient, u, dir, "test")
-		require.NoError(t, err)
-		require.False(t, res.Updated)
-		require.Equal(t, "acme:camera", res.Index.Bricks[0].ID)
-	})
-
-	t.Run("a missing local index is downloaded even if the etag matches", func(t *testing.T) {
-		require.NoError(t, dir.Join(RemoteIndexFileName).Remove())
-		res, err := UpdateRemoteIndex(t.Context(), http.DefaultClient, u, dir, "test")
-		require.NoError(t, err)
-		require.True(t, res.Updated)
-	})
+	// A saved index is replaced.
+	body = strings.ReplaceAll(validIndex, "acme:camera", "acme:audio")
+	index, err = UpdateRemoteIndex(t.Context(), config, u, dir)
+	require.NoError(t, err)
+	require.Equal(t, "acme:audio", index.Bricks[0].ID)
 }
 
+func TestRemoteIndexIsRecent(t *testing.T) {
+	dir := paths.New(t.TempDir())
+	require.False(t, RemoteIndexIsRecent(dir, time.Hour), "a missing index is not recent")
+
+	indexPath := dir.Join(RemoteIndexFileName)
+	require.NoError(t, indexPath.WriteFile([]byte(validIndex)))
+	require.True(t, RemoteIndexIsRecent(dir, time.Hour))
+
+	old := time.Now().Add(-2 * time.Hour)
+	require.NoError(t, os.Chtimes(indexPath.String(), old, old))
+	require.False(t, RemoteIndexIsRecent(dir, time.Hour))
+}
 func TestUpdateKeepsPreviousIndexOnFailure(t *testing.T) {
 	tests := []struct {
-		name   string
-		status int
-		body   string
-		errMsg string
+		name    string
+		url     func(t *testing.T) string
+		wantErr string
 	}{
-		{"server error", http.StatusInternalServerError, "", "unexpected status"},
-		{"malformed json", http.StatusOK, "{", "decoding bricks index"},
-		{"invalid index", http.StatusOK, `{"bricks": [{"id": "camera", "namespace": "acme"}]}`, "invalid brick id"},
+		{"server error", func(t *testing.T) string {
+			return serveFile(t, http.StatusInternalServerError, nil, false)
+		}, "500"},
+		{"malformed json", func(t *testing.T) string {
+			return serveFile(t, http.StatusOK, []byte("{"), false)
+		}, "decoding bricks index"},
+		{"invalid index", func(t *testing.T) string {
+			return serveFile(t, http.StatusOK, []byte(`{"bricks": [{"id": "camera", "namespace": "acme"}]}`), false)
+		}, "invalid brick id"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := paths.New(t.TempDir())
 			require.NoError(t, dir.Join(RemoteIndexFileName).WriteFile([]byte(validIndex)))
 
-			u := indexServer(t, tt.status, tt.body, "")
-			_, err := UpdateRemoteIndex(t.Context(), http.DefaultClient, u, dir, "test")
-			require.ErrorContains(t, err, tt.errMsg)
+			_, err := UpdateRemoteIndex(t.Context(), DownloadConfig("test"), mustParseURL(t, tt.url(t)), dir)
+			require.ErrorContains(t, err, tt.wantErr)
 
 			saved, err := dir.Join(RemoteIndexFileName).ReadFile()
 			require.NoError(t, err)
 			require.Equal(t, validIndex, string(saved))
+			// No temporary files are left behind.
+			entries, err := dir.ReadDir()
+			require.NoError(t, err)
+			require.Len(t, entries, 1)
 		})
 	}
+}
+
+func TestUpdateInactivityTimeout(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	t.Cleanup(srv.Close)
+	config := DownloadConfig("test")
+	config.InactivityTimeout = 100 * time.Millisecond
+
+	_, err := UpdateRemoteIndex(t.Context(), config, mustParseURL(t, srv.URL), paths.New(t.TempDir()))
+	require.Error(t, err)
 }
