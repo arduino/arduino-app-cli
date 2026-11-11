@@ -23,11 +23,12 @@ func writeInstalledBrick(t *testing.T, bricksDir *paths.Path, folder, config str
 	}
 }
 
-func TestListInstalled(t *testing.T) {
+func TestInstalledBricks(t *testing.T) {
 	bricksDir := paths.New(t.TempDir())
 	write := func(folder, config string) { writeInstalledBrick(t, bricksDir, folder, config) }
 	write("acme/camera/1.10.0", "id: acme:camera\nname: Camera\n")
 	write("acme/camera/1.2.0", "id: acme:camera\nname: Camera\n")
+	write("acme/camera/1.11.0", "id: acme:other\n") // declares another id: the previous version is used
 	write("acme/audio/1.0.0", "id: acme:audio\nname: Audio\n")
 	write("acme/wrong/1.0.0", "id: acme:other\n")         // declares another id
 	write("acme/missing/1.0.0", "")                       // no brick_config.yaml
@@ -36,9 +37,7 @@ func TestListInstalled(t *testing.T) {
 	write("acme/Camera/1.0.0", "id: acme:Camera\n")       // invalid name
 	write(".install-123/x/1.0.0", "id: .install-123:x\n") // temporary folder
 
-	installed, err := listInstalled(platform.Platform{}, bricksDir)
-	require.NoError(t, err)
-
+	installed := (&BricksIndex{}).WithInstalledBricks(bricksDir).installedBricks()
 	got := make([]string, 0, len(installed))
 	for _, b := range installed {
 		require.Equal(t, "acme", b.Source)
@@ -46,14 +45,11 @@ func TestListInstalled(t *testing.T) {
 	}
 	require.Equal(t, []string{
 		"acme:audio@1.0.0 Audio",
-		"acme:camera@1.2.0 Camera",
 		"acme:camera@1.10.0 Camera",
 	}, got)
 	require.Equal(t, bricksDir.Join("acme", "audio", "1.0.0", "README.md").String(), installed[0].ReadmeFile.String())
 
-	installed, err = listInstalled(platform.Platform{}, bricksDir.Join("missing"))
-	require.NoError(t, err)
-	require.Empty(t, installed)
+	require.Empty(t, (&BricksIndex{}).WithInstalledBricks(bricksDir.Join("missing")).installedBricks())
 }
 
 func TestBricksIndexWithInstalledBricks(t *testing.T) {

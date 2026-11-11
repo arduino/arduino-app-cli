@@ -55,9 +55,8 @@ func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
 	if idx := slices.IndexFunc(b.BuiltInBricks, searchFunc); idx != -1 {
 		return &b.BuiltInBricks[idx], true
 	}
-	installed := b.installedBricks()
-	if idx := slices.IndexFunc(installed, searchFunc); idx != -1 {
-		return &installed[idx], true
+	if brick, found := b.findInstalledBrick(id); found {
+		return &brick, true
 	}
 	return nil, false
 }
