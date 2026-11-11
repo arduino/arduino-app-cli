@@ -8,6 +8,7 @@ package appid
 import (
 	"encoding/base64"
 	"errors"
+	"path/filepath"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -114,7 +115,7 @@ func (p *Provider) idFromPath(path *paths.Path) (ID, error) {
 		if err != nil {
 			return ID{}, ErrInvalidID
 		}
-		id = "release:" + rel.String()
+		id = "release:" + filepath.ToSlash(rel.String())
 		isFromKnownLocation = true
 		isRelease = true
 	case strings.HasPrefix(path.String(), p.cfg.AppsDir().String()):
@@ -122,7 +123,7 @@ func (p *Provider) idFromPath(path *paths.Path) (ID, error) {
 		if err != nil {
 			return ID{}, ErrInvalidID
 		}
-		id = "user:" + rel.String()
+		id = "user:" + filepath.ToSlash(rel.String())
 		isFromKnownLocation = true
 	default:
 		for _, example := range p.cfg.ExamplesDirs(p.plat) {
@@ -131,7 +132,7 @@ func (p *Provider) idFromPath(path *paths.Path) (ID, error) {
 				if err != nil {
 					return ID{}, ErrInvalidID
 				}
-				id = "examples:" + "inspirational/" + rel.String()
+				id = "examples:" + "inspirational/" + filepath.ToSlash(rel.String())
 				isFromKnownLocation = true
 				isExample = true
 				break
@@ -144,7 +145,7 @@ func (p *Provider) idFromPath(path *paths.Path) (ID, error) {
 				if err != nil {
 					return ID{}, ErrInvalidID
 				}
-				id = "examples:" + rel.String()
+				id = "examples:" + filepath.ToSlash(rel.String())
 				isFromKnownLocation = true
 				isExample = true
 			}
