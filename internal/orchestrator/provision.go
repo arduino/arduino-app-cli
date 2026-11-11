@@ -9,6 +9,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/loader"
@@ -50,6 +52,7 @@ type service struct {
 	User              string                        `yaml:"user"`
 	GroupAdd          []string                      `yaml:"group_add,omitempty"`
 	DeviceCgroupRules []string                      `yaml:"device_cgroup_rules,omitempty"`
+	SecurityOpt       []string                      `yaml:"security_opt,omitempty"`
 	Entrypoint        string                        `yaml:"entrypoint"`
 	ExtraHosts        []string                      `yaml:"extra_hosts,omitempty"`
 	Labels            map[string]string             `yaml:"labels,omitempty"`
@@ -172,6 +175,20 @@ const (
 	DockerAppMainLabel = "cc.arduino.app.main"
 	DockerAppPathLabel = "cc.arduino.app.path"
 )
+
+const dockerApparmorProfile = "arduino-docker-profile"
+
+const apparmorProfilesDir = "/etc/apparmor.d"
+
+// apparmorSecurityOpt returns the security_opt selecting our AppArmor profile, or nil
+// when the profile is not installed (e.g. the package is not installed, or AppArmor is
+// unavailable on the host) so that docker falls back to its default behavior.
+func apparmorSecurityOpt() []string {
+	if _, err := os.Stat(filepath.Join(apparmorProfilesDir, dockerApparmorProfile)); err != nil {
+		return nil
+	}
+	return []string{"apparmor=" + dockerApparmorProfile}
+}
 
 type serviceInfo struct {
 	name           string

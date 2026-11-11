@@ -5,6 +5,12 @@ USER_ID=1000
 systemctl enable arduino-app-cli
 systemctl enable arduino-avahi-serial.service
 
+# reload just our profile instead of restarting the whole service
+APP_PROFILE=/etc/apparmor.d/arduino-docker-profile
+if [ -f "$APP_PROFILE" ] && aa-enabled --quiet 2>/dev/null; then
+  apparmor_parser -r -T -W "$APP_PROFILE" || true
+fi
+
 mkdir -p /etc/bash_completion.d/
 export ARDUINO_APP_CLI__ALLOW_ROOT=true && arduino-app-cli completion bash > /etc/bash_completion.d/arduino-app-cli.bash || true
 
