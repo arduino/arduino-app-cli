@@ -12,15 +12,15 @@ package runnerassets
 
 import (
 	"archive/zip"
-	"bytes"
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
+	"go.bug.st/downloader/v3"
 )
 
 const (
@@ -31,14 +31,12 @@ const (
 	staticPrefix = "arduino/app_bricks/static/"
 )
 
-// Downloader fetches the static assets of a runner version from GitHub
-type Downloader struct {
-	httpClient *http.Client
-}
+// Downloader fetches the static assets of a runner version from GitHub.
+type Downloader struct{}
 
 // NewDownloader returns a ready-to-use Downloader.
 func NewDownloader() *Downloader {
-	return &Downloader{httpClient: http.DefaultClient}
+	return &Downloader{}
 }
 
 // Download fetches the wheel of the given runner version and
@@ -47,8 +45,19 @@ func (d *Downloader) Download(ctx context.Context, version string, dest *paths.P
 	wheelName := fmt.Sprintf("arduino_app_bricks-%s-py3-none-any.whl", version)
 	url := fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/%s", owner, repo, pathEscapeTag("bricks/"+version), wheelName)
 
-	wheel, err := d.get(ctx, url)
+	// Downloaded to a temp file, not buffered in memory: go.bug.st/downloader streams it
+	// to disk and extractStatic reads it back as a zip from there.
+	wheelFile, err := os.CreateTemp("", "runnerassets-*.whl")
 	if err != nil {
+		return fmt.Errorf("cannot create a temporary file: %w", err)
+	}
+	wheelPath := wheelFile.Name()
+	_ = wheelFile.Close()
+	defer os.Remove(wheelPath)
+
+	config := downloader.GetDefaultConfig()
+	config.InactivityTimeout = 30 * time.Second
+	if err := downloader.DownloadWithConfig(ctx, wheelPath, url, config); err != nil {
 		return fmt.Errorf("cannot download %s: %w", wheelName, err)
 	}
 
@@ -56,7 +65,7 @@ func (d *Downloader) Download(ctx context.Context, version string, dest *paths.P
 	if err := versionDir.RemoveAll(); err != nil {
 		return fmt.Errorf("cannot clean up %s: %w", versionDir, err)
 	}
-	if err := extractStatic(wheel, versionDir); err != nil {
+	if err := extractStatic(wheelPath, versionDir); err != nil {
 		return fmt.Errorf("cannot extract %s: %w", wheelName, err)
 	}
 	return nil
@@ -69,36 +78,13 @@ func pathEscapeTag(tag string) string {
 	return strings.ReplaceAll(tag, "/", "%2F")
 }
 
-// get issues a GET and returns the response body, following GitHub's redirect from the
-// release download URL to the asset's actual content.
-func (d *Downloader) get(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := d.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read the response of %s: %w", url, err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%s answered %s: %s", url, resp.Status, body)
-	}
-	return body, nil
-}
-
 // extractStatic unzips the arduino/app_bricks/static/ folder of the wheel into dest.
-func extractStatic(wheel []byte, dest *paths.Path) error {
-	zipReader, err := zip.NewReader(bytes.NewReader(wheel), int64(len(wheel)))
+func extractStatic(wheelPath string, dest *paths.Path) error {
+	zipReader, err := zip.OpenReader(wheelPath)
 	if err != nil {
 		return fmt.Errorf("not a valid wheel: %w", err)
 	}
+	defer zipReader.Close()
 
 	var extracted int
 	for _, file := range zipReader.File {
