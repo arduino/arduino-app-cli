@@ -6,24 +6,26 @@
 package orchestrator
 
 import (
-	"fmt"
 	"regexp"
 	"strconv"
 
+	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/moby/moby/api/types/container"
 	"go.bug.st/f"
 )
 
-type Status string
+type Status = appbook.Status
 
 const (
-	StatusStarting      Status = "starting"
-	StatusRunning       Status = "running"
-	StatusStopping      Status = "stopping"
-	StatusStopped       Status = "stopped"
-	StatusFailed        Status = "failed"
-	StatusUninitialized Status = "uninitialized"
+	StatusStarting      = appbook.StatusStarting
+	StatusRunning       = appbook.StatusRunning
+	StatusStopping      = appbook.StatusStopping
+	StatusStopped       = appbook.StatusStopped
+	StatusFailed        = appbook.StatusFailed
+	StatusUninitialized = appbook.StatusUninitialized
 )
+
+var ParseStatus = appbook.ParseStatus
 
 func StatusFromDockerState(s container.ContainerState, statusMessage string) Status {
 	switch s {
@@ -46,24 +48,6 @@ func StatusFromDockerState(s container.ContainerState, statusMessage string) Sta
 	default:
 		panic("unreachable")
 	}
-}
-
-func ParseStatus(s string) (Status, error) {
-	s1 := Status(s)
-	return s1, s1.Validate()
-}
-
-func (s Status) Validate() error {
-	switch s {
-	case StatusStarting, StatusRunning, StatusStopping, StatusStopped, StatusFailed, StatusUninitialized:
-		return nil
-	default:
-		return fmt.Errorf("status should be one of %v", s.AllowedStatuses())
-	}
-}
-
-func (s Status) AllowedStatuses() []Status {
-	return []Status{StatusStarting, StatusRunning, StatusStopping, StatusStopped, StatusFailed, StatusUninitialized}
 }
 
 func isExitBySignal(statusMessage string) bool {

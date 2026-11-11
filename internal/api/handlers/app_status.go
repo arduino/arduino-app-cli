@@ -12,6 +12,7 @@ import (
 	"github.com/docker/cli/cli/command"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -36,7 +37,7 @@ func HandlerAppStatus(
 		}
 		defer sseStream.Close()
 
-		result, err := orchestrator.ListApps(r.Context(), dockerCli, orchestrator.ListAppRequest{ShowExamples: true, ShowApps: true, ShowReleases: true}, idProvider, bricksIndex, cfg, platform)
+		result, err := orchestrator.ListApps(r.Context(), dockerCli, appbook.ListAppRequest{ShowExamples: true, ShowApps: true, ShowReleases: true}, idProvider, bricksIndex, cfg, platform)
 		if err != nil {
 			sseStream.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
 		}

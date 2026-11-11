@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	appmodel "github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -33,7 +34,7 @@ func TestNewAppDetailsResult(t *testing.T) {
 			{Name: "HIDDEN", Hidden: true},
 		},
 	}}}
-	result := newAppDetailsResult(orchestrator.AppDetailedInfo{
+	result := newAppDetailsResult(appbook.AppDetailedInfo{
 		Name:        "Weather",
 		Path:        "/apps/weather",
 		Description: "Weather station",

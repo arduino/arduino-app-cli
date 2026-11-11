@@ -14,7 +14,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
@@ -69,7 +69,7 @@ func createHandler(
 			return nil
 		}
 
-		resp, err := orchestrator.CloneApp(orchestrator.CloneAppRequest{
+		resp, err := appbook.CloneApp(appbook.CloneAppRequest{
 			Name:   &name,
 			FromID: id,
 		}, servicelocator.GetAppIDProvider(), cfg)
@@ -86,7 +86,7 @@ func createHandler(
 		})
 
 	} else {
-		resp, err := orchestrator.CreateApp(orchestrator.CreateAppRequest{
+		resp, err := appbook.CreateApp(appbook.CreateAppRequest{
 			Name:        name,
 			Icon:        icon,
 			Description: description,

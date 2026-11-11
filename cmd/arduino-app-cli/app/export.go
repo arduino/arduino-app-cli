@@ -17,7 +17,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -50,7 +50,7 @@ Use '-' as output_path to write the zip to stdout.`,
 			if len(args) != 0 {
 				return nil, cobra.ShellCompDirectiveDefault
 			}
-			return completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
+			return completion.ApplicationNamesWithFilterFunc(cfg, func(apps appbook.AppInfo) bool {
 				return !apps.Example
 			})(cmd, args, toComplete)
 		},
@@ -64,7 +64,7 @@ Use '-' as output_path to write the zip to stdout.`,
 
 func exportHandler(bricksIndex *bricksindex.BricksIndex, appToExport app.ArduinoApp, outputDest string, includeData bool, override bool) error {
 
-	zipBytes, originalName, err := orchestrator.ExportAppZip(bricksIndex, appToExport, includeData)
+	zipBytes, originalName, err := appbook.ExportAppZip(bricksIndex, appToExport, includeData)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}

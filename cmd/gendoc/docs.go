@@ -21,6 +21,8 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/appbook"
+	"github.com/arduino/arduino-app-cli/internal/appbook/httpapi"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
@@ -471,13 +473,13 @@ func (g *Generator) InitOperations() {
 			OperationId: "cloneApp",
 			Method:      http.MethodPost,
 			Path:        "/v1/apps/{id}/clone",
-			Request:     handlers.CloneRequest{},
+			Request:     httpapi.CloneRequest{},
 			Parameters: (*struct {
 				ID string `path:"id" description:"application identifier."`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: orchestrator.CloneAppResponse{},
+				DataStructure: appbook.CloneAppResponse{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusCreated,
 			},
@@ -748,13 +750,13 @@ Contains a JSON object with the details of an error.
 			OperationId: "editApp",
 			Method:      http.MethodPatch,
 			Path:        "/v1/apps/{id}",
-			Request:     handlers.EditRequest{},
+			Request:     httpapi.EditRequest{},
 			Parameters: (*struct {
 				ID string `path:"id" description:"application identifier."`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: orchestrator.AppDetailedInfo{},
+				DataStructure: appbook.AppDetailedInfo{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
@@ -777,7 +779,7 @@ Contains a JSON object with the details of an error.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: orchestrator.AppDetailedInfo{},
+				DataStructure: appbook.AppDetailedInfo{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
@@ -911,13 +913,13 @@ Contains a JSON object with the details of an error.
 			OperationId: "createApp",
 			Method:      http.MethodPost,
 			Path:        "/v1/apps",
-			Request:     handlers.CreateAppRequest{},
+			Request:     httpapi.CreateAppRequest{},
 			Parameters: (*struct {
 				SkipSketch bool `query:"skip-sketch" description:"If true, the app will not be created with the sketch part."`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: orchestrator.CreateAppResponse{},
+				DataStructure: appbook.CreateAppResponse{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusCreated,
 			},
@@ -934,14 +936,14 @@ Contains a JSON object with the details of an error.
 			OperationId: "getApps",
 			Method:      http.MethodGet,
 			Path:        "/v1/apps",
-			Request:     (*orchestrator.ListAppRequest)(nil),
+			Request:     (*appbook.ListAppRequest)(nil),
 			Parameters: (*struct {
 				Filter string              `query:"filter" description:"Filters apps by apps,examples,releases,default"`
 				Status orchestrator.Status `query:"status" description:"Filters applications by status"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: handlers.AppListResponse{},
+				DataStructure: httpapi.AppListResponse{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
@@ -998,7 +1000,7 @@ Contains a JSON object with the details of an error.
 			Request:     nil,
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: orchestrator.ConfigResponse{},
+				DataStructure: appbook.ConfigResponse{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
@@ -1016,7 +1018,7 @@ Contains a JSON object with the details of an error.
 			Request:     nil,
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: orchestrator.ExampleResponse{},
+				DataStructure: appbook.ExampleResponse{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},

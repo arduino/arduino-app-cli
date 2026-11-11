@@ -22,6 +22,7 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
+	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -153,7 +154,7 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli,
 	cfg config.Configuration, idProvider *appid.Provider, bricksIndex *bricksindex.BricksIndex,
 	modelId string, platform platform.Platform) ([]string, *app.ArduinoApp, error) {
 	apps, err := ListApps(
-		ctx, dockerClient, ListAppRequest{
+		ctx, dockerClient, appbook.ListAppRequest{
 			ShowExamples: true,
 			ShowApps:     true,
 			ShowReleases: true,

@@ -13,6 +13,7 @@ import (
 	"net/http"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/appbook/httpapi"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/render"
@@ -29,7 +30,7 @@ func HandleAppLocalBrickRename(brickService *bricks.Service, idProvider *appid.P
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
 		}
-		a, ok := loadEditableApp(w, appId)
+		a, ok := httpapi.LoadEditableApp(w, appId)
 		if !ok {
 			return
 		}

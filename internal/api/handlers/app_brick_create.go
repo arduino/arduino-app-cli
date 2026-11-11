@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/appbook/httpapi"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/render"
@@ -35,7 +36,7 @@ func HandleAppLocalBrickCreate(idProvider *appid.Provider) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
 		}
-		a, ok := loadEditableApp(w, appId)
+		a, ok := httpapi.LoadEditableApp(w, appId)
 		if !ok {
 			return
 		}

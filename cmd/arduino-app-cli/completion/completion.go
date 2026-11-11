@@ -13,6 +13,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/cmdutil"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -61,14 +62,14 @@ func NewCompletionCommand() *cobra.Command {
 }
 
 func ApplicationNames(cfg config.Configuration) cobra.CompletionFunc {
-	return ApplicationNamesWithFilterFunc(cfg, func(_ orchestrator.AppInfo) bool { return true })
+	return ApplicationNamesWithFilterFunc(cfg, func(_ appbook.AppInfo) bool { return true })
 }
 
-func ApplicationNamesWithFilterFunc(cfg config.Configuration, filter func(apps orchestrator.AppInfo) bool) cobra.CompletionFunc {
+func ApplicationNamesWithFilterFunc(cfg config.Configuration, filter func(apps appbook.AppInfo) bool) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		apps, err := orchestrator.ListApps(cmd.Context(),
 			servicelocator.GetDockerClient(),
-			orchestrator.ListAppRequest{
+			appbook.ListAppRequest{
 				ShowExamples: true,
 				ShowApps:     true,
 				ShowReleases: true,

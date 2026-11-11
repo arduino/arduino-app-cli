@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/appbook/httpapi"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
@@ -29,7 +30,7 @@ func HandleSketchAddLibrary(idProvider *appid.Provider) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "cannot alter examples"})
 			return
 		}
-		app, ok := loadEditableApp(w, id)
+		app, ok := httpapi.LoadEditableApp(w, id)
 		if !ok {
 			return
 		}
@@ -70,7 +71,7 @@ func HandleSketchRemoveLibrary(idProvider *appid.Provider) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "cannot alter examples"})
 			return
 		}
-		app, ok := loadEditableApp(w, id)
+		app, ok := httpapi.LoadEditableApp(w, id)
 		if !ok {
 			return
 		}

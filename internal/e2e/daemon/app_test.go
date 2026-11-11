@@ -28,6 +28,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/appbook/httpapi"
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 )
@@ -1483,7 +1484,7 @@ func TestImportApp(t *testing.T) {
 		require.NotNil(t, importResp.Body)
 		defer importResp.Body.Close()
 
-		var importRespBody handlers.AppImportResponse
+		var importRespBody httpapi.AppImportResponse
 		body, err := io.ReadAll(importResp.Body)
 		require.NoError(t, err)
 		err = json.Unmarshal(body, &importRespBody)
@@ -1517,7 +1518,7 @@ func TestImportApp(t *testing.T) {
 		require.NotNil(t, importResp.Body)
 		defer importResp.Body.Close()
 
-		var importRespBody handlers.AppImportResponse
+		var importRespBody httpapi.AppImportResponse
 		body, err := io.ReadAll(importResp.Body)
 		require.NoError(t, err)
 		err = json.Unmarshal(body, &importRespBody)
@@ -1661,7 +1662,7 @@ func TestImportApp(t *testing.T) {
 			require.Equal(t, http.StatusCreated, resp.StatusCode)
 			defer resp.Body.Close()
 
-			var respBody handlers.AppImportResponse
+			var respBody httpapi.AppImportResponse
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.NoError(t, json.Unmarshal(body, &respBody))
@@ -1816,7 +1817,7 @@ func TestDescriptionApp(t *testing.T) {
 		require.NotNil(t, importResp.Body)
 		defer importResp.Body.Close()
 
-		var importRespBody handlers.AppImportResponse
+		var importRespBody httpapi.AppImportResponse
 		body, err := io.ReadAll(importResp.Body)
 		require.NoError(t, err)
 		err = json.Unmarshal(body, &importRespBody)
@@ -1862,7 +1863,7 @@ description from the readme **bold**
 		require.NotNil(t, importResp.Body)
 		defer importResp.Body.Close()
 
-		var importRespBody handlers.AppImportResponse
+		var importRespBody httpapi.AppImportResponse
 		body, err := io.ReadAll(importResp.Body)
 		require.NoError(t, err)
 		err = json.Unmarshal(body, &importRespBody)
@@ -1914,7 +1915,7 @@ description from the readme **bold**
 		require.NotNil(t, importResp.Body)
 		defer importResp.Body.Close()
 
-		var importRespBody handlers.AppImportResponse
+		var importRespBody httpapi.AppImportResponse
 		body, err := io.ReadAll(importResp.Body)
 		require.NoError(t, err)
 		err = json.Unmarshal(body, &importRespBody)

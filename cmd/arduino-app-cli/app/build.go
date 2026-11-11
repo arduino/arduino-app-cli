@@ -18,6 +18,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -74,7 +75,7 @@ and the target board, which defaults to the one running the build.`,
 			if len(args) != 0 {
 				return nil, cobra.ShellCompDirectiveDefault
 			}
-			return completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
+			return completion.ApplicationNamesWithFilterFunc(cfg, func(apps appbook.AppInfo) bool {
 				return !apps.Example
 			})(cmd, args, toComplete)
 		},

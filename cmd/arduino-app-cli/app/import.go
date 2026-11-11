@@ -18,6 +18,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
@@ -78,7 +79,7 @@ func parseFilePath(arg string) (*paths.Path, func(), error) {
 
 func importHandler(cfg config.Configuration, zipPath *paths.Path) {
 	idProvider := servicelocator.GetAppIDProvider()
-	appID, err := orchestrator.ImportAppFromZip(cfg, zipPath, idProvider, zipPath.Base())
+	appID, err := appbook.ImportAppFromZip(cfg, zipPath, idProvider, zipPath.Base())
 	if err != nil {
 		switch {
 		case errors.Is(err, orchestrator.ErrAppAlreadyExists):

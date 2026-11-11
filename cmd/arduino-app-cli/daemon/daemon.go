@@ -19,10 +19,13 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/internal/api"
+	"github.com/arduino/arduino-app-cli/internal/appbook"
+	"github.com/arduino/arduino-app-cli/internal/appbook/httpapi"
 	"github.com/arduino/arduino-app-cli/internal/buildtag"
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/httprecover"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
 	"github.com/arduino/arduino-app-cli/internal/releasebuild"
@@ -43,7 +46,7 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 				slog.Warn("Failed to stop containers", slog.String("error", err.Error()))
 			}
 
-			app, err := orchestrator.GetDefaultApp(cfg)
+			app, err := appbook.GetDefaultApp(cfg)
 			if err != nil {
 				slog.Warn("failed to get default app", slog.String("error", err.Error()))
 			}
@@ -111,7 +114,32 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 		ResponseHeaders: []string{},
 	}
 
+	appbookSrv := httpapi.NewRouter(
+		servicelocator.GetAppIDProvider(),
+		servicelocator.GetBricksIndex(),
+		servicelocator.GetBrickService(),
+		cfg,
+		servicelocator.GetPlatform(),
+		httpapi.Hooks{
+			AppsStatus: func(ctx context.Context) (map[string]appbook.Status, error) {
+				return orchestrator.AppsStatus(ctx, servicelocator.GetDockerClient())
+			},
+			BeforeEdit: func(ctx context.Context, req appbook.AppEditRequest, a app.ArduinoApp) error {
+				// The containers keep the old app path in their labels: a running app cannot be renamed.
+				if req.Name == nil {
+					return nil
+				}
+				return orchestrator.CheckAppNotRunning(ctx, servicelocator.GetDockerClient(), a)
+			},
+			BeforeDelete: func(ctx context.Context, a app.ArduinoApp) error {
+				// The containers go at best effort: the files are deleted anyway.
+				_ = orchestrator.StopAndDestroyApp(ctx, servicelocator.GetDockerClient(), servicelocator.GetPlatform(), a, cfg, nil)
+				return nil
+			},
+		},
+	)
 	apiSrv := api.NewHTTPRouter(
+		appbookSrv,
 		servicelocator.GetDockerClient(),
 		version,
 		func() *update.Manager {

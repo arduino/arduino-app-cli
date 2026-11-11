@@ -13,6 +13,7 @@ import (
 
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
+	"github.com/docker/cli/cli/command"
 	"github.com/gosimple/slug"
 	"github.com/moby/moby/api/types/container"
 	dockerClient "github.com/moby/moby/client"
@@ -20,13 +21,22 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 type AppStatusInfo struct {
 	AppPath *paths.Path
 	Status  Status
+}
+
+// AppsStatus is the status of the apps that ran: an app that never ran is not in it.
+func AppsStatus(ctx context.Context, docker command.Cli) (map[string]Status, error) {
+	apps, err := getAppsStatus(ctx, docker.Client())
+	res := map[string]Status{}
+	for _, a := range apps {
+		res[a.AppPath.String()] = a.Status
+	}
+	return res, err
 }
 
 // parseAppStatus takes all the containers that matches the DockerAppLabel,
@@ -177,12 +187,6 @@ func composeProjectName(appPath *paths.Path, appsDir *paths.Path) string {
 		return slug.Make(relPath.String())
 	}
 	return slug.Make(appPath.String())
-}
-
-func findAppPathByName(name string, cfg config.Configuration) (*paths.Path, bool) {
-	appFolderName := slug.Make(name)
-	basePath := cfg.AppsDir().Join(appFolderName)
-	return basePath, basePath.Exist()
 }
 
 type ledTarget string

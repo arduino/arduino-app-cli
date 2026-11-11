@@ -15,6 +15,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -37,7 +38,7 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 			}
 			return startHandler(cmd.Context(), cfg, app, verbose, !noPrepare)
 		},
-		ValidArgsFunction: completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
+		ValidArgsFunction: completion.ApplicationNamesWithFilterFunc(cfg, func(apps appbook.AppInfo) bool {
 			return apps.Status != orchestrator.StatusStarting &&
 				apps.Status != orchestrator.StatusRunning
 		}),
