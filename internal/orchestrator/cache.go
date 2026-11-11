@@ -39,17 +39,19 @@ func CleanAppCache(
 		return ErrCleanCacheReleaseApp
 	}
 
-	runningApp, err := getRunningApp(ctx, docker.Client())
-	if err != nil {
-		return err
-	}
-	if runningApp != nil && runningApp.FullPath.EqualsTo(app.FullPath) {
-		if !req.ForceClean {
-			return ErrCleanCacheRunningApp
+	return runExclusive(ctx, cfg, app, "clean", func() error {
+		runningApp, err := getRunningApp(ctx, docker.Client())
+		if err != nil {
+			return err
 		}
-		// We try to remove docker related resources at best effort
-		_ = StopAndDestroyApp(ctx, docker, platform, app, cfg, func(StreamMessage) {})
-	}
+		if runningApp != nil && runningApp.FullPath.EqualsTo(app.FullPath) {
+			if !req.ForceClean {
+				return ErrCleanCacheRunningApp
+			}
+			// We try to remove docker related resources at best effort
+			_ = stopAndDestroyApp(ctx, docker, platform, app, cfg, func(StreamMessage) {})
+		}
 
-	return app.ProvisioningStateDir().RemoveAll()
+		return app.ProvisioningStateDir().RemoveAll()
+	})
 }
