@@ -955,6 +955,44 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "getAppsCatalog",
+			Method:      http.MethodGet,
+			Path:        "/v2/apps",
+			Request:     (*appbook.ListAppRequest)(nil),
+			Parameters: (*struct {
+				Filter string `query:"filter" description:"Filters apps by apps,examples,releases,default"`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: httpapi.AppListResponse{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Returns the catalog of the apps and examples, with no status. Use /v2/apps/status for the status.",
+			Summary:     "Get the catalog of the apps",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "getAppsStatus",
+			Method:      http.MethodGet,
+			Path:        "/v2/apps/status",
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: handlers.AppsStatusResponse{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Returns the apps started at least once, with their status, including apps that are no longer on disk.",
+			Summary:     "Get the status of the apps",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "getBrickDetails",
 			Method:      http.MethodGet,
 			Path:        "/v1/bricks/{id}",

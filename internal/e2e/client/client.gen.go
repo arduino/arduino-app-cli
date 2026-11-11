@@ -235,7 +235,7 @@ type AppDetailedInfo struct {
 	ReleaseLabel *string             `json:"release_label,omitempty"`
 
 	// Status Application status
-	Status Status `json:"status"`
+	Status *Status `json:"status,omitempty"`
 }
 
 // AppInfo defines model for AppInfo.
@@ -290,6 +290,12 @@ type AppReference struct {
 	Icon *string `json:"icon,omitempty"`
 	Id   *string `json:"id,omitempty"`
 	Name *string `json:"name,omitempty"`
+}
+
+// AppsStatusResponse defines model for AppsStatusResponse.
+type AppsStatusResponse struct {
+	// Apps The apps started at least once, with their status
+	Apps *[]AppInfo `json:"apps,omitempty"`
 }
 
 // BrickConfigVariable defines model for BrickConfigVariable.
@@ -766,6 +772,12 @@ type CheckUpdateParams struct {
 	OnlyArduino *bool `form:"only-arduino,omitempty" json:"only-arduino,omitempty"`
 }
 
+// GetAppsCatalogParams defines parameters for GetAppsCatalog.
+type GetAppsCatalogParams struct {
+	// Filter Filters apps by apps,examples,releases,default
+	Filter *string `form:"filter,omitempty" json:"filter,omitempty"`
+}
+
 // CreateAppJSONRequestBody defines body for CreateApp for application/json ContentType.
 type CreateAppJSONRequestBody = CreateAppRequest
 
@@ -1047,6 +1059,12 @@ type ClientInterface interface {
 
 	// GetVersions request
 	GetVersions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAppsCatalog request
+	GetAppsCatalog(ctx context.Context, params *GetAppsCatalogParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAppsStatus request
+	GetAppsStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) GetApps(ctx context.Context, params *GetAppsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1771,6 +1789,30 @@ func (c *Client) EventsUpdate(ctx context.Context, reqEditors ...RequestEditorFn
 
 func (c *Client) GetVersions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetVersionsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAppsCatalog(ctx context.Context, params *GetAppsCatalogParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAppsCatalogRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAppsStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAppsStatusRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -4004,6 +4046,87 @@ func NewGetVersionsRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewGetAppsCatalogRequest generates requests for GetAppsCatalog
+func NewGetAppsCatalogRequest(server string, params *GetAppsCatalogParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/apps")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Filter != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "filter", *params.Filter, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAppsStatusRequest generates requests for GetAppsStatus
+func NewGetAppsStatusRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/apps/status")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -4216,6 +4339,12 @@ type ClientWithResponsesInterface interface {
 
 	// GetVersionsWithResponse request
 	GetVersionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetVersionsResp, error)
+
+	// GetAppsCatalogWithResponse request
+	GetAppsCatalogWithResponse(ctx context.Context, params *GetAppsCatalogParams, reqEditors ...RequestEditorFn) (*GetAppsCatalogResp, error)
+
+	// GetAppsStatusWithResponse request
+	GetAppsStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAppsStatusResp, error)
 }
 
 type GetAppsResp struct {
@@ -5760,6 +5889,68 @@ func (r GetVersionsResp) ContentType() string {
 	return ""
 }
 
+type GetAppsCatalogResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AppListResponse
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAppsCatalogResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAppsCatalogResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAppsCatalogResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAppsStatusResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AppsStatusResponse
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAppsStatusResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAppsStatusResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAppsStatusResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // GetAppsWithResponse request returning *GetAppsResp
 func (c *ClientWithResponses) GetAppsWithResponse(ctx context.Context, params *GetAppsParams, reqEditors ...RequestEditorFn) (*GetAppsResp, error) {
 	rsp, err := c.GetApps(ctx, params, reqEditors...)
@@ -6294,6 +6485,24 @@ func (c *ClientWithResponses) GetVersionsWithResponse(ctx context.Context, reqEd
 		return nil, err
 	}
 	return ParseGetVersionsResp(rsp)
+}
+
+// GetAppsCatalogWithResponse request returning *GetAppsCatalogResp
+func (c *ClientWithResponses) GetAppsCatalogWithResponse(ctx context.Context, params *GetAppsCatalogParams, reqEditors ...RequestEditorFn) (*GetAppsCatalogResp, error) {
+	rsp, err := c.GetAppsCatalog(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAppsCatalogResp(rsp)
+}
+
+// GetAppsStatusWithResponse request returning *GetAppsStatusResp
+func (c *ClientWithResponses) GetAppsStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAppsStatusResp, error) {
+	rsp, err := c.GetAppsStatus(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAppsStatusResp(rsp)
 }
 
 // ParseGetAppsResp parses an HTTP response from a GetAppsWithResponse call
@@ -8223,6 +8432,72 @@ func ParseGetVersionsResp(rsp *http.Response) (*GetVersionsResp, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest VersionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAppsCatalogResp parses an HTTP response from a GetAppsCatalogWithResponse call
+func ParseGetAppsCatalogResp(rsp *http.Response) (*GetAppsCatalogResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAppsCatalogResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AppListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAppsStatusResp parses an HTTP response from a GetAppsStatusWithResponse call
+func ParseGetAppsStatusResp(rsp *http.Response) (*GetAppsStatusResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAppsStatusResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AppsStatusResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
