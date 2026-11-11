@@ -29,6 +29,8 @@ type AppStatusInfo struct {
 	Status  Status
 }
 
+const dockerComposeServiceLabel = "com.docker.compose.service"
+
 // parseAppStatus takes all the containers that matches the DockerAppLabel,
 // and construct a map of the state of an app and all its dependencies state.
 // For app that have at least 1 dependency, we calculate the overall state
@@ -47,8 +49,8 @@ func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 		if !ok {
 			continue
 		}
-		appsStatusMap[appPath] = append(appsStatusMap[appPath], StatusFromDockerState(c.State, c.Status))
-
+		isMain := c.Labels[DockerAppMainLabel] == "true" //nolint:goconst
+		appsStatusMap[appPath] = append(appsStatusMap[appPath], StatusFromDockerState(c.State, c.Status, isMain))
 	}
 
 	appendResult := func(appPath *paths.Path, status Status) {
@@ -160,7 +162,6 @@ func getAppServicesFromContainers(ctx context.Context, docker dockerClient.APICl
 		return nil, err
 	}
 
-	const dockerComposeServiceLabel = "com.docker.compose.service"
 	services := make([]string, 0, len(containers))
 	for _, info := range containers {
 		if name := info.Labels[dockerComposeServiceLabel]; name != "" && !slices.Contains(services, name) {
