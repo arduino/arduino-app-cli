@@ -54,6 +54,7 @@ type service struct {
 	DeviceCgroupRules []string                      `yaml:"device_cgroup_rules,omitempty"`
 	SecurityOpt       []string                      `yaml:"security_opt,omitempty"`
 	Entrypoint        string                        `yaml:"entrypoint"`
+	Command           []string                      `yaml:"command,omitempty"`
 	ExtraHosts        []string                      `yaml:"extra_hosts,omitempty"`
 	Labels            map[string]string             `yaml:"labels,omitempty"`
 	Environment       map[string]string             `yaml:"environment,omitempty"`
@@ -174,6 +175,11 @@ const (
 	DockerAppLabel     = "cc.arduino.app"
 	DockerAppMainLabel = "cc.arduino.app.main"
 	DockerAppPathLabel = "cc.arduino.app.path"
+	// DockerAppLauncherLabel marks a main container run by the app launcher, which the daemon
+	// starts and stops the app through, the container staying up.
+	DockerAppLauncherLabel = "cc.arduino.app.launcher"
+	// DockerAppRuntimeDirLabel is the folder of the board the daemon reaches the launcher socket in.
+	DockerAppRuntimeDirLabel = "cc.arduino.app.runtime"
 )
 
 const dockerApparmorProfile = "arduino-docker-profile"

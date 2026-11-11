@@ -46,10 +46,10 @@ func selectedModelID(brick app.Brick, definition *bricksindex.Brick) string {
 }
 
 // checkBricks validates that each app brick exists in the index, that its selected model (when
-// required) is installed, and that all required brick variables are set.
-// Errors are joined so every issue is reported at once.
-// A build passes installed false: the board of the release downloads the model at prepare.
-func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.BricksIndex, modelIndex *modelsindex.ModelsIndex, installed bool) error {
+// required) is declared and made for the brick, and that all required brick variables are set.
+// Errors are joined so every issue is reported at once. Whether the model is on the board is
+// checkModelsInstalled's question: this one asks the board nothing.
+func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.BricksIndex, modelIndex *modelsindex.ModelsIndex) error {
 	var allErrors error
 	models := modelIndex.NewLookup()
 	for _, appBrick := range bricks {
@@ -61,22 +61,14 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 
 		if indexBrick.RequireModel {
 			selectedModel := selectedModelID(appBrick, indexBrick)
-			model, err := models.ByID(ctx, selectedModel)
+			model, err := models.Find(ctx, selectedModel)
 			switch {
 			case err != nil:
 				allErrors = errors.Join(allErrors, fmt.Errorf("retrieving model %q for brick %q: %w", selectedModel, appBrick.ID, err))
 			case model == nil:
 				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q not found", selectedModel, appBrick.ID))
-			default:
-				if installed && model.Status != modelsindex.InstalledStatus {
-					allErrors = errors.Join(allErrors, fmt.Errorf("%w: model %q for brick %q is not installed", ErrNotPrepared, selectedModel, appBrick.ID))
-				}
-				switch supported, err := models.ModelForBrick(ctx, selectedModel, appBrick.ID); {
-				case err != nil:
-					allErrors = errors.Join(allErrors, fmt.Errorf("checking model %q for brick %q: %w", selectedModel, appBrick.ID, err))
-				case supported == nil:
-					allErrors = errors.Join(allErrors, fmt.Errorf("model %q is not compatible with brick %q", selectedModel, appBrick.ID))
-				}
+			case !slices.ContainsFunc(model.Bricks, func(b modelsindex.BrickConfig) bool { return b.ID == appBrick.ID }):
+				allErrors = errors.Join(allErrors, fmt.Errorf("model %q is not compatible with brick %q", selectedModel, appBrick.ID))
 			}
 		}
 
@@ -101,6 +93,29 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 		}
 	}
 
+	return allErrors
+}
+
+// checkModelsInstalled fails on a brick whose model is not on the board. It lists the board
+// through the given lookup, once for the start that shares it with the model preparation.
+func checkModelsInstalled(ctx context.Context, bricks []app.Brick, index *bricksindex.BricksIndex, models *modelsindex.Lookup) error {
+	var allErrors error
+	for _, appBrick := range bricks {
+		indexBrick, found := index.FindBrickByID(appBrick.ID)
+		if !found || !indexBrick.RequireModel {
+			continue
+		}
+		selectedModel := selectedModelID(appBrick, indexBrick)
+		model, err := models.ByID(ctx, selectedModel)
+		switch {
+		case err != nil:
+			allErrors = errors.Join(allErrors, fmt.Errorf("retrieving model %q for brick %q: %w", selectedModel, appBrick.ID, err))
+		case model == nil:
+			allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q not found", selectedModel, appBrick.ID))
+		case model.Status != modelsindex.InstalledStatus:
+			allErrors = errors.Join(allErrors, fmt.Errorf("%w: model %q for brick %q is not installed", ErrNotPrepared, selectedModel, appBrick.ID))
+		}
+	}
 	return allErrors
 }
 
