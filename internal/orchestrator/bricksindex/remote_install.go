@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package remotebricksindex
+package bricksindex
 
 import (
 	"archive/zip"
@@ -29,7 +29,6 @@ import (
 	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
 const (
@@ -53,7 +52,7 @@ var (
 // when the reference does not have one.
 func ParseBrickReference(ref string) (id string, version string, err error) {
 	id, version, hasVersion := strings.Cut(ref, "@")
-	if _, _, err := bricksindex.ParseBrickID(id); err != nil {
+	if _, _, err := ParseBrickID(id); err != nil {
 		return "", "", fmt.Errorf("invalid brick reference %q: expected NAMESPACE:NAME[@VERSION]", ref)
 	}
 	if hasVersion && version == "" {
@@ -64,7 +63,7 @@ func ParseBrickReference(ref string) (id string, version string, err error) {
 
 // FindRelease returns the brick with the given id and its release with the given version,
 // or its latest release if version is empty.
-func (idx *Index) FindRelease(id, version string) (*Brick, *Release, error) {
+func (idx *RemoteIndex) FindRelease(id, version string) (*RemoteBrick, *RemoteRelease, error) {
 	for i := range idx.Bricks {
 		brick := &idx.Bricks[i]
 		if brick.ID != id {
@@ -85,7 +84,7 @@ func (idx *Index) FindRelease(id, version string) (*Brick, *Release, error) {
 
 // splitBrickID returns the namespace and the name of the brick, checking that both can be used as folder names.
 func splitBrickID(id string) (namespace, name string, err error) {
-	namespace, name, err = bricksindex.ParseBrickID(id)
+	namespace, name, err = ParseBrickID(id)
 	if err != nil || !validFolderName.MatchString(namespace) || !validFolderName.MatchString(name) {
 		return "", "", fmt.Errorf("brick id %q contains characters that are not allowed", id)
 	}
@@ -125,7 +124,7 @@ type InstallResult struct {
 
 // Install downloads the release of the brick and installs it in bricksDir. Releases are
 // never replaced: each version is installed in its own folder.
-func Install(ctx context.Context, client *http.Client, bricksDir *paths.Path, brick *Brick, release *Release, userAgent string) (InstallResult, error) {
+func Install(ctx context.Context, client *http.Client, bricksDir *paths.Path, brick *RemoteBrick, release *RemoteRelease, userAgent string) (InstallResult, error) {
 	installPath, err := InstallPath(bricksDir, brick.ID, release.Version)
 	if err != nil {
 		return InstallResult{}, err

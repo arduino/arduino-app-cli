@@ -13,8 +13,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 )
 
 func newUpdateIndexCmd(cfg config.Configuration, version string) *cobra.Command {
@@ -29,7 +29,7 @@ func newUpdateIndexCmd(cfg config.Configuration, version string) *cobra.Command 
 }
 
 func updateIndexHandler(ctx context.Context, cfg config.Configuration, version string) {
-	res, err := remotebricksindex.Update(ctx, http.DefaultClient, cfg.BricksIndexURL,
+	res, err := bricksindex.UpdateRemoteIndex(ctx, http.DefaultClient, cfg.BricksIndexURL,
 		cfg.BricksIndexDir(), "arduino-app-cli/"+version)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)

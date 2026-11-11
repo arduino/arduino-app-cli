@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package remotebricksindex
+package bricksindex
 
 import (
 	"fmt"
@@ -13,21 +13,21 @@ import (
 )
 
 func TestSearch(t *testing.T) {
-	index := &Index{Bricks: []Brick{
+	index := &RemoteIndex{Bricks: []RemoteBrick{
 		{
 			ID: "acme:camera", Name: "Camera Brick", Namespace: "acme", Latest: "1.1.0",
-			Releases: []Release{
+			Releases: []RemoteRelease{
 				{Version: "1.1.0", Description: "Capture frames from USB cameras.", Repository: "https://gitlab.com/acme/camera-brick"},
 				{Version: "1.0.0", Description: "Old description mentioning thermal."},
 			},
 		},
 		{
 			ID: "sensorlab:air_quality", Name: "Air Quality Monitor", Namespace: "sensorlab", Latest: "0.3.1", Deprecated: true,
-			Releases: []Release{{Version: "0.3.1", Description: "Read air quality metrics from I2C sensors."}},
+			Releases: []RemoteRelease{{Version: "0.3.1", Description: "Read air quality metrics from I2C sensors."}},
 		},
 	}}
 
-	ids := func(bricks []Brick) []string {
+	ids := func(bricks []RemoteBrick) []string {
 		res := make([]string, 0, len(bricks))
 		for _, b := range bricks {
 			res = append(res, b.ID)

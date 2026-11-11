@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package remotebricksindex
+package bricksindex
 
 import (
 	"archive/zip"
@@ -33,14 +33,14 @@ func makeZip(t *testing.T, files map[string]string) []byte {
 }
 
 // archiveRelease serves archive and returns a release that points to it.
-func archiveRelease(t *testing.T, archive []byte) *Release {
+func archiveRelease(t *testing.T, archive []byte) *RemoteRelease {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(archive)
 	}))
 	t.Cleanup(srv.Close)
 	sum := sha256.Sum256(archive)
-	return &Release{
+	return &RemoteRelease{
 		Version: "1.0.0",
 		URL:     srv.URL + "/brick.zip",
 		Hash:    hex.EncodeToString(sum[:]),
@@ -49,7 +49,7 @@ func archiveRelease(t *testing.T, archive []byte) *Release {
 }
 
 func TestFindRelease(t *testing.T) {
-	index, err := parse([]byte(validIndex))
+	index, err := parseRemoteIndex([]byte(validIndex))
 	require.NoError(t, err)
 
 	brick, release, err := index.FindRelease("acme:camera", "")
@@ -83,7 +83,7 @@ func TestInstallPathRejectsUnsafeNames(t *testing.T) {
 
 func TestInstall(t *testing.T) {
 	bricksDir := paths.New(t.TempDir())
-	brick := &Brick{ID: "acme:camera"}
+	brick := &RemoteBrick{ID: "acme:camera"}
 	release := archiveRelease(t, makeZip(t, map[string]string{
 		"camera/brick_config.yaml":  "id: acme:camera\n",
 		"camera/README.md":          "readme",
@@ -111,12 +111,12 @@ func TestInstallFailures(t *testing.T) {
 	validArchive := makeZip(t, map[string]string{"camera/brick_config.yaml": "id: acme:camera\n"})
 	tests := []struct {
 		name    string
-		release func(t *testing.T) *Release
+		release func(t *testing.T) *RemoteRelease
 		wantErr string
 	}{
 		{
 			name: "hash mismatch",
-			release: func(t *testing.T) *Release {
+			release: func(t *testing.T) *RemoteRelease {
 				r := archiveRelease(t, validArchive)
 				r.Hash = hex.EncodeToString(make([]byte, sha256.Size))
 				return r
@@ -125,7 +125,7 @@ func TestInstallFailures(t *testing.T) {
 		},
 		{
 			name: "size mismatch",
-			release: func(t *testing.T) *Release {
+			release: func(t *testing.T) *RemoteRelease {
 				r := archiveRelease(t, validArchive)
 				r.Size--
 				return r
@@ -134,7 +134,7 @@ func TestInstallFailures(t *testing.T) {
 		},
 		{
 			name: "not enough disk space",
-			release: func(t *testing.T) *Release {
+			release: func(t *testing.T) *RemoteRelease {
 				r := archiveRelease(t, validArchive)
 				r.Size = 1 << 62
 				return r
@@ -143,7 +143,7 @@ func TestInstallFailures(t *testing.T) {
 		},
 		{
 			name: "invalid hash",
-			release: func(t *testing.T) *Release {
+			release: func(t *testing.T) *RemoteRelease {
 				r := archiveRelease(t, validArchive)
 				r.Hash = "SHA-256:" + r.Hash
 				return r
@@ -152,7 +152,7 @@ func TestInstallFailures(t *testing.T) {
 		},
 		{
 			name: "multiple root folders",
-			release: func(t *testing.T) *Release {
+			release: func(t *testing.T) *RemoteRelease {
 				return archiveRelease(t, makeZip(t, map[string]string{
 					"camera/brick_config.yaml": "id: acme:camera\n",
 					"other/file":               "x",
@@ -162,14 +162,14 @@ func TestInstallFailures(t *testing.T) {
 		},
 		{
 			name: "file at the root",
-			release: func(t *testing.T) *Release {
+			release: func(t *testing.T) *RemoteRelease {
 				return archiveRelease(t, makeZip(t, map[string]string{"brick_config.yaml": "id: acme:camera\n"}))
 			},
 			wantErr: "single root folder",
 		},
 		{
 			name: "path traversal",
-			release: func(t *testing.T) *Release {
+			release: func(t *testing.T) *RemoteRelease {
 				return archiveRelease(t, makeZip(t, map[string]string{
 					"camera/brick_config.yaml": "id: acme:camera\n",
 					"camera/../../evil":        "x",
@@ -179,14 +179,14 @@ func TestInstallFailures(t *testing.T) {
 		},
 		{
 			name: "missing brick_config.yaml",
-			release: func(t *testing.T) *Release {
+			release: func(t *testing.T) *RemoteRelease {
 				return archiveRelease(t, makeZip(t, map[string]string{"camera/README.md": "readme"}))
 			},
 			wantErr: "does not contain a valid brick_config.yaml",
 		},
 		{
 			name: "wrong brick id",
-			release: func(t *testing.T) *Release {
+			release: func(t *testing.T) *RemoteRelease {
 				return archiveRelease(t, makeZip(t, map[string]string{"camera/brick_config.yaml": "id: other:camera\n"}))
 			},
 			wantErr: `declares id "other:camera"`,
@@ -195,7 +195,7 @@ func TestInstallFailures(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			bricksDir := paths.New(t.TempDir())
-			_, err := Install(t.Context(), http.DefaultClient, bricksDir, &Brick{ID: "acme:camera"}, tc.release(t), "test")
+			_, err := Install(t.Context(), http.DefaultClient, bricksDir, &RemoteBrick{ID: "acme:camera"}, tc.release(t), "test")
 			require.ErrorContains(t, err, tc.wantErr)
 
 			// Nothing is installed and no temporary folders are left behind.

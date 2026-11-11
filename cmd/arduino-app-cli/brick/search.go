@@ -13,8 +13,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 )
 
 func newSearchCmd(cfg config.Configuration) *cobra.Command {
@@ -35,7 +35,7 @@ func newSearchCmd(cfg config.Configuration) *cobra.Command {
 }
 
 func searchHandler(keywords []string, allVersions, deprecated bool, cfg config.Configuration) {
-	index, err := remotebricksindex.Load(cfg.BricksIndexDir())
+	index, err := bricksindex.LoadRemoteIndex(cfg.BricksIndexDir())
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
@@ -46,7 +46,7 @@ func searchHandler(keywords []string, allVersions, deprecated bool, cfg config.C
 }
 
 type searchResult struct {
-	Bricks      []remotebricksindex.Brick `json:"bricks"`
+	Bricks      []bricksindex.RemoteBrick `json:"bricks"`
 	allVersions bool
 }
 

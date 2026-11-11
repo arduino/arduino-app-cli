@@ -13,8 +13,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 )
 
 func newUninstallCmd(cfg config.Configuration) *cobra.Command {
@@ -33,7 +33,7 @@ func newUninstallCmd(cfg config.Configuration) *cobra.Command {
 func uninstallHandler(ctx context.Context, args []string, cfg config.Configuration) {
 	var res uninstallResult
 	for _, ref := range parseBrickReferences(args) {
-		uninstalled, err := remotebricksindex.Uninstall(ctx, cfg.BricksDir(), ref.id, ref.version)
+		uninstalled, err := bricksindex.Uninstall(ctx, cfg.BricksDir(), ref.id, ref.version)
 		if err == nil || len(uninstalled.Versions) > 0 {
 			versions := uninstalled.Versions
 			if versions == nil {

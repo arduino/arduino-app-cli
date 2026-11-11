@@ -14,8 +14,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 )
 
 func newInstallCmd(cfg config.Configuration, version string) *cobra.Command {
@@ -34,15 +34,15 @@ func newInstallCmd(cfg config.Configuration, version string) *cobra.Command {
 
 func installHandler(ctx context.Context, args []string, cfg config.Configuration, version string) {
 	refs := parseBrickReferences(args)
-	index, err := remotebricksindex.Load(cfg.BricksIndexDir())
+	index, err := bricksindex.LoadRemoteIndex(cfg.BricksIndexDir())
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
 
 	// Everything is resolved first, so that an unknown brick does not leave the others half done.
 	type toInstall struct {
-		brick   *remotebricksindex.Brick
-		release *remotebricksindex.Release
+		brick   *bricksindex.RemoteBrick
+		release *bricksindex.RemoteRelease
 	}
 	resolved := make([]toInstall, 0, len(refs))
 	for _, ref := range refs {
@@ -62,7 +62,7 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 			}
 			feedback.Warnf("%s", msg)
 		}
-		installed, err := remotebricksindex.Install(ctx, http.DefaultClient, cfg.BricksDir(),
+		installed, err := bricksindex.Install(ctx, http.DefaultClient, cfg.BricksDir(),
 			r.brick, r.release, "arduino-app-cli/"+version)
 		if err != nil {
 			if len(res.Bricks) > 0 {
@@ -88,7 +88,7 @@ type brickReference struct {
 func parseBrickReferences(args []string) []brickReference {
 	refs := make([]brickReference, 0, len(args))
 	for _, arg := range args {
-		id, version, err := remotebricksindex.ParseBrickReference(arg)
+		id, version, err := bricksindex.ParseBrickReference(arg)
 		if err != nil {
 			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 		}

@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package remotebricksindex
+package bricksindex
 
 import (
 	"net/http"
@@ -51,25 +51,25 @@ func TestUpdate(t *testing.T) {
 	dir := paths.New(t.TempDir()).Join("bricks-index")
 	u := indexServer(t, http.StatusOK, validIndex, `"v1"`)
 
-	res, err := Update(t.Context(), http.DefaultClient, u, dir, "test")
+	res, err := UpdateRemoteIndex(t.Context(), http.DefaultClient, u, dir, "test")
 	require.NoError(t, err)
 	require.True(t, res.Updated)
 	require.Len(t, res.Index.Bricks, 1)
 
-	saved, err := dir.Join(IndexFileName).ReadFile()
+	saved, err := dir.Join(RemoteIndexFileName).ReadFile()
 	require.NoError(t, err)
 	require.Equal(t, validIndex, string(saved), "the index must be saved as downloaded")
 
 	t.Run("an unchanged index is not downloaded again", func(t *testing.T) {
-		res, err := Update(t.Context(), http.DefaultClient, u, dir, "test")
+		res, err := UpdateRemoteIndex(t.Context(), http.DefaultClient, u, dir, "test")
 		require.NoError(t, err)
 		require.False(t, res.Updated)
 		require.Equal(t, "acme:camera", res.Index.Bricks[0].ID)
 	})
 
 	t.Run("a missing local index is downloaded even if the etag matches", func(t *testing.T) {
-		require.NoError(t, dir.Join(IndexFileName).Remove())
-		res, err := Update(t.Context(), http.DefaultClient, u, dir, "test")
+		require.NoError(t, dir.Join(RemoteIndexFileName).Remove())
+		res, err := UpdateRemoteIndex(t.Context(), http.DefaultClient, u, dir, "test")
 		require.NoError(t, err)
 		require.True(t, res.Updated)
 	})
@@ -91,13 +91,13 @@ func TestUpdateKeepsPreviousIndexOnFailure(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := paths.New(t.TempDir())
-			require.NoError(t, dir.Join(IndexFileName).WriteFile([]byte(validIndex)))
+			require.NoError(t, dir.Join(RemoteIndexFileName).WriteFile([]byte(validIndex)))
 
 			u := indexServer(t, tt.status, tt.body, "")
-			_, err := Update(t.Context(), http.DefaultClient, u, dir, "test")
+			_, err := UpdateRemoteIndex(t.Context(), http.DefaultClient, u, dir, "test")
 			require.ErrorContains(t, err, tt.errMsg)
 
-			saved, err := dir.Join(IndexFileName).ReadFile()
+			saved, err := dir.Join(RemoteIndexFileName).ReadFile()
 			require.NoError(t, err)
 			require.Equal(t, validIndex, string(saved))
 		})

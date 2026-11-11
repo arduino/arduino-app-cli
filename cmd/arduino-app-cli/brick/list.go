@@ -12,8 +12,8 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/tablestyle"
 )
 
@@ -34,7 +34,7 @@ func bricksListHandler(cfg config.Configuration) {
 		res.Bricks = append(res.Bricks, brickListItem{BrickListItem: b})
 	}
 
-	installed, err := remotebricksindex.ListInstalled(cfg.BricksDir())
+	installed, err := bricksindex.ListInstalled(cfg.BricksDir())
 	if err != nil {
 		feedback.Warnf("Cannot list the bricks installed from the bricks index: %v", err)
 	}

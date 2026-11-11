@@ -3,14 +3,14 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package remotebricksindex
+package bricksindex
 
 import (
 	"strings"
 )
 
 // LatestRelease returns the release named by Latest, or nil if there is none.
-func (b Brick) LatestRelease() *Release {
+func (b RemoteBrick) LatestRelease() *RemoteRelease {
 	for i := range b.Releases {
 		if b.Releases[i].Version == b.Latest {
 			return &b.Releases[i]
@@ -21,9 +21,9 @@ func (b Brick) LatestRelease() *Release {
 
 // Search returns the bricks that contain every word of query, ignoring case.
 // An empty query matches all the bricks. Deprecated bricks are skipped unless includeDeprecated is set.
-func (idx *Index) Search(query string, includeDeprecated bool) []Brick {
+func (idx *RemoteIndex) Search(query string, includeDeprecated bool) []RemoteBrick {
 	terms := strings.Fields(strings.ToLower(query))
-	res := []Brick{}
+	res := []RemoteBrick{}
 	for _, b := range idx.Bricks {
 		if b.Deprecated && !includeDeprecated {
 			continue
@@ -36,7 +36,7 @@ func (idx *Index) Search(query string, includeDeprecated bool) []Brick {
 }
 
 // matches reports whether every term is contained in the brick, ignoring case.
-func (b Brick) matches(terms []string) bool {
+func (b RemoteBrick) matches(terms []string) bool {
 	fields := []string{b.ID, b.Name, b.Namespace}
 	// TODO: should we match the older releases as well, the --all flag is passed here?
 	if latest := b.LatestRelease(); latest != nil {

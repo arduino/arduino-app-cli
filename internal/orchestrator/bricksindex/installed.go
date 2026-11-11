@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package remotebricksindex
+package bricksindex
 
 import (
 	"cmp"
@@ -15,15 +15,13 @@ import (
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
 	semver "go.bug.st/relaxed-semver"
-
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
 type InstalledBrick struct {
 	Namespace string
 	Version   string
 	// Brick is read from the brick_config.yaml of the installed version.
-	Brick bricksindex.Brick
+	Brick Brick
 }
 
 // ListInstalled returns the bricks installed in bricksDir, one entry per version, sorted by
@@ -75,17 +73,17 @@ func ListInstalled(bricksDir *paths.Path) ([]InstalledBrick, error) {
 	return res, nil
 }
 
-func loadInstalledBrick(brickDir *paths.Path, id string) (bricksindex.Brick, error) {
+func loadInstalledBrick(brickDir *paths.Path, id string) (Brick, error) {
 	data, err := brickDir.Join(brickConfigFileName).ReadFile()
 	if err != nil {
-		return bricksindex.Brick{}, err
+		return Brick{}, err
 	}
-	var brick bricksindex.Brick
+	var brick Brick
 	if err := yaml.Unmarshal(data, &brick); err != nil {
-		return bricksindex.Brick{}, fmt.Errorf("invalid %s: %w", brickConfigFileName, err)
+		return Brick{}, fmt.Errorf("invalid %s: %w", brickConfigFileName, err)
 	}
 	if brick.ID != id {
-		return bricksindex.Brick{}, fmt.Errorf("%s declares id %q instead of %q", brickConfigFileName, brick.ID, id)
+		return Brick{}, fmt.Errorf("%s declares id %q instead of %q", brickConfigFileName, brick.ID, id)
 	}
 	brick.FullPath = brickDir
 	return brick, nil
