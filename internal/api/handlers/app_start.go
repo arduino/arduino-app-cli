@@ -7,9 +7,12 @@ package handlers
 
 import (
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
@@ -53,6 +56,35 @@ func HandleAppStart(
 			return
 		}
 
+		// The whole body is read before the SSE stream opens: net/http may close the
+		// connection when a handler writes its response before it has read the request.
+		// A bare "prebuilt_sketch" means true, as for "verbose".
+		usePrebuiltSketch := r.URL.Query().Has("prebuilt_sketch")
+		if v := r.URL.Query().Get("prebuilt_sketch"); v != "" {
+			usePrebuiltSketch, err = strconv.ParseBool(v)
+			if err != nil {
+				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid prebuilt_sketch parameter"})
+				return
+			}
+		}
+		var prebuiltSketch *paths.Path
+		if usePrebuiltSketch {
+			r.Body = http.MaxBytesReader(w, r.Body, maxPrebuiltSketchSize)
+			fwFile, err := savePrebuiltSketch(r)
+			if err != nil {
+				slog.Error("unable to read the prebuilt sketch", slog.String("error", err.Error()))
+				details := "missing or unreadable file parameter"
+				var tooLarge *http.MaxBytesError
+				if errors.As(err, &tooLarge) {
+					details = "the request is larger than 32 MB"
+				}
+				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: details})
+				return
+			}
+			defer func() { _ = fwFile.Remove() }()
+			prebuiltSketch = fwFile
+		}
+
 		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {
 			slog.Error("Unable to create SSE stream", slog.String("error", err.Error()))
@@ -71,7 +103,7 @@ func HandleAppStart(
 		// An editable app is prepared by its start, downloading what it is missing; a
 		// release is not, so a start of one that is not prepared fails as not prepared.
 		prepare := !app.IsRelease()
-		if err := orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, bricksIndex, servicesIndex, app, cfg, platform, verbose, prepare, func(item orchestrator.StreamMessage) {
+		if err := orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, bricksIndex, servicesIndex, app, cfg, platform, verbose, prepare, prebuiltSketch, func(item orchestrator.StreamMessage) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
 				sseStream.Send(render.SSEEvent{Type: render.ProgressEvent, Data: progress(*item.GetProgress())})
@@ -80,8 +112,11 @@ func HandleAppStart(
 			}
 		}); err != nil {
 			code := render.InternalServiceErr
-			if errors.Is(err, orchestrator.ErrNotPrepared) {
+			switch {
+			case errors.Is(err, orchestrator.ErrNotPrepared):
 				code = render.NotPreparedErr
+			case errors.Is(err, orchestrator.ErrBadRequest):
+				code = render.BadRequestErr
 			}
 			sseStream.SendError(render.SSEErrorData{
 				Code:    code,
@@ -89,4 +124,34 @@ func HandleAppStart(
 			})
 		}
 	}
+}
+
+// maxPrebuiltSketchSize caps the start request body, so a prebuilt sketch upload cannot fill the board's disk.
+const maxPrebuiltSketchSize = 32 << 20
+
+// savePrebuiltSketch writes the "file" form field of r to a temp file.
+func savePrebuiltSketch(r *http.Request) (*paths.Path, error) {
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	tempFile, err := paths.MkTempFile(nil, "sketch-prebuilt-*.fw")
+	if err != nil {
+		return nil, err
+	}
+	tempFilePath := paths.NewFromFile(tempFile)
+	n, err := io.Copy(tempFile, file)
+	if closeErr := tempFile.Close(); err == nil {
+		err = closeErr
+	}
+	if err == nil && n == 0 {
+		err = errors.New("the file is empty")
+	}
+	if err != nil {
+		_ = tempFilePath.Remove()
+		return nil, err
+	}
+	return tempFilePath, nil
 }

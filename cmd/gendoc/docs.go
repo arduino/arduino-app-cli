@@ -7,6 +7,7 @@ package main
 
 import (
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"path"
 	"reflect"
@@ -534,8 +535,12 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodPost,
 			Path:        "/v1/apps/{id}/start",
 			Request: (*struct {
-				ID      string `path:"id" description:"application identifier."`
-				Verbose bool   `query:"verbose" description:"Return a verbose output. Default is false."`
+				File multipart.File `formData:"file" description:"The firmware file (.fw) to flash when prebuilt_sketch is true. The client compiles the sketch and writes it with arduino-cli upload --write-to-fw-file."`
+			})(nil),
+			Parameters: (*struct {
+				ID             string `path:"id" description:"application identifier."`
+				Verbose        bool   `query:"verbose" description:"Return a verbose output. Default is false."`
+				PrebuiltSketch bool   `query:"prebuilt_sketch" description:"Flash the firmware file sent in the 'file' form field instead of compiling the sketch on the board. The client compiles the sketch with the full FQBN of the board, including the menu option wait_linux_boot=app when the core of the board has it, and writes the file with arduino-cli upload --write-to-fw-file. The board does not check how the file was built. A missing or empty file, a request larger than 32 MB, or a value that is not a boolean, fails with HTTP 400. An app with no sketch, a release app or a platform that flashes the sketch to RAM fails with the error code 'bad_request'. A restart of the app compiles the sketch on the board. Default is false."`
 			})(nil),
 			Description: "Start the application and handles all the operation to start any dependecies. If the app contains a sketch it also flash it in the micro.",
 			Summary:     "Start an existing app/example",
@@ -569,6 +574,7 @@ before the app is started again.
 `,
 			},
 			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
 				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 			},

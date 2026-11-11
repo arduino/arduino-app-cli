@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Defines values for ModelOrigin.
@@ -461,6 +462,9 @@ type ExampleResponse struct {
 	CoreAndFoundational *[]CategoryExamples `json:"core-and-foundational,omitempty"`
 }
 
+// File defines model for File.
+type File = openapi_types.File
+
 // Library defines model for Library.
 type Library struct {
 	Architectures *[]string `json:"architectures,omitempty"`
@@ -697,10 +701,18 @@ type GetAppLogsParams struct {
 	Nofollow *bool   `form:"nofollow,omitempty" json:"nofollow,omitempty"`
 }
 
+// StartAppMultipartBody defines parameters for StartApp.
+type StartAppMultipartBody struct {
+	File *File `json:"file,omitempty"`
+}
+
 // StartAppParams defines parameters for StartApp.
 type StartAppParams struct {
 	// Verbose Return a verbose output. Default is false.
 	Verbose *bool `form:"verbose,omitempty" json:"verbose,omitempty"`
+
+	// PrebuiltSketch Flash the firmware file sent in the 'file' form field instead of compiling the sketch on the board. The client compiles the sketch with the full FQBN of the board, including the menu option wait_linux_boot=app when the core of the board has it, and writes the file with arduino-cli upload --write-to-fw-file. The board does not check how the file was built. A missing or empty file, a request larger than 32 MB, or a value that is not a boolean, fails with HTTP 400. An app with no sketch, a release app or a platform that flashes the sketch to RAM fails with the error code 'bad_request'. A restart of the app compiles the sketch on the board. Default is false.
+	PrebuiltSketch *bool `form:"prebuilt_sketch,omitempty" json:"prebuilt_sketch,omitempty"`
 }
 
 // ListLibrariesParams defines parameters for ListLibraries.
@@ -795,6 +807,9 @@ type EditAppJSONRequestBody = EditRequest
 
 // CloneAppJSONRequestBody defines body for CloneApp for application/json ContentType.
 type CloneAppJSONRequestBody = CloneRequest
+
+// StartAppMultipartRequestBody defines body for StartApp for multipart/form-data ContentType.
+type StartAppMultipartRequestBody StartAppMultipartBody
 
 // DownloadModelJSONRequestBody defines body for DownloadModel for application/json ContentType.
 type DownloadModelJSONRequestBody = DownloadModelRequest
@@ -976,8 +991,8 @@ type ClientInterface interface {
 	// PrepareAppRelease request
 	PrepareAppRelease(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// StartApp request
-	StartApp(ctx context.Context, id string, params *StartAppParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// StartAppWithBody request with any body
+	StartAppWithBody(ctx context.Context, id string, params *StartAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StopApp request
 	StopApp(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1481,8 +1496,8 @@ func (c *Client) PrepareAppRelease(ctx context.Context, id string, reqEditors ..
 	return c.Client.Do(req)
 }
 
-func (c *Client) StartApp(ctx context.Context, id string, params *StartAppParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewStartAppRequest(c.Server, id, params)
+func (c *Client) StartAppWithBody(ctx context.Context, id string, params *StartAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStartAppRequestWithBody(c.Server, id, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3066,8 +3081,8 @@ func NewPrepareAppReleaseRequest(server string, id string) (*http.Request, error
 	return req, nil
 }
 
-// NewStartAppRequest generates requests for StartApp
-func NewStartAppRequest(server string, id string, params *StartAppParams) (*http.Request, error) {
+// NewStartAppRequestWithBody generates requests for StartApp with any type of body
+func NewStartAppRequestWithBody(server string, id string, params *StartAppParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -3113,16 +3128,30 @@ func NewStartAppRequest(server string, id string, params *StartAppParams) (*http
 
 		}
 
+		if params.PrebuiltSketch != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "prebuilt_sketch", *params.PrebuiltSketch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
 		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
 	}
 
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -4145,8 +4174,8 @@ type ClientWithResponsesInterface interface {
 	// PrepareAppReleaseWithResponse request
 	PrepareAppReleaseWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*PrepareAppReleaseResp, error)
 
-	// StartAppWithResponse request
-	StartAppWithResponse(ctx context.Context, id string, params *StartAppParams, reqEditors ...RequestEditorFn) (*StartAppResp, error)
+	// StartAppWithBodyWithResponse request with any body
+	StartAppWithBodyWithResponse(ctx context.Context, id string, params *StartAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StartAppResp, error)
 
 	// StopAppWithResponse request
 	StopAppWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*StopAppResp, error)
@@ -5064,6 +5093,7 @@ func (r PrepareAppReleaseResp) ContentType() string {
 type StartAppResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON400      *BadRequest
 	JSON412      *PreconditionFailed
 	JSON500      *InternalServerError
 }
@@ -6074,9 +6104,9 @@ func (c *ClientWithResponses) PrepareAppReleaseWithResponse(ctx context.Context,
 	return ParsePrepareAppReleaseResp(rsp)
 }
 
-// StartAppWithResponse request returning *StartAppResp
-func (c *ClientWithResponses) StartAppWithResponse(ctx context.Context, id string, params *StartAppParams, reqEditors ...RequestEditorFn) (*StartAppResp, error) {
-	rsp, err := c.StartApp(ctx, id, params, reqEditors...)
+// StartAppWithBodyWithResponse request with arbitrary body returning *StartAppResp
+func (c *ClientWithResponses) StartAppWithBodyWithResponse(ctx context.Context, id string, params *StartAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StartAppResp, error) {
+	rsp, err := c.StartAppWithBody(ctx, id, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -7409,6 +7439,13 @@ func ParseStartAppResp(rsp *http.Response) (*StartAppResp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
 		var dest PreconditionFailed
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
