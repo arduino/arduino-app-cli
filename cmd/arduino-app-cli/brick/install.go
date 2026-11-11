@@ -35,6 +35,7 @@ func newInstallCmd(cfg config.Configuration, version string) *cobra.Command {
 }
 
 func installHandler(ctx context.Context, args []string, cfg config.Configuration, version string) {
+	failIfRoot("install bricks")
 	refs := parseBrickReferences(args)
 	index := loadRemoteIndex(ctx, cfg, version)
 
@@ -59,8 +60,8 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 			}
 			feedback.Warnf("%s", msg)
 		}
-		installed, err := bricksindex.Install(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksDir(),
-			brick, platform, downloadProgress(out, brick.ID+"@"+brick.Version.String()))
+		progress := downloadProgress(out, brick.ID+"@"+brick.Version.String())
+		installed, err := bricksindex.Install(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksDir(), brick, platform, progress, printWaiting)
 		if err != nil {
 			if len(res.Bricks) > 0 {
 				feedback.PrintResult(res)

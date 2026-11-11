@@ -25,7 +25,8 @@ type UninstallResult struct {
 
 // Uninstall removes the given version of the brick from bricksDir or, if version is nil,
 // all of its installed versions. On error, the result contains the versions removed so far.
-func Uninstall(ctx context.Context, bricksDir *paths.Path, id string, version *semver.Version) (UninstallResult, error) {
+// onWait, if not nil, is called when the uninstall has to wait for another install or uninstall.
+func Uninstall(ctx context.Context, bricksDir *paths.Path, id string, version *semver.Version, onWait func()) (UninstallResult, error) {
 	namespace, name, err := splitBrickID(id)
 	if err != nil {
 		return UninstallResult{}, err
@@ -34,7 +35,7 @@ func Uninstall(ctx context.Context, bricksDir *paths.Path, id string, version *s
 		return UninstallResult{}, nil
 	}
 
-	unlock, err := lockBricksDir(ctx, bricksDir)
+	unlock, err := lockBricksDir(ctx, bricksDir, onWait)
 	if err != nil {
 		return UninstallResult{}, err
 	}

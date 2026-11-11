@@ -135,7 +135,7 @@ func TestInstall(t *testing.T) {
 
 	var downloaded, total int64
 	progress := func(d, tot int64) { downloaded, total = d, tot }
-	res, err := Install(t.Context(), DownloadConfig("test"), bricksDir, brick, platform.Platform{}, progress)
+	res, err := Install(t.Context(), DownloadConfig("test"), bricksDir, brick, platform.Platform{}, progress, nil)
 	require.NoError(t, err)
 	require.False(t, res.AlreadyInstalled)
 	require.Equal(t, brick.Size, downloaded)
@@ -144,7 +144,7 @@ func TestInstall(t *testing.T) {
 	require.FileExists(t, res.Path.Join("brick_config.yaml").String())
 	require.FileExists(t, res.Path.Join("README.md").String())
 
-	res, err = Install(t.Context(), DownloadConfig("test"), bricksDir, brick, platform.Platform{}, nil)
+	res, err = Install(t.Context(), DownloadConfig("test"), bricksDir, brick, platform.Platform{}, nil, nil)
 	require.NoError(t, err)
 	require.True(t, res.AlreadyInstalled)
 
@@ -276,7 +276,7 @@ func TestInstallFailures(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			bricksDir := paths.New(t.TempDir())
-			_, err := Install(t.Context(), DownloadConfig("test"), bricksDir, tc.brick(t), platform.Platform{BoardName: "unoq"}, nil)
+			_, err := Install(t.Context(), DownloadConfig("test"), bricksDir, tc.brick(t), platform.Platform{BoardName: "unoq"}, nil, nil)
 			require.ErrorContains(t, err, tc.wantErr)
 
 			// Nothing is installed and no temporary folders are left behind.

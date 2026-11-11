@@ -31,9 +31,10 @@ func newUninstallCmd(cfg config.Configuration) *cobra.Command {
 }
 
 func uninstallHandler(ctx context.Context, args []string, cfg config.Configuration) {
+	failIfRoot("uninstall bricks")
 	var res uninstallResult
 	for _, ref := range parseBrickReferences(args) {
-		uninstalled, err := bricksindex.Uninstall(ctx, cfg.BricksDir(), ref.id, ref.version)
+		uninstalled, err := bricksindex.Uninstall(ctx, cfg.BricksDir(), ref.id, ref.version, printWaiting)
 		if err == nil || len(uninstalled.Versions) > 0 {
 			versions := uninstalled.Versions
 			if versions == nil {
