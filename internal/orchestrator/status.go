@@ -9,9 +9,10 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/moby/moby/api/types/container"
 	"go.bug.st/f"
+
+	"github.com/arduino/arduino-app-cli/internal/appbook"
 )
 
 type Status = appbook.Status

@@ -235,7 +235,7 @@ type AppDetailedInfo struct {
 	ReleaseLabel *string             `json:"release_label,omitempty"`
 
 	// Status Application status
-	Status *Status `json:"status,omitempty"`
+	Status Status `json:"status"`
 }
 
 // AppInfo defines model for AppInfo.

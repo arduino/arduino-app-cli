@@ -2057,6 +2057,7 @@ components:
       required:
       - id
       - name
+      - status
       type: object
     AppInfo:
       properties:

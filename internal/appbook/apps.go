@@ -14,18 +14,18 @@ import (
 	"os"
 	"time"
 
-	appgenerator "github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
-
-	"github.com/arduino/arduino-app-cli/internal/fatomic"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/go-paths-helper"
 	"github.com/gosimple/slug"
 	"go.bug.st/f"
 	"gopkg.in/yaml.v2"
+
+	"github.com/arduino/arduino-app-cli/internal/fatomic"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	appgenerator "github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 var (
@@ -158,7 +158,7 @@ type AppDetailedInfo struct {
 	Path         string             `json:"path"`
 	Description  string             `json:"description"`
 	Icon         string             `json:"icon"`
-	Status       Status             `json:"status,omitempty"`
+	Status       Status             `json:"status,omitempty" required:"true"`
 	Example      bool               `json:"example"`
 	Default      bool               `json:"default"`
 	Release      bool               `json:"release"`

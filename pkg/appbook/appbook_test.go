@@ -22,7 +22,7 @@ func TestNew(t *testing.T) {
 	tmp := t.TempDir()
 	assets := filepath.Join(tmp, "data", "assets")
 	require.NoError(t, os.MkdirAll(assets, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(assets, "bricks-list.yaml"), []byte("bricks: []\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(assets, "bricks-list.yaml"), []byte("bricks: []\n"), 0o600))
 	router, err := New(Config{AppsDir: filepath.Join(tmp, "apps"), DataDir: filepath.Join(tmp, "data")})
 	require.NoError(t, err)
 	serve := func(method, path, body string) *httptest.ResponseRecorder {
