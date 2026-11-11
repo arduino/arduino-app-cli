@@ -73,7 +73,12 @@ func HandleAppStart(
 			fwFile, err := savePrebuiltSketch(r)
 			if err != nil {
 				slog.Error("unable to read the prebuilt sketch", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "missing or unreadable file parameter"})
+				details := "missing or unreadable file parameter"
+				var tooLarge *http.MaxBytesError
+				if errors.As(err, &tooLarge) {
+					details = "the request is larger than 32 MB"
+				}
+				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: details})
 				return
 			}
 			defer func() { _ = fwFile.Remove() }()

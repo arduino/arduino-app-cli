@@ -50,6 +50,24 @@ func TestSavePrebuiltSketch(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("request over the size limit", func(t *testing.T) {
+		var body bytes.Buffer
+		mw := multipart.NewWriter(&body)
+		part, err := mw.CreateFormFile("file", "sketch-prebuilt.fw")
+		require.NoError(t, err)
+		_, err = part.Write(bytes.Repeat([]byte("x"), 1024))
+		require.NoError(t, err)
+		require.NoError(t, mw.Close())
+
+		r := httptest.NewRequest(http.MethodPost, "/v1/apps/x/start?prebuilt_sketch=true", &body)
+		r.Header.Set("Content-Type", mw.FormDataContentType())
+		r.Body = http.MaxBytesReader(httptest.NewRecorder(), r.Body, 512)
+
+		_, err = savePrebuiltSketch(r)
+		var tooLarge *http.MaxBytesError
+		require.ErrorAs(t, err, &tooLarge)
+	})
+
 	t.Run("no file field", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodPost, "/v1/apps/x/start?prebuilt_sketch=true", bytes.NewBufferString("{}"))
 		r.Header.Set("Content-Type", "application/json")

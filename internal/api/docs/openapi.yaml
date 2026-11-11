@@ -827,9 +827,9 @@ paths:
           the full FQBN of the board, including the menu option wait_linux_boot=app
           when the core of the board has it, and writes the file with arduino-cli
           upload --write-to-fw-file. The board does not check how the file was built.
-          A missing, empty or larger than 32 MB file, or a value that is not a boolean,
-          fails with HTTP 400. An app with no sketch, a release app or a platform
-          that flashes the sketch to RAM fails with the error code 'bad_request'.
+          A missing or empty file, a request larger than 32 MB, or a value that is
+          not a boolean, fails with HTTP 400. An app with no sketch, a release app
+          or a platform that flashes the sketch to RAM fails with the error code 'bad_request'.
           A restart of the app compiles the sketch on the board. Default is false.
         in: query
         name: prebuilt_sketch
@@ -839,10 +839,11 @@ paths:
             the full FQBN of the board, including the menu option wait_linux_boot=app
             when the core of the board has it, and writes the file with arduino-cli
             upload --write-to-fw-file. The board does not check how the file was built.
-            A missing, empty or larger than 32 MB file, or a value that is not a boolean,
-            fails with HTTP 400. An app with no sketch, a release app or a platform
-            that flashes the sketch to RAM fails with the error code 'bad_request'.
-            A restart of the app compiles the sketch on the board. Default is false.
+            A missing or empty file, a request larger than 32 MB, or a value that
+            is not a boolean, fails with HTTP 400. An app with no sketch, a release
+            app or a platform that flashes the sketch to RAM fails with the error
+            code 'bad_request'. A restart of the app compiles the sketch on the board.
+            Default is false.
           type: boolean
       - description: application identifier.
         in: path
