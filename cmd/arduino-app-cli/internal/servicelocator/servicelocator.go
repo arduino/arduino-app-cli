@@ -8,6 +8,7 @@
 package servicelocator
 
 import (
+	"context"
 	"sync"
 
 	dockerCommand "github.com/docker/cli/cli/command"
@@ -65,8 +66,23 @@ var (
 	}
 
 	GetBrickService = sync.OnceValue(func() *bricks.Service {
+		// The models come from the models index, which runs containers to read their status.
 		return bricks.NewService(
-			GetModelsIndex(),
+			bricks.ModelLookup{
+				ForBrick: func(ctx context.Context, brickID string) ([]bricks.AIModel, error) {
+					matches, err := GetModelsIndex().NewLookup().ByBrick(ctx, brickID)
+					return f.Map(matches, func(m modelsindex.AIModelLite) bricks.AIModel {
+						return bricks.AIModel{ID: m.ID, Name: m.Name, Description: m.Description}
+					}), err
+				},
+				ModelForBrick: func(ctx context.Context, modelID, brickID string) (string, bool, error) {
+					model, err := GetModelsIndex().NewLookup().ModelForBrick(ctx, modelID, brickID)
+					if err != nil || model == nil {
+						return "", false, err
+					}
+					return model.ID, true, nil
+				},
+			},
 			GetBricksIndex(),
 		)
 	})
