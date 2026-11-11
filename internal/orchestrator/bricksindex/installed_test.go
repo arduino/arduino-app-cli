@@ -21,13 +21,15 @@ func TestListInstalled(t *testing.T) {
 			require.NoError(t, dir.Join(brickConfigFileName).WriteFile([]byte(config)))
 		}
 	}
-	write("acme/camera@1.10.0", "id: acme:camera\nname: Camera\n")
-	write("acme/camera@1.2.0", "id: acme:camera\nname: Camera\n")
-	write("acme/audio@1.0.0", "id: acme:audio\nname: Audio\n")
-	write("acme/wrong@1.0.0", "id: acme:other\n")         // declares another id
-	write("acme/missing@1.0.0", "")                       // no brick_config.yaml
-	write("acme/camera@notes", "id: acme:camera\n")       // not created by install
-	write(".install-123/x@1.0.0", "id: .install-123:x\n") // temporary folder
+	write("acme/camera/1.10.0", "id: acme:camera\nname: Camera\n")
+	write("acme/camera/1.2.0", "id: acme:camera\nname: Camera\n")
+	write("acme/audio/1.0.0", "id: acme:audio\nname: Audio\n")
+	write("acme/wrong/1.0.0", "id: acme:other\n")         // declares another id
+	write("acme/missing/1.0.0", "")                       // no brick_config.yaml
+	write("acme/camera/notes", "id: acme:camera\n")       // not created by install
+	write("acme/camera@1.0.0", "id: acme:camera\n")       // old layout
+	write("acme/Camera/1.0.0", "id: acme:Camera\n")       // invalid name
+	write(".install-123/x/1.0.0", "id: .install-123:x\n") // temporary folder
 
 	installed, err := ListInstalled(bricksDir)
 	require.NoError(t, err)

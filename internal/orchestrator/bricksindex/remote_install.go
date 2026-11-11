@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -29,6 +29,7 @@ import (
 	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 const (
@@ -42,69 +43,100 @@ const (
 var (
 	ErrBrickNotFound       = errors.New("brick not found in the bricks index")
 	ErrReleaseNotFound     = errors.New("brick version not found in the bricks index")
+	ErrUnsupportedBoard    = errors.New("brick not supported by this board")
 	ErrInsufficientStorage = errors.New("not enough disk space to install the brick")
-
-	// Namespaces and names become folder names, so they are limited to a safe set of characters.
-	validFolderName = regexp.MustCompile(`^[a-zA-Z0-9_-][a-zA-Z0-9_.-]*$`)
 )
 
-// ParseBrickReference splits a reference in the form ID[@VERSION]. The version is empty
+// ParseBrickReference splits a reference in the form ID[@VERSION]. The version is nil
 // when the reference does not have one.
-func ParseBrickReference(ref string) (id string, version string, err error) {
-	id, version, hasVersion := strings.Cut(ref, "@")
-	if _, _, err := ParseBrickID(id); err != nil {
-		return "", "", fmt.Errorf("invalid brick reference %q: expected NAMESPACE:NAME[@VERSION]", ref)
+func ParseBrickReference(ref string) (id string, version *semver.Version, err error) {
+	id, versionString, hasVersion := strings.Cut(ref, "@")
+	if _, _, err := splitBrickID(id); err != nil {
+		return "", nil, fmt.Errorf("invalid brick reference %q: expected NAMESPACE:NAME[@VERSION]", ref)
 	}
-	if hasVersion && version == "" {
-		return "", "", fmt.Errorf("invalid brick reference %q: missing version after '@'", ref)
+	if !hasVersion {
+		return id, nil, nil
+	}
+	// semver.Parse accepts an empty string.
+	if versionString == "" {
+		return "", nil, fmt.Errorf("invalid brick reference %q: missing version after '@'", ref)
+	}
+	version, err = semver.Parse(versionString)
+	if err != nil {
+		return "", nil, fmt.Errorf("invalid brick reference %q: %w", ref, err)
 	}
 	return id, version, nil
 }
 
-// FindRelease returns the brick with the given id and its release with the given version,
-// or its latest release if version is empty.
-func (idx *RemoteIndex) FindRelease(id, version string) (*RemoteBrick, *RemoteRelease, error) {
-	for i := range idx.Bricks {
-		brick := &idx.Bricks[i]
-		if brick.ID != id {
+// FindRelease returns the release of the brick with the given version or, if version is nil,
+// the latest release that supports the board of platform.
+func (idx *RemoteIndex) FindRelease(id string, version *semver.Version, platform platform.Platform) (*RemoteBrick, error) {
+	releases := idx.releases(id)
+	if len(releases) == 0 {
+		return nil, fmt.Errorf("%w: %s", ErrBrickNotFound, id)
+	}
+	if version == nil {
+		if latest := idx.Latest(id, platform); latest != nil {
+			return latest, nil
+		}
+		return nil, fmt.Errorf("%w: no release of %s supports %s", ErrUnsupportedBoard, id, platform.BoardName)
+	}
+	for _, r := range releases {
+		if !r.Version.Equal(version) {
 			continue
 		}
-		if version == "" {
-			version = brick.Latest
+		if !r.SupportsBoard(platform) {
+			return nil, fmt.Errorf("%w: %s@%s does not support %s", ErrUnsupportedBoard, id, version, platform.BoardName)
 		}
-		for j := range brick.Releases {
-			if brick.Releases[j].Version == version {
-				return brick, &brick.Releases[j], nil
-			}
-		}
-		return nil, nil, fmt.Errorf("%w: %s@%s", ErrReleaseNotFound, id, version)
+		return r, nil
 	}
-	return nil, nil, fmt.Errorf("%w: %s", ErrBrickNotFound, id)
+	return nil, fmt.Errorf("%w: %s@%s", ErrReleaseNotFound, id, version)
+}
+
+// Latest returns the release with the highest version of the brick that supports the board of
+// platform, or nil if there is none.
+func (idx *RemoteIndex) Latest(id string, platform platform.Platform) *RemoteBrick {
+	var latest *RemoteBrick
+	for _, r := range idx.releases(id) {
+		if r.SupportsBoard(platform) && (latest == nil || r.Version.GreaterThan(latest.Version)) {
+			latest = r
+		}
+	}
+	return latest
+}
+
+// Releases returns the releases of the brick that support the board of platform, sorted by version.
+func (idx *RemoteIndex) Releases(id string, platform platform.Platform) []*RemoteBrick {
+	res := slices.DeleteFunc(idx.releases(id), func(r *RemoteBrick) bool { return !r.SupportsBoard(platform) })
+	slices.SortFunc(res, func(a, b *RemoteBrick) int { return a.Version.CompareTo(b.Version) })
+	return res
+}
+
+// releases returns all the releases of the brick.
+func (idx *RemoteIndex) releases(id string) []*RemoteBrick {
+	var res []*RemoteBrick
+	for i := range idx.Bricks {
+		if idx.Bricks[i].ID == id {
+			res = append(res, &idx.Bricks[i])
+		}
+	}
+	return res
 }
 
 // splitBrickID returns the namespace and the name of the brick, checking that both can be used as folder names.
 func splitBrickID(id string) (namespace, name string, err error) {
 	namespace, name, err = ParseBrickID(id)
-	if err != nil || !validFolderName.MatchString(namespace) || !validFolderName.MatchString(name) {
-		return "", "", fmt.Errorf("brick id %q contains characters that are not allowed", id)
+	if err != nil || !validBrickIDPart.MatchString(namespace) || !validBrickIDPart.MatchString(name) {
+		return "", "", fmt.Errorf("invalid brick id %q: expected NAMESPACE:NAME, each made of lowercase letters, digits and underscores", id)
 	}
 	return namespace, name, nil
 }
 
-// InstallPath returns the folder where the given version of the brick is installed in bricksDir.
-func InstallPath(bricksDir *paths.Path, id, version string) (*paths.Path, error) {
-	namespace, name, err := splitBrickID(id)
-	if err != nil {
-		return nil, err
-	}
-	// An empty string is accepted by the parser.
-	if version == "" {
-		return nil, fmt.Errorf("brick %q has a release without version", id)
-	}
-	if _, err := semver.Parse(version); err != nil {
-		return nil, fmt.Errorf("brick %q has an invalid version %q: %w", id, version, err)
-	}
-	return bricksDir.Join(namespace, name+"@"+version), nil
+// installPath returns the folder where the given version of the brick is installed in bricksDir.
+// The id must be valid.
+func installPath(bricksDir *paths.Path, id string, version *semver.Version) *paths.Path {
+	namespace, name, _ := ParseBrickID(id)
+	return bricksDir.Join(namespace, name, version.String())
 }
 
 // lockBricksDir prevents installs and uninstalls from running at the same time.
@@ -124,22 +156,20 @@ type InstallResult struct {
 
 // Install downloads the release of the brick and installs it in bricksDir. Releases are
 // never replaced: each version is installed in its own folder.
-func Install(ctx context.Context, client *http.Client, bricksDir *paths.Path, brick *RemoteBrick, release *RemoteRelease, userAgent string) (InstallResult, error) {
-	installPath, err := InstallPath(bricksDir, brick.ID, release.Version)
+func Install(ctx context.Context, client *http.Client, bricksDir *paths.Path, brick *RemoteBrick, platform platform.Platform, userAgent string) (InstallResult, error) {
+	// The release usually comes from a validated index: this protects the paths built from it.
+	if err := brick.validate(); err != nil {
+		return InstallResult{}, err
+	}
+	ref := brick.ID + "@" + brick.Version.String()
+	if !brick.SupportsBoard(platform) {
+		return InstallResult{}, fmt.Errorf("%w: %s does not support %s", ErrUnsupportedBoard, ref, platform.BoardName)
+	}
+	expectedHash, err := hex.DecodeString(brick.Hash)
 	if err != nil {
 		return InstallResult{}, err
 	}
-	expectedHash, err := hex.DecodeString(release.Hash)
-	if err != nil || len(expectedHash) != sha256.Size {
-		return InstallResult{}, fmt.Errorf("brick %s@%s: invalid SHA-256 hash %q", brick.ID, release.Version, release.Hash)
-	}
-	if release.Size <= 0 {
-		return InstallResult{}, fmt.Errorf("brick %s@%s: invalid size %d", brick.ID, release.Version, release.Size)
-	}
-	if release.URL == "" {
-		return InstallResult{}, fmt.Errorf("brick %s@%s: missing download url", brick.ID, release.Version)
-	}
-
+	brickPath := installPath(bricksDir, brick.ID, brick.Version)
 	if err := bricksDir.MkdirAll(); err != nil {
 		return InstallResult{}, fmt.Errorf("creating bricks directory: %w", err)
 	}
@@ -149,8 +179,8 @@ func Install(ctx context.Context, client *http.Client, bricksDir *paths.Path, br
 	}
 	defer unlock()
 
-	if installPath.Exist() {
-		return InstallResult{Path: installPath, AlreadyInstalled: true}, nil
+	if brickPath.Exist() {
+		return InstallResult{Path: brickPath, AlreadyInstalled: true}, nil
 	}
 
 	// Created in bricksDir so that the final rename does not cross filesystems.
@@ -161,11 +191,11 @@ func Install(ctx context.Context, client *http.Client, bricksDir *paths.Path, br
 	defer func() { _ = tempDir.RemoveAll() }()
 
 	archivePath := tempDir.Join("archive.zip")
-	if err := checkFreeSpace(bricksDir, uint64(release.Size)); err != nil {
-		return InstallResult{}, fmt.Errorf("downloading brick %s@%s: %w", brick.ID, release.Version, err)
+	if err := checkFreeSpace(bricksDir, uint64(brick.Size)); err != nil { // nolint:gosec // validate checks that the size is positive
+		return InstallResult{}, fmt.Errorf("downloading brick %s: %w", ref, err)
 	}
-	if err := download(ctx, client, release.URL, archivePath, release.Size, expectedHash, userAgent); err != nil {
-		return InstallResult{}, fmt.Errorf("downloading brick %s@%s: %w", brick.ID, release.Version, err)
+	if err := download(ctx, client, brick.URL, archivePath, brick.Size, expectedHash, userAgent); err != nil {
+		return InstallResult{}, fmt.Errorf("downloading brick %s: %w", ref, err)
 	}
 
 	extractDir := tempDir.Join("extract")
@@ -174,23 +204,23 @@ func Install(ctx context.Context, client *http.Client, bricksDir *paths.Path, br
 	}
 	rootName, err := extractZip(archivePath, extractDir)
 	if err != nil {
-		return InstallResult{}, fmt.Errorf("extracting brick %s@%s: %w", brick.ID, release.Version, err)
+		return InstallResult{}, fmt.Errorf("extracting brick %s: %w", ref, err)
 	}
 	brickDir := extractDir.Join(rootName)
 	if err := checkBrickConfig(brickDir, brick.ID); err != nil {
-		return InstallResult{}, fmt.Errorf("brick %s@%s: %w", brick.ID, release.Version, err)
+		return InstallResult{}, fmt.Errorf("brick %s: %w", ref, err)
 	}
 
-	if err := installPath.Parent().MkdirAll(); err != nil {
+	if err := brickPath.Parent().MkdirAll(); err != nil {
 		return InstallResult{}, fmt.Errorf("creating brick directory: %w", err)
 	}
 	fatomic.Sync()
-	if err := brickDir.Rename(installPath); err != nil {
-		return InstallResult{}, fmt.Errorf("installing brick %s@%s: %w", brick.ID, release.Version, err)
+	if err := brickDir.Rename(brickPath); err != nil {
+		return InstallResult{}, fmt.Errorf("installing brick %s: %w", ref, err)
 	}
 	fatomic.Sync()
 
-	return InstallResult{Path: installPath}, nil
+	return InstallResult{Path: brickPath}, nil
 }
 
 // checkFreeSpace returns ErrInsufficientStorage if the filesystem of dir has less than required bytes free.

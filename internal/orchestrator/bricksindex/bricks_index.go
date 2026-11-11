@@ -342,14 +342,20 @@ func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 	}
 
 	yamlIndex.Bricks = slices.DeleteFunc(yamlIndex.Bricks, func(brick Brick) bool {
-		return platform.BoardName != "" &&
-			len(brick.SupportedBoards) != 0 &&
-			!slices.Contains(brick.SupportedBoards, platform.BoardName)
+		return !supportsBoard(brick.SupportedBoards, platform)
 	})
 
 	return &BricksIndex{
 		BuiltInBricks: yamlIndex.Bricks,
 	}, nil
+}
+
+// supportsBoard reports whether a brick with the given supported boards can be used on the board
+// current board.
+func supportsBoard(supportedBoards []string, platform platform.Platform) bool {
+	return platform.BoardName == "" ||
+		len(supportedBoards) == 0 ||
+		slices.Contains(supportedBoards, platform.BoardName)
 }
 
 func ParseBrickID(brickID string) (namespace, name string, err error) {

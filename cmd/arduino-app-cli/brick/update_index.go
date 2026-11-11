@@ -7,7 +7,6 @@ package brick
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/spf13/cobra"
@@ -34,22 +33,18 @@ func updateIndexHandler(ctx context.Context, cfg config.Configuration, version s
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
-	feedback.PrintResult(updateIndexResult{
-		Updated: res.Updated,
-		Bricks:  len(res.Index.Bricks),
-	})
+	feedback.PrintResult(updateIndexResult{Updated: res.Updated})
 }
 
 type updateIndexResult struct {
 	Updated bool `json:"updated"`
-	Bricks  int  `json:"bricks"`
 }
 
 func (r updateIndexResult) String() string {
 	if r.Updated {
-		return fmt.Sprintf("Bricks index updated: %d bricks available", r.Bricks)
+		return "Bricks index updated"
 	}
-	return fmt.Sprintf("Bricks index already up to date: %d bricks available", r.Bricks)
+	return "Bricks index already up to date"
 }
 
 func (r updateIndexResult) Data() any {

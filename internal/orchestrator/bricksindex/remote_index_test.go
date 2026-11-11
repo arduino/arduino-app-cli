@@ -6,6 +6,8 @@
 package bricksindex
 
 import (
+	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,17 +17,75 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const validHash = "0000000000000000000000000000000000000000000000000000000000000000"
+
 const validIndex = `{
   "bricks": [
-    {
-      "id": "acme:camera",
-      "name": "Camera Brick",
-      "namespace": "acme",
-      "latest": "1.0.0",
-      "releases": [{"version": "1.0.0", "url": "https://example.com/camera-1.0.0.zip", "hash": "0000000000000000000000000000000000000000000000000000000000000000", "size": 1}]
-    }
+    {"id": "acme:camera", "namespace": "acme", "name": "Camera Brick", "version": "1.0.0",
+     "url": "https://example.com/camera-1.0.0.zip", "hash": "` + validHash + `", "size": 1}
   ]
 }`
+
+func TestParseRemoteIndexValidation(t *testing.T) {
+	// release returns a valid release entry, with the given fields replaced.
+	release := func(replace map[string]any) map[string]any {
+		r := map[string]any{
+			"id": "acme:camera", "namespace": "acme", "name": "Camera Brick", "version": "1.0.0",
+			"url": "https://example.com/camera.zip", "hash": validHash, "size": 1,
+		}
+		maps.Copy(r, replace)
+		for k, v := range r {
+			if v == nil {
+				delete(r, k)
+			}
+		}
+		return r
+	}
+	parse := func(releases ...map[string]any) error {
+		data, err := json.Marshal(map[string]any{"bricks": releases})
+		require.NoError(t, err)
+		_, err = parseRemoteIndex(data)
+		return err
+	}
+
+	require.NoError(t, parse(release(nil), release(map[string]any{"version": "1.1.0"})))
+	require.NoError(t, parse(release(map[string]any{"id": "acme_2:_my_camera2", "namespace": "acme_2"})))
+
+	tests := []struct {
+		name    string
+		release map[string]any
+		wantErr string
+	}{
+		{"id without namespace", release(map[string]any{"id": "camera"}), "invalid brick id"},
+		{"uppercase in id", release(map[string]any{"id": "acme:Camera"}), "invalid brick id"},
+		{"dash in id", release(map[string]any{"id": "acme:my-camera"}), "invalid brick id"},
+		{"leading digit in id", release(map[string]any{"id": "acme:2camera"}), "invalid brick id"},
+		{"dot in namespace", release(map[string]any{"id": "acme.io:camera", "namespace": "acme.io"}), "invalid brick id"},
+		{"namespace mismatch", release(map[string]any{"namespace": "other"}), "does not match"},
+		{"missing version", release(map[string]any{"version": nil}), "missing version"},
+		{"empty version", release(map[string]any{"version": ""}), "missing version"},
+		{"invalid version", release(map[string]any{"version": "v1"}), "decoding bricks index"},
+		{"missing name", release(map[string]any{"name": nil}), "missing name"},
+		{"missing url", release(map[string]any{"url": nil}), "invalid url"},
+		{"relative url", release(map[string]any{"url": "camera.zip"}), "invalid url"},
+		{"unsupported url scheme", release(map[string]any{"url": "file:///camera.zip"}), "invalid url"},
+		{"missing hash", release(map[string]any{"hash": nil}), "invalid SHA-256 hash"},
+		{"hash with algorithm prefix", release(map[string]any{"hash": "SHA-256:" + validHash}), "invalid SHA-256 hash"},
+		{"short hash", release(map[string]any{"hash": "abcd"}), "invalid SHA-256 hash"},
+		{"missing size", release(map[string]any{"size": nil}), "invalid size"},
+		{"negative size", release(map[string]any{"size": -1}), "invalid size"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.ErrorContains(t, parse(tt.release), tt.wantErr)
+		})
+	}
+
+	t.Run("duplicate release", func(t *testing.T) {
+		err := parse(release(map[string]any{"version": "1.2"}), release(map[string]any{"version": "1.2.0"}))
+		require.ErrorContains(t, err, "duplicate release acme:camera@1.2.0")
+	})
+}
 
 // indexServer serves body with the given etag, answering 304 when the client already has it.
 func indexServer(t *testing.T, status int, body, etag string) *url.URL {
@@ -84,9 +144,7 @@ func TestUpdateKeepsPreviousIndexOnFailure(t *testing.T) {
 	}{
 		{"server error", http.StatusInternalServerError, "", "unexpected status"},
 		{"malformed json", http.StatusOK, "{", "decoding bricks index"},
-		{"namespace mismatch", http.StatusOK, `{"bricks": [{"id": "acme:camera", "namespace": "other"}]}`, "does not match"},
-		{"invalid id", http.StatusOK, `{"bricks": [{"id": "camera", "namespace": "acme"}]}`, "invalid brick id"},
-		{"duplicate id", http.StatusOK, `{"bricks": [{"id": "acme:a", "namespace": "acme"}, {"id": "acme:a", "namespace": "acme"}]}`, "duplicate brick id"},
+		{"invalid index", http.StatusOK, `{"bricks": [{"id": "camera", "namespace": "acme"}]}`, "invalid brick id"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

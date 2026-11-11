@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
@@ -39,38 +38,60 @@ func ListInstalled(bricksDir *paths.Path) ([]InstalledBrick, error) {
 	for _, namespaceDir := range namespaceDirs {
 		namespace := namespaceDir.Base()
 		// Skips the temporary folders of install and uninstall.
-		if !validFolderName.MatchString(namespace) {
+		if !validBrickIDPart.MatchString(namespace) {
 			continue
 		}
-		brickDirs, err := namespaceDir.ReadDir(paths.FilterDirectories())
+		nameDirs, err := namespaceDir.ReadDir(paths.FilterDirectories())
 		if err != nil {
 			return nil, fmt.Errorf("reading installed bricks: %w", err)
 		}
-		for _, brickDir := range brickDirs {
-			name, version, ok := strings.Cut(brickDir.Base(), "@")
-			if !ok || !validFolderName.MatchString(name) {
+		for _, nameDir := range nameDirs {
+			name := nameDir.Base()
+			if !validBrickIDPart.MatchString(name) {
 				continue
 			}
-			if _, err := semver.Parse(version); version == "" || err != nil {
-				continue
-			}
-			brick, err := loadInstalledBrick(brickDir, namespace+":"+name)
+			versions, err := installedVersions(nameDir)
 			if err != nil {
-				slog.Warn("skipping invalid installed brick", "path", brickDir, "error", err)
-				continue
+				return nil, err
 			}
-			res = append(res, InstalledBrick{Namespace: namespace, Version: version, Brick: brick})
+			for _, version := range versions {
+				brickDir := nameDir.Join(version.String())
+				brick, err := loadInstalledBrick(brickDir, namespace+":"+name)
+				if err != nil {
+					slog.Warn("skipping invalid installed brick", "path", brickDir, "error", err)
+					continue
+				}
+				res = append(res, InstalledBrick{Namespace: namespace, Version: version.String(), Brick: brick})
+			}
 		}
 	}
 
-	// The versions have already been validated.
-	slices.SortFunc(res, func(a, b InstalledBrick) int {
-		if c := cmp.Compare(a.Brick.ID, b.Brick.ID); c != 0 {
-			return c
-		}
-		return semver.MustParse(a.Version).CompareTo(semver.MustParse(b.Version))
-	})
+	// The versions are already sorted.
+	slices.SortStableFunc(res, func(a, b InstalledBrick) int { return cmp.Compare(a.Brick.ID, b.Brick.ID) })
 	return res, nil
+}
+
+// installedVersions returns the versions installed in the folder of a brick, sorted from the oldest.
+// Folders that install could not have created are skipped.
+func installedVersions(nameDir *paths.Path) ([]*semver.Version, error) {
+	if nameDir.NotExist() {
+		return nil, nil
+	}
+	entries, err := nameDir.ReadDir(paths.FilterDirectories())
+	if err != nil {
+		return nil, fmt.Errorf("reading installed bricks: %w", err)
+	}
+	var versions []*semver.Version
+	for _, entry := range entries {
+		v, err := semver.Parse(entry.Base())
+		// semver.Parse accepts an empty string, but a folder name is never empty.
+		if err != nil {
+			continue
+		}
+		versions = append(versions, v)
+	}
+	slices.SortFunc(versions, func(a, b *semver.Version) int { return a.CompareTo(b) })
+	return versions, nil
 }
 
 func loadInstalledBrick(brickDir *paths.Path, id string) (Brick, error) {

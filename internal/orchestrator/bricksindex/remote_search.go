@@ -6,43 +6,41 @@
 package bricksindex
 
 import (
+	"cmp"
+	"slices"
 	"strings"
+
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
-// LatestRelease returns the release named by Latest, or nil if there is none.
-func (b RemoteBrick) LatestRelease() *RemoteRelease {
-	for i := range b.Releases {
-		if b.Releases[i].Version == b.Latest {
-			return &b.Releases[i]
-		}
-	}
-	return nil
-}
-
-// Search returns the bricks that contain every word of query, ignoring case.
-// An empty query matches all the bricks. Deprecated bricks are skipped unless includeDeprecated is set.
-func (idx *RemoteIndex) Search(query string, includeDeprecated bool) []RemoteBrick {
+// Search returns, for each brick that contains every word of query ignoring case, its latest release
+// that supports the platform. The results are sorted by id. An empty query matches all the
+// bricks. Deprecated releases are skipped unless includeDeprecated is set.
+func (idx *RemoteIndex) Search(query string, includeDeprecated bool, platform platform.Platform) []*RemoteBrick {
 	terms := strings.Fields(strings.ToLower(query))
-	res := []RemoteBrick{}
+	res := []*RemoteBrick{}
+	seen := map[string]bool{}
 	for _, b := range idx.Bricks {
-		if b.Deprecated && !includeDeprecated {
+		if seen[b.ID] {
 			continue
 		}
-		if b.matches(terms) {
-			res = append(res, b)
+		seen[b.ID] = true
+		latest := idx.Latest(b.ID, platform)
+		if latest == nil || (latest.Deprecated && !includeDeprecated) {
+			continue
+		}
+		if latest.matches(terms) {
+			res = append(res, latest)
 		}
 	}
+	slices.SortFunc(res, func(a, b *RemoteBrick) int { return cmp.Compare(a.ID, b.ID) })
 	return res
 }
 
-// matches reports whether every term is contained in the brick, ignoring case.
+// matches reports whether every term is contained in the release, ignoring case.
 func (b RemoteBrick) matches(terms []string) bool {
-	fields := []string{b.ID, b.Name, b.Namespace}
 	// TODO: should we match the older releases as well, the --all flag is passed here?
-	if latest := b.LatestRelease(); latest != nil {
-		fields = append(fields, latest.Description, latest.Repository)
-	}
-	text := strings.ToLower(strings.Join(fields, " "))
+	text := strings.ToLower(strings.Join([]string{b.ID, b.Name, b.Namespace, b.Description, b.Repository}, " "))
 	for _, term := range terms {
 		if !strings.Contains(text, term) {
 			return false

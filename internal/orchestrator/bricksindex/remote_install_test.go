@@ -16,6 +16,9 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
+	semver "go.bug.st/relaxed-semver"
+
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 func makeZip(t *testing.T, files map[string]string) []byte {
@@ -32,72 +35,112 @@ func makeZip(t *testing.T, files map[string]string) []byte {
 	return buf.Bytes()
 }
 
-// archiveRelease serves archive and returns a release that points to it.
-func archiveRelease(t *testing.T, archive []byte) *RemoteRelease {
+// archiveRelease serves archive and returns a release of acme:camera that points to it.
+func archiveRelease(t *testing.T, archive []byte) *RemoteBrick {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(archive)
 	}))
 	t.Cleanup(srv.Close)
 	sum := sha256.Sum256(archive)
-	return &RemoteRelease{
-		Version: "1.0.0",
-		URL:     srv.URL + "/brick.zip",
-		Hash:    hex.EncodeToString(sum[:]),
-		Size:    int64(len(archive)),
+	return &RemoteBrick{
+		ID:        "acme:camera",
+		Namespace: "acme",
+		Name:      "Camera",
+		Version:   semver.MustParse("1.0.0"),
+		URL:       srv.URL + "/brick.zip",
+		Hash:      hex.EncodeToString(sum[:]),
+		Size:      int64(len(archive)),
+	}
+}
+
+func TestParseBrickReference(t *testing.T) {
+	id, version, err := ParseBrickReference("acme:camera")
+	require.NoError(t, err)
+	require.Equal(t, "acme:camera", id)
+	require.Nil(t, version)
+
+	id, version, err = ParseBrickReference("acme:camera@1.2.0")
+	require.NoError(t, err)
+	require.Equal(t, "acme:camera", id)
+	require.Equal(t, "1.2.0", version.String())
+
+	for _, ref := range []string{"camera", "acme:Camera", "acme:camera@", "acme:camera@v1", "acme:camera@1.0.0/.."} {
+		_, _, err := ParseBrickReference(ref)
+		require.Error(t, err, ref)
 	}
 }
 
 func TestFindRelease(t *testing.T) {
-	index, err := parseRemoteIndex([]byte(validIndex))
-	require.NoError(t, err)
+	release := func(version string, boards ...string) RemoteBrick {
+		return RemoteBrick{ID: "acme:camera", Version: semver.MustParse(version), SupportedBoards: boards}
+	}
+	index := &RemoteIndex{Bricks: []RemoteBrick{
+		release("1.10.0", "ventunoq"),
+		release("1.2.0"),
+		release("1.9.0", "unoq", "ventunoq"),
+		{ID: "acme:audio", Version: semver.MustParse("1.0.0"), SupportedBoards: []string{"ventunoq"}},
+	}}
+	unoq := platform.Platform{BoardName: "unoq"}
 
-	brick, release, err := index.FindRelease("acme:camera", "")
-	require.NoError(t, err)
-	require.Equal(t, "acme:camera", brick.ID)
-	require.Equal(t, "1.0.0", release.Version)
-
-	_, _, err = index.FindRelease("acme:camera", "9.9.9")
-	require.ErrorIs(t, err, ErrReleaseNotFound)
-
-	_, _, err = index.FindRelease("acme:missing", "")
-	require.ErrorIs(t, err, ErrBrickNotFound)
-}
-
-func TestInstallPathRejectsUnsafeNames(t *testing.T) {
-	dir := paths.New(t.TempDir())
 	tests := []struct {
-		id, version string
+		name     string
+		id       string
+		version  string
+		platform platform.Platform
+		want     string
+		wantErr  error
 	}{
-		{"acme:../camera", "1.0.0"},
-		{"acme:.camera", "1.0.0"},
-		{"acme:cam@era", "1.0.0"},
-		{"acme:camera", "1.0.0/.."},
-		{"acme:camera", ""},
+		{"latest supported release", "acme:camera", "", unoq, "1.9.0", nil},
+		{"latest release", "acme:camera", "", platform.Platform{BoardName: "ventunoq"}, "1.10.0", nil},
+		{"any board without a board name", "acme:camera", "", platform.Platform{}, "1.10.0", nil},
+		{"given version", "acme:camera", "1.2.0", unoq, "1.2.0", nil},
+		{"given version, compared as semver", "acme:camera", "1.2", unoq, "1.2.0", nil},
+		{"given version not supported", "acme:camera", "1.10.0", unoq, "", ErrUnsupportedBoard},
+		{"no release supported", "acme:audio", "", unoq, "", ErrUnsupportedBoard},
+		{"missing version", "acme:camera", "9.9.9", unoq, "", ErrReleaseNotFound},
+		{"missing brick", "acme:missing", "", unoq, "", ErrBrickNotFound},
 	}
-	for _, tc := range tests {
-		_, err := InstallPath(dir, tc.id, tc.version)
-		require.Error(t, err, "%s@%s", tc.id, tc.version)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var version *semver.Version
+			if tt.version != "" {
+				version = semver.MustParse(tt.version)
+			}
+			got, err := index.FindRelease(tt.id, version, tt.platform)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.id, got.ID)
+			require.Equal(t, tt.want, got.Version.String())
+		})
 	}
-}
 
+	releases := index.Releases("acme:camera", unoq)
+	versions := make([]string, 0, len(releases))
+	for _, r := range releases {
+		versions = append(versions, r.Version.String())
+	}
+	require.Equal(t, []string{"1.2.0", "1.9.0"}, versions)
+}
 func TestInstall(t *testing.T) {
 	bricksDir := paths.New(t.TempDir())
-	brick := &RemoteBrick{ID: "acme:camera"}
-	release := archiveRelease(t, makeZip(t, map[string]string{
+	brick := archiveRelease(t, makeZip(t, map[string]string{
 		"camera/brick_config.yaml":  "id: acme:camera\n",
 		"camera/README.md":          "readme",
 		"__MACOSX/camera/._file.md": "metadata",
 	}))
 
-	res, err := Install(t.Context(), http.DefaultClient, bricksDir, brick, release, "test")
+	res, err := Install(t.Context(), http.DefaultClient, bricksDir, brick, platform.Platform{}, "test")
 	require.NoError(t, err)
 	require.False(t, res.AlreadyInstalled)
-	require.Equal(t, bricksDir.Join("acme", "camera@1.0.0").String(), res.Path.String())
+	require.Equal(t, bricksDir.Join("acme", "camera", "1.0.0").String(), res.Path.String())
 	require.FileExists(t, res.Path.Join("brick_config.yaml").String())
 	require.FileExists(t, res.Path.Join("README.md").String())
 
-	res, err = Install(t.Context(), http.DefaultClient, bricksDir, brick, release, "test")
+	res, err = Install(t.Context(), http.DefaultClient, bricksDir, brick, platform.Platform{}, "test")
 	require.NoError(t, err)
 	require.True(t, res.AlreadyInstalled)
 
@@ -111,12 +154,12 @@ func TestInstallFailures(t *testing.T) {
 	validArchive := makeZip(t, map[string]string{"camera/brick_config.yaml": "id: acme:camera\n"})
 	tests := []struct {
 		name    string
-		release func(t *testing.T) *RemoteRelease
+		brick   func(t *testing.T) *RemoteBrick
 		wantErr string
 	}{
 		{
 			name: "hash mismatch",
-			release: func(t *testing.T) *RemoteRelease {
+			brick: func(t *testing.T) *RemoteBrick {
 				r := archiveRelease(t, validArchive)
 				r.Hash = hex.EncodeToString(make([]byte, sha256.Size))
 				return r
@@ -125,7 +168,7 @@ func TestInstallFailures(t *testing.T) {
 		},
 		{
 			name: "size mismatch",
-			release: func(t *testing.T) *RemoteRelease {
+			brick: func(t *testing.T) *RemoteBrick {
 				r := archiveRelease(t, validArchive)
 				r.Size--
 				return r
@@ -134,7 +177,7 @@ func TestInstallFailures(t *testing.T) {
 		},
 		{
 			name: "not enough disk space",
-			release: func(t *testing.T) *RemoteRelease {
+			brick: func(t *testing.T) *RemoteBrick {
 				r := archiveRelease(t, validArchive)
 				r.Size = 1 << 62
 				return r
@@ -143,7 +186,7 @@ func TestInstallFailures(t *testing.T) {
 		},
 		{
 			name: "invalid hash",
-			release: func(t *testing.T) *RemoteRelease {
+			brick: func(t *testing.T) *RemoteBrick {
 				r := archiveRelease(t, validArchive)
 				r.Hash = "SHA-256:" + r.Hash
 				return r
@@ -151,8 +194,17 @@ func TestInstallFailures(t *testing.T) {
 			wantErr: "invalid SHA-256 hash",
 		},
 		{
+			name: "unsupported board",
+			brick: func(t *testing.T) *RemoteBrick {
+				r := archiveRelease(t, validArchive)
+				r.SupportedBoards = []string{"ventunoq"}
+				return r
+			},
+			wantErr: "not supported by this board",
+		},
+		{
 			name: "multiple root folders",
-			release: func(t *testing.T) *RemoteRelease {
+			brick: func(t *testing.T) *RemoteBrick {
 				return archiveRelease(t, makeZip(t, map[string]string{
 					"camera/brick_config.yaml": "id: acme:camera\n",
 					"other/file":               "x",
@@ -162,14 +214,14 @@ func TestInstallFailures(t *testing.T) {
 		},
 		{
 			name: "file at the root",
-			release: func(t *testing.T) *RemoteRelease {
+			brick: func(t *testing.T) *RemoteBrick {
 				return archiveRelease(t, makeZip(t, map[string]string{"brick_config.yaml": "id: acme:camera\n"}))
 			},
 			wantErr: "single root folder",
 		},
 		{
 			name: "path traversal",
-			release: func(t *testing.T) *RemoteRelease {
+			brick: func(t *testing.T) *RemoteBrick {
 				return archiveRelease(t, makeZip(t, map[string]string{
 					"camera/brick_config.yaml": "id: acme:camera\n",
 					"camera/../../evil":        "x",
@@ -179,14 +231,14 @@ func TestInstallFailures(t *testing.T) {
 		},
 		{
 			name: "missing brick_config.yaml",
-			release: func(t *testing.T) *RemoteRelease {
+			brick: func(t *testing.T) *RemoteBrick {
 				return archiveRelease(t, makeZip(t, map[string]string{"camera/README.md": "readme"}))
 			},
 			wantErr: "does not contain a valid brick_config.yaml",
 		},
 		{
 			name: "wrong brick id",
-			release: func(t *testing.T) *RemoteRelease {
+			brick: func(t *testing.T) *RemoteBrick {
 				return archiveRelease(t, makeZip(t, map[string]string{"camera/brick_config.yaml": "id: other:camera\n"}))
 			},
 			wantErr: `declares id "other:camera"`,
@@ -195,7 +247,7 @@ func TestInstallFailures(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			bricksDir := paths.New(t.TempDir())
-			_, err := Install(t.Context(), http.DefaultClient, bricksDir, &RemoteBrick{ID: "acme:camera"}, tc.release(t), "test")
+			_, err := Install(t.Context(), http.DefaultClient, bricksDir, tc.brick(t), platform.Platform{BoardName: "unoq"}, "test")
 			require.ErrorContains(t, err, tc.wantErr)
 
 			// Nothing is installed and no temporary folders are left behind.

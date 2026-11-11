@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"os"
 	"slices"
-	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	semver "go.bug.st/relaxed-semver"
@@ -24,17 +23,12 @@ type UninstallResult struct {
 	Versions []string
 }
 
-// Uninstall removes the given version of the brick from bricksDir or, if version is empty,
+// Uninstall removes the given version of the brick from bricksDir or, if version is nil,
 // all of its installed versions. On error, the result contains the versions removed so far.
-func Uninstall(ctx context.Context, bricksDir *paths.Path, id, version string) (UninstallResult, error) {
+func Uninstall(ctx context.Context, bricksDir *paths.Path, id string, version *semver.Version) (UninstallResult, error) {
 	namespace, name, err := splitBrickID(id)
 	if err != nil {
 		return UninstallResult{}, err
-	}
-	if version != "" {
-		if _, err := InstallPath(bricksDir, id, version); err != nil {
-			return UninstallResult{}, err
-		}
 	}
 	if bricksDir.NotExist() {
 		return UninstallResult{}, nil
@@ -47,15 +41,13 @@ func Uninstall(ctx context.Context, bricksDir *paths.Path, id, version string) (
 	defer unlock()
 
 	namespaceDir := bricksDir.Join(namespace)
-	versions, err := installedVersions(namespaceDir, name)
+	nameDir := namespaceDir.Join(name)
+	versions, err := installedVersions(nameDir)
 	if err != nil {
 		return UninstallResult{}, err
 	}
-	if version != "" {
-		if !slices.Contains(versions, version) {
-			return UninstallResult{}, nil
-		}
-		versions = []string{version}
+	if version != nil {
+		versions = slices.DeleteFunc(versions, func(v *semver.Version) bool { return !v.Equal(version) })
 	}
 	if len(versions) == 0 {
 		return UninstallResult{}, nil
@@ -71,47 +63,18 @@ func Uninstall(ctx context.Context, bricksDir *paths.Path, id, version string) (
 		if err := tempDir.RemoveAll(); err != nil {
 			slog.Warn("cannot remove uninstalled brick files", "path", tempDir, "error", err)
 		}
-		// Fails, as expected, if other bricks of the namespace are installed.
+		// They fail, as expected, if other versions or other bricks of the namespace are installed.
+		_ = os.Remove(nameDir.String())
 		_ = os.Remove(namespaceDir.String())
 	}()
 
 	var res UninstallResult
 	for _, v := range versions {
-		if err := namespaceDir.Join(name + "@" + v).Rename(tempDir.Join(v)); err != nil {
+		if err := nameDir.Join(v.String()).Rename(tempDir.Join(v.String())); err != nil {
 			return res, fmt.Errorf("uninstalling brick %s@%s: %w", id, v, err)
 		}
-		res.Versions = append(res.Versions, v)
+		res.Versions = append(res.Versions, v.String())
 	}
 	fatomic.Sync()
-	return res, nil
-}
-
-// installedVersions returns the installed versions of the brick, sorted from the oldest.
-func installedVersions(namespaceDir *paths.Path, name string) ([]string, error) {
-	if namespaceDir.NotExist() {
-		return nil, nil
-	}
-	entries, err := namespaceDir.ReadDir(paths.FilterDirectories())
-	if err != nil {
-		return nil, fmt.Errorf("reading installed bricks: %w", err)
-	}
-	var versions []*semver.Version
-	for _, entry := range entries {
-		v, ok := strings.CutPrefix(entry.Base(), name+"@")
-		if !ok || v == "" {
-			continue
-		}
-		// Folders that install could not have created are left alone.
-		parsed, err := semver.Parse(v)
-		if err != nil {
-			continue
-		}
-		versions = append(versions, parsed)
-	}
-	slices.SortFunc(versions, func(a, b *semver.Version) int { return a.CompareTo(b) })
-	res := make([]string, len(versions))
-	for i, v := range versions {
-		res[i] = v.String()
-	}
 	return res, nil
 }

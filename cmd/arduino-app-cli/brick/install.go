@@ -12,7 +12,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	semver "go.bug.st/relaxed-semver"
 
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -22,7 +24,7 @@ func newInstallCmd(cfg config.Configuration, version string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "install ID[@VERSION]...",
 		Short: "Install bricks from the bricks index",
-		Long: "Install bricks from the bricks index. Without a version, the latest one is installed.\n" +
+		Long: "Install bricks from the bricks index. Without a version, the latest one that supports the board is installed.\n" +
 			"Several versions of the same brick can be installed side by side.",
 		Example: "  arduino-app-cli brick install acme:camera\n  arduino-app-cli brick install acme:camera@1.0.0 acme:camera@1.1.0",
 		Args:    cobra.MinimumNArgs(1),
@@ -40,30 +42,27 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 	}
 
 	// Everything is resolved first, so that an unknown brick does not leave the others half done.
-	type toInstall struct {
-		brick   *bricksindex.RemoteBrick
-		release *bricksindex.RemoteRelease
-	}
-	resolved := make([]toInstall, 0, len(refs))
+	platform := servicelocator.GetPlatform()
+	resolved := make([]*bricksindex.RemoteBrick, 0, len(refs))
 	for _, ref := range refs {
-		brick, release, err := index.FindRelease(ref.id, ref.version)
+		brick, err := index.FindRelease(ref.id, ref.version, platform)
 		if err != nil {
 			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 		}
-		resolved = append(resolved, toInstall{brick, release})
+		resolved = append(resolved, brick)
 	}
 
 	var res installResult
-	for _, r := range resolved {
-		if r.brick.Deprecated {
-			msg := fmt.Sprintf("Brick %s is deprecated", r.brick.ID)
-			if r.brick.DeprecationNote != "" {
-				msg += ": " + r.brick.DeprecationNote
+	for _, brick := range resolved {
+		if brick.Deprecated {
+			msg := fmt.Sprintf("Brick %s is deprecated", brick.ID)
+			if brick.DeprecationNote != "" {
+				msg += ": " + brick.DeprecationNote
 			}
 			feedback.Warnf("%s", msg)
 		}
 		installed, err := bricksindex.Install(ctx, http.DefaultClient, cfg.BricksDir(),
-			r.brick, r.release, "arduino-app-cli/"+version)
+			brick, platform, "arduino-app-cli/"+version)
 		if err != nil {
 			if len(res.Bricks) > 0 {
 				feedback.PrintResult(res)
@@ -71,8 +70,8 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 			feedback.Fatal(err.Error(), feedback.ErrGeneric)
 		}
 		res.Bricks = append(res.Bricks, installedBrick{
-			ID:               r.brick.ID,
-			Version:          r.release.Version,
+			ID:               brick.ID,
+			Version:          brick.Version.String(),
 			Path:             installed.Path.String(),
 			AlreadyInstalled: installed.AlreadyInstalled,
 		})
@@ -81,7 +80,8 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 }
 
 type brickReference struct {
-	id, version string
+	id      string
+	version *semver.Version
 }
 
 // parseBrickReferences validates all the references before any of them is processed.

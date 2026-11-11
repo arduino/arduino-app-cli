@@ -10,49 +10,66 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	semver "go.bug.st/relaxed-semver"
+
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 func TestSearch(t *testing.T) {
 	index := &RemoteIndex{Bricks: []RemoteBrick{
 		{
-			ID: "acme:camera", Name: "Camera Brick", Namespace: "acme", Latest: "1.1.0",
-			Releases: []RemoteRelease{
-				{Version: "1.1.0", Description: "Capture frames from USB cameras.", Repository: "https://gitlab.com/acme/camera-brick"},
-				{Version: "1.0.0", Description: "Old description mentioning thermal."},
-			},
+			ID: "sensorlab:air_quality", Name: "Air Quality Monitor", Namespace: "sensorlab", Version: semver.MustParse("0.3.1"),
+			Description: "Read air quality metrics from I2C sensors.", Deprecated: true,
 		},
 		{
-			ID: "sensorlab:air_quality", Name: "Air Quality Monitor", Namespace: "sensorlab", Latest: "0.3.1", Deprecated: true,
-			Releases: []RemoteRelease{{Version: "0.3.1", Description: "Read air quality metrics from I2C sensors."}},
+			ID: "acme:camera", Name: "Camera Brick", Namespace: "acme", Version: semver.MustParse("1.0.0"),
+			Description: "Old description mentioning thermal.",
+		},
+		{
+			ID: "acme:camera", Name: "Camera Brick", Namespace: "acme", Version: semver.MustParse("1.1.0"),
+			Description: "Capture frames from USB cameras.", Repository: "https://gitlab.com/acme/camera-brick",
+		},
+		{
+			ID: "acme:camera", Name: "Camera Brick", Namespace: "acme", Version: semver.MustParse("2.0.0"),
+			Description: "Capture frames from MIPI cameras.", SupportedBoards: []string{"ventunoq"},
+		},
+		{
+			ID: "acme:audio", Name: "Audio", Namespace: "acme", Version: semver.MustParse("1.0.0"),
+			SupportedBoards: []string{"ventunoq"},
 		},
 	}}
 
-	ids := func(bricks []RemoteBrick) []string {
+	releases := func(bricks []*RemoteBrick) []string {
 		res := make([]string, 0, len(bricks))
 		for _, b := range bricks {
-			res = append(res, b.ID)
+			res = append(res, b.ID+"@"+b.Version.String())
 		}
 		return res
 	}
 
+	unoq := platform.Platform{BoardName: "unoq"}
 	tests := []struct {
 		query             string
 		includeDeprecated bool
+		platform          platform.Platform
 		want              []string
 	}{
-		{"", false, []string{"acme:camera"}},
-		{"", true, []string{"acme:camera", "sensorlab:air_quality"}},
-		{"CAMERA", false, []string{"acme:camera"}},
-		{"usb frames", false, []string{"acme:camera"}},
-		{"usb sensors", true, []string{}},
-		{"gitlab", false, []string{"acme:camera"}},
-		{"thermal", false, []string{}},
-		{"i2c", false, []string{}},
-		{"i2c", true, []string{"sensorlab:air_quality"}},
+		{"", false, unoq, []string{"acme:camera@1.1.0"}},
+		{"", true, unoq, []string{"acme:camera@1.1.0", "sensorlab:air_quality@0.3.1"}},
+		{"", false, platform.Platform{BoardName: "ventunoq"}, []string{"acme:audio@1.0.0", "acme:camera@2.0.0"}},
+		{"", false, platform.Platform{}, []string{"acme:audio@1.0.0", "acme:camera@2.0.0"}},
+		{"CAMERA", false, unoq, []string{"acme:camera@1.1.0"}},
+		{"usb frames", false, unoq, []string{"acme:camera@1.1.0"}},
+		{"usb sensors", true, unoq, []string{}},
+		{"gitlab", false, unoq, []string{"acme:camera@1.1.0"}},
+		{"thermal", false, unoq, []string{}},
+		{"mipi", false, unoq, []string{}},
+		{"i2c", false, unoq, []string{}},
+		{"i2c", true, unoq, []string{"sensorlab:air_quality@0.3.1"}},
 	}
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("%q deprecated=%t", tt.query, tt.includeDeprecated), func(t *testing.T) {
-			require.Equal(t, tt.want, ids(index.Search(tt.query, tt.includeDeprecated)))
+		t.Run(fmt.Sprintf("%q deprecated=%t board=%q", tt.query, tt.includeDeprecated, tt.platform.BoardName), func(t *testing.T) {
+			require.Equal(t, tt.want, releases(index.Search(tt.query, tt.includeDeprecated, tt.platform)))
 		})
 	}
 }

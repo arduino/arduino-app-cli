@@ -10,9 +10,10 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
+	semver "go.bug.st/relaxed-semver"
 )
 
-// installedBricks creates the given folders, in the form namespace/name@version.
+// installedBricks creates the given folders, in the form namespace/name/version.
 func installedBricks(t *testing.T, folders ...string) *paths.Path {
 	t.Helper()
 	bricksDir := paths.New(t.TempDir())
@@ -34,44 +35,47 @@ func dirNames(t *testing.T, dir *paths.Path) []string {
 }
 
 func TestUninstallVersion(t *testing.T) {
-	bricksDir := installedBricks(t, "acme/camera@1.0.0", "acme/camera@1.2.0")
+	bricksDir := installedBricks(t, "acme/camera/1.0.0", "acme/camera/1.2.0")
 
-	res, err := Uninstall(t.Context(), bricksDir, "acme:camera", "1.0.0")
+	res, err := Uninstall(t.Context(), bricksDir, "acme:camera", semver.MustParse("1.0.0"))
 	require.NoError(t, err)
 	require.Equal(t, []string{"1.0.0"}, res.Versions)
-	require.Equal(t, []string{"camera@1.2.0"}, dirNames(t, bricksDir.Join("acme")))
+	require.Equal(t, []string{"1.2.0"}, dirNames(t, bricksDir.Join("acme", "camera")))
 
-	res, err = Uninstall(t.Context(), bricksDir, "acme:camera", "1.0.0")
+	res, err = Uninstall(t.Context(), bricksDir, "acme:camera", semver.MustParse("1.0.0"))
 	require.NoError(t, err)
 	require.Empty(t, res.Versions)
 
-	// Removing the last brick of the namespace removes the namespace folder too.
-	_, err = Uninstall(t.Context(), bricksDir, "acme:camera", "1.2.0")
+	// The version is compared as semver.
+	res, err = Uninstall(t.Context(), bricksDir, "acme:camera", semver.MustParse("1.2"))
 	require.NoError(t, err)
+	require.Equal(t, []string{"1.2.0"}, res.Versions)
+	// Removing the last version of the last brick of the namespace removes its folders too.
 	require.Empty(t, dirNames(t, bricksDir))
 }
 
 func TestUninstallAllVersions(t *testing.T) {
 	bricksDir := installedBricks(t,
-		"acme/camera@1.10.0", "acme/camera@1.2.0",
-		"acme/camera2@1.0.0", // another brick whose name starts the same
-		"acme/camera@notes",  // not created by install
+		"acme/camera/1.10.0", "acme/camera/1.2.0",
+		"acme/camera2/1.0.0", // another brick whose name starts the same
+		"acme/camera/notes",  // not created by install
 	)
 
-	res, err := Uninstall(t.Context(), bricksDir, "acme:camera", "")
+	res, err := Uninstall(t.Context(), bricksDir, "acme:camera", nil)
 	require.NoError(t, err)
 	require.Equal(t, []string{"1.2.0", "1.10.0"}, res.Versions)
-	require.ElementsMatch(t, []string{"camera2@1.0.0", "camera@notes"}, dirNames(t, bricksDir.Join("acme")))
+	require.Equal(t, []string{"notes"}, dirNames(t, bricksDir.Join("acme", "camera")))
+	require.ElementsMatch(t, []string{"camera", "camera2"}, dirNames(t, bricksDir.Join("acme")))
 	// No temporary folders are left behind.
 	require.Equal(t, []string{"acme"}, dirNames(t, bricksDir))
 }
 
 func TestUninstallNotInstalled(t *testing.T) {
-	res, err := Uninstall(t.Context(), paths.New(t.TempDir(), "missing"), "acme:camera", "")
+	res, err := Uninstall(t.Context(), paths.New(t.TempDir(), "missing"), "acme:camera", nil)
 	require.NoError(t, err)
 	require.Empty(t, res.Versions)
 
-	res, err = Uninstall(t.Context(), installedBricks(t), "acme:camera", "")
+	res, err = Uninstall(t.Context(), installedBricks(t), "acme:camera", nil)
 	require.NoError(t, err)
 	require.Empty(t, res.Versions)
 }

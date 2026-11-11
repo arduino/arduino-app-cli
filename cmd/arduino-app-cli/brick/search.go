@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -39,14 +40,30 @@ func searchHandler(keywords []string, allVersions, deprecated bool, cfg config.C
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
-	feedback.PrintResult(searchResult{
-		Bricks:      index.Search(strings.Join(keywords, " "), deprecated),
-		allVersions: allVersions,
-	})
+	platform := servicelocator.GetPlatform()
+	res := searchResult{Bricks: []searchItem{}, allVersions: allVersions}
+	for _, latest := range index.Search(strings.Join(keywords, " "), deprecated, platform) {
+		item := searchItem{RemoteBrick: latest}
+		for _, release := range index.Releases(latest.ID, platform) {
+			item.Versions = append(item.Versions, release.Version.String())
+			if allVersions {
+				item.Releases = append(item.Releases, release)
+			}
+		}
+		res.Bricks = append(res.Bricks, item)
+	}
+	feedback.PrintResult(res)
+}
+
+// searchItem is the latest release of a brick, with the versions of its releases that support the board.
+type searchItem struct {
+	*bricksindex.RemoteBrick
+	Versions []string                   `json:"versions"`
+	Releases []*bricksindex.RemoteBrick `json:"releases,omitempty"`
 }
 
 type searchResult struct {
-	Bricks      []bricksindex.RemoteBrick `json:"bricks"`
+	Bricks      []searchItem `json:"bricks"`
 	allVersions bool
 }
 
@@ -60,7 +77,7 @@ func (r searchResult) String() string {
 		fmt.Fprintf(&out, "ID: %s\n", b.ID)
 		fmt.Fprintf(&out, "  Name: %s\n", b.Name)
 		fmt.Fprintf(&out, "  Author: %s\n", b.Namespace)
-		fmt.Fprintf(&out, "  Latest: %s\n", b.Latest)
+		fmt.Fprintf(&out, "  Latest: %s\n", b.Version)
 		if b.Deprecated {
 			fmt.Fprintf(&out, "  Deprecated: %s\n", cmp.Or(b.DeprecationNote, "yes"))
 		}
@@ -73,15 +90,9 @@ func (r searchResult) String() string {
 			}
 			continue
 		}
-		if latest := b.LatestRelease(); latest != nil {
-			fmt.Fprintf(&out, "  Description: %s\n", latest.Description)
-			fmt.Fprintf(&out, "  Repository: %s\n", latest.Repository)
-		}
-		versions := make([]string, 0, len(b.Releases))
-		for _, release := range b.Releases {
-			versions = append(versions, release.Version)
-		}
-		fmt.Fprintf(&out, "  Versions: %s\n", strings.Join(versions, ", "))
+		fmt.Fprintf(&out, "  Description: %s\n", b.Description)
+		fmt.Fprintf(&out, "  Repository: %s\n", b.Repository)
+		fmt.Fprintf(&out, "  Versions: %s\n", strings.Join(b.Versions, ", "))
 	}
 	return strings.TrimSuffix(out.String(), "\n")
 }

@@ -39,9 +39,13 @@ func uninstallHandler(ctx context.Context, args []string, cfg config.Configurati
 			if versions == nil {
 				versions = []string{}
 			}
+			var requestedVersion string
+			if ref.version != nil {
+				requestedVersion = ref.version.String()
+			}
 			res.Bricks = append(res.Bricks, uninstalledBrick{
 				ID:               ref.id,
-				RequestedVersion: ref.version,
+				RequestedVersion: requestedVersion,
 				Versions:         versions,
 			})
 		}
