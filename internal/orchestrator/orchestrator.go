@@ -1227,6 +1227,9 @@ func checkPrebuiltSketch(a app.ArduinoApp, fwFile *paths.Path) error {
 	if !fwFile.Exist() {
 		return fmt.Errorf("%w: the prebuilt sketch %s does not exist", ErrBadRequest, fwFile)
 	}
+	if fwFile.IsDir() {
+		return fmt.Errorf("%w: the prebuilt sketch %s is a directory", ErrBadRequest, fwFile)
+	}
 	return nil
 }
 

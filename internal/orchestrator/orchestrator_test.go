@@ -1201,6 +1201,11 @@ func TestCheckPrebuiltSketch(t *testing.T) {
 		require.NoError(t, err)
 		require.ErrorIs(t, checkPrebuiltSketch(a, paths.New(t.TempDir()).Join("missing.fw")), ErrBadRequest)
 	})
+	t.Run("directory instead of a file", func(t *testing.T) {
+		a, err := app.Load(createTestAppWithSketch(t))
+		require.NoError(t, err)
+		require.ErrorIs(t, checkPrebuiltSketch(a, paths.New(t.TempDir())), ErrBadRequest)
+	})
 	t.Run("app without sketch", func(t *testing.T) {
 		a, err := app.Load(createTestAppPythonOnly(t))
 		require.NoError(t, err)
