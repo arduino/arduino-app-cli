@@ -344,6 +344,125 @@ func TestImportAppFromZip(t *testing.T) {
 	}
 }
 
+func TestImportAppFromZipSize(t *testing.T) {
+	type zipEntry struct {
+		name     string
+		content  string
+		zeros    int64  // written after content
+		declared uint64 // when set, stored as is with content as the data
+		crc      uint32 // with declared; zero skips the check
+	}
+
+	tests := []struct {
+		name        string
+		entries     []zipEntry
+		wantErr     string
+		checkResult func(t *testing.T, appDir *paths.Path)
+	}{
+		{
+			name: "file over 100 MB is imported",
+			entries: []zipEntry{
+				{name: "app.yaml", content: "name: test"},
+				{name: "python/main.py", content: "pass"},
+				{name: "models/model.bin", zeros: 101 << 20},
+			},
+			checkResult: func(t *testing.T, appDir *paths.Path) {
+				info, err := appDir.Join("models", "model.bin").Stat()
+				require.NoError(t, err)
+				assert.Equal(t, int64(101<<20), info.Size())
+			},
+		},
+		{
+			name: "file writing more than declared",
+			entries: []zipEntry{
+				{name: "app.yaml", content: "name: test"},
+				{name: "python/main.py", content: "pass"},
+				{name: "data.bin", content: strings.Repeat("x", 1000), declared: 10},
+			},
+			wantErr: "data.bin",
+		},
+		{
+			name: "file with a wrong checksum",
+			entries: []zipEntry{
+				{name: "app.yaml", content: "name: test"},
+				{name: "python/main.py", content: "pass"},
+				{name: "data.bin", content: "hello", declared: 5, crc: 1},
+			},
+			wantErr: "checksum",
+		},
+		{
+			name: "files outside the app root are skipped",
+			entries: []zipEntry{
+				{name: "my-app/app.yaml", content: "name: test"},
+				{name: "my-app/python/main.py", content: "pass"},
+				{name: "other/huge.bin", declared: 1 << 60},
+			},
+			checkResult: func(t *testing.T, appDir *paths.Path) {
+				assert.True(t, appDir.Join("app.yaml").Exist())
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tmpRoot := t.TempDir()
+			t.Setenv("ARDUINO_APP_CLI__APPS_DIR", filepath.Join(tmpRoot, "ArduinoApps"))
+			t.Setenv("ARDUINO_APP_CLI__DATA_DIR", filepath.Join(tmpRoot, "Data"))
+			cfg, err := config.NewFromEnv()
+			require.NoError(t, err)
+			require.NoError(t, cfg.AssetDir().MkdirAll())
+			require.NoError(t, cfg.EnsureFolders())
+
+			zipPath := paths.New(tmpRoot, "my-app.zip")
+			f, err := zipPath.Create()
+			require.NoError(t, err)
+			w := zip.NewWriter(f)
+			for _, e := range tc.entries {
+				var fw io.Writer
+				if e.declared != 0 {
+					fw, err = w.CreateRaw(&zip.FileHeader{
+						Name:               e.name,
+						Method:             zip.Store,
+						CompressedSize64:   uint64(len(e.content)),
+						UncompressedSize64: e.declared,
+						CRC32:              e.crc,
+					})
+				} else {
+					fw, err = w.Create(e.name)
+				}
+				require.NoError(t, err)
+				_, err = io.WriteString(fw, e.content)
+				require.NoError(t, err)
+				_, err = io.CopyN(fw, zeroReader{}, e.zeros)
+				require.NoError(t, err)
+			}
+			require.NoError(t, w.Close())
+			require.NoError(t, f.Close())
+
+			id, err := ImportAppFromZip(cfg, zipPath, appid.NewAppProvider(cfg, unkownPlatform), zipPath.Base())
+
+			if tc.wantErr != "" {
+				require.ErrorIs(t, err, ErrBadRequest)
+				require.Contains(t, err.Error(), tc.wantErr)
+				left, err := cfg.AppsDir().ReadDir()
+				require.NoError(t, err)
+				require.Empty(t, left, "nothing is left in the apps directory")
+				return
+			}
+			require.NoError(t, err)
+			require.NotEmpty(t, id)
+			tc.checkResult(t, cfg.AppsDir().Join("my-app"))
+		})
+	}
+}
+
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	clear(p)
+	return len(p), nil
+}
+
 func createZipFile(t *testing.T, filename string, files map[string]string) {
 	t.Helper()
 	f, err := os.Create(filename)
@@ -455,6 +574,70 @@ func TestFindZipRoot(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, tc.wantRoot, gotRoot)
 			}
+		})
+	}
+}
+
+func TestEntryName(t *testing.T) {
+	sep := string(os.PathSeparator)
+	p := func(parts ...string) string { return strings.Join(parts, sep) }
+
+	tests := []struct {
+		name       string
+		rootPrefix string
+		entry      string
+		want       string
+	}{
+		// No root prefix
+		{"no prefix: file at root", "", "app.yaml", "app.yaml"},
+		{"no prefix: nested file", "", "python/main.py", p("python", "main.py")},
+		{"no prefix: directory entry", "", "python/", "python"},
+		{"no prefix: leading ./", "", "./app.yaml", "app.yaml"},
+		{"no prefix: duplicated slashes", "", "python//main.py", p("python", "main.py")},
+		{"no prefix: dot entry", "", ".", ""},
+		{"no prefix: empty entry", "", "", ""},
+		{"no prefix: hidden file", "", ".env", ".env"},
+		{"no prefix: path traversal is not rejected here", "", "../evil", p("..", "evil")},
+
+		// "." prefix behaves like no prefix
+		{"dot prefix: file at root", ".", "app.yaml", "app.yaml"},
+		{"dot prefix: nested file", ".", "python/main.py", p("python", "main.py")},
+		{"dot prefix: dot entry", ".", ".", ""},
+
+		// With root prefix
+		{"prefix: file in root", "MyApp", "MyApp/app.yaml", "app.yaml"},
+		{"prefix: nested file", "MyApp", "MyApp/python/main.py", p("python", "main.py")},
+		{"prefix: root dir entry with slash", "MyApp", "MyApp/", ""},
+		{"prefix: root dir entry without slash", "MyApp", "MyApp", ""},
+		{"prefix: nested dir entry", "MyApp", "MyApp/sub/", "sub"},
+		{"prefix: hidden file", "MyApp", "MyApp/.hidden", ".hidden"},
+		{"prefix: leading ./", "MyApp", "./MyApp/app.yaml", "app.yaml"},
+		{"prefix: duplicated slashes", "MyApp", "MyApp//app.yaml", "app.yaml"},
+		{"prefix: dot segment", "MyApp", "MyApp/./a", "a"},
+		{"prefix: dot-dot staying inside root", "MyApp", "MyApp/sub/../a", "a"},
+		{"prefix: dot-dot re-entering root", "MyApp", "MyApp/../MyApp/a", "a"},
+
+		// Entries outside the root are skipped
+		{"prefix: different root", "MyApp", "Other/app.yaml", ""},
+		{"prefix: file at archive root", "MyApp", "app.yaml", ""},
+		{"prefix: case sensitive", "MyApp", "myapp/app.yaml", ""},
+		{"prefix: dot-dot escaping root", "MyApp", "MyApp/../evil", ""},
+		{"prefix: dot-dot escaping archive", "MyApp", "MyApp/../../evil", ""},
+		{"prefix: dot entry", "MyApp", ".", ""},
+		{"prefix: empty entry", "MyApp", "", ""},
+
+		// Sibling entries whose name merely starts with the root name must be skipped
+		{"prefix: sibling with numeric suffix", "MyApp", "MyApp2/file.txt", ""},
+		{"prefix: sibling with dot suffix", "MyApp", "MyApp.bak/file.txt", ""},
+		{"prefix: sibling with dash suffix", "MyApp", "MyApp-old/file.txt", ""},
+		{"prefix: sibling file with same prefix", "MyApp", "MyApp.txt", ""},
+		{"prefix: sibling dir entry", "MyApp", "MyApp2/", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &zip.File{FileHeader: zip.FileHeader{Name: tt.entry}}
+			assert.Equal(t, tt.want, entryName(f, tt.rootPrefix))
 		})
 	}
 }
