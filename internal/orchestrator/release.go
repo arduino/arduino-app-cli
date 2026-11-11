@@ -30,6 +30,7 @@ import (
 	"github.com/gosimple/slug"
 	"go.bug.st/f"
 
+	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -386,7 +387,7 @@ func stageReleaseSrc(appToBuild app.ArduinoApp, srcDir *paths.Path, bricksIndex 
 		return fmt.Errorf("failed to create the release src dir: %w", err)
 	}
 
-	skipFilter := appSourceFilter(false)
+	skipFilter := appbook.AppSourceFilter(false)
 	entries, err := appToBuild.FullPath.ReadDirRecursiveFiltered(skipFilter, skipFilter)
 	if err != nil {
 		return fmt.Errorf("failed to read the app folder: %w", err)
@@ -425,7 +426,7 @@ func stageReleaseSrc(appToBuild app.ArduinoApp, srcDir *paths.Path, bricksIndex 
 			if err != nil {
 				return fmt.Errorf("failed to read %s: %w", relPath, err)
 			}
-			redactSecrets(bricksIndex, &desc)
+			appbook.RedactSecrets(bricksIndex, &desc)
 			data, err := yaml.Marshal(desc)
 			if err != nil {
 				return fmt.Errorf("failed to write %s: %w", relPath, err)
@@ -614,7 +615,7 @@ func writeReleaseArchiveTo(releaseDir *paths.Path, w io.Writer) (err error) {
 	err = func() error {
 		// The same rule the staging used, except that the venv is shipped whole: a
 		// package of it may well have a data folder.
-		keep := appSourceFilter(true)
+		keep := appbook.AppSourceFilter(true)
 		// A symlink is archived as it is, so it is never walked into.
 		notSymlink := func(p *paths.Path) bool {
 			info, err := p.Lstat()

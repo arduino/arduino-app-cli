@@ -6,6 +6,7 @@
 package bricks
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,7 +29,7 @@ var unoQPlatform = platform.Platform{BoardName: "unoq"}
 func TestBrickCreate(t *testing.T) {
 	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 	require.Nil(t, err)
-	brickService := NewService(nil, bricksIndex)
+	brickService := NewService(NoModelLookup, bricksIndex)
 
 	t.Run("fails if brick id does not exist", func(t *testing.T) {
 		err = brickService.BrickCreate(t.Context(), BrickCreateUpdateRequest{ID: "not-existing-id"}, mustEdit(t, paths.New("testdata/dummy-app")))
@@ -98,7 +99,7 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, err)
 		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.Nil(t, err)
-		brickService := NewService(nil, bricksIndex)
+		brickService := NewService(NoModelLookup, bricksIndex)
 
 		deviceID := "this-is-a-device-id"
 		secret := "this-is-a-secret"
@@ -125,7 +126,7 @@ func TestBrickCreate(t *testing.T) {
 func TestUpdateBrick(t *testing.T) {
 	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 	require.Nil(t, err)
-	brickService := NewService(nil, bricksIndex)
+	brickService := NewService(NoModelLookup, bricksIndex)
 
 	t.Run("fails if brick id does not exist into brick index", func(t *testing.T) {
 		err = brickService.BrickUpdate(t.Context(), BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
@@ -185,7 +186,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.Nil(t, err)
-		brickService := NewService(nil, bricksIndex)
+		brickService := NewService(NoModelLookup, bricksIndex)
 
 		deviceID := "updated-device-id"
 		secret := "updated-secret"
@@ -214,7 +215,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app-for-update").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.Nil(t, err)
-		brickService := NewService(nil, bricksIndex)
+		brickService := NewService(NoModelLookup, bricksIndex)
 
 		secret := "updated-the-secret"
 		req := BrickCreateUpdateRequest{
@@ -244,7 +245,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.NoError(t, err)
 		modelsIndex, err := modelsindex.Load(unoQPlatform, paths.New("testdata"), paths.New("not_exixsting_path"), paths.New("not_exixsting_path"), nil, config.Configuration{})
 		require.NoError(t, err)
-		brickService := NewService(modelsIndex, bricksIndex)
+		brickService := NewService(modelsOf(modelsIndex), bricksIndex)
 
 		modelPath := "/home/arduino/.arduino-bricks/ei-model-123-1/model.eim"
 		modelId := "ei-model-123-1"
@@ -280,7 +281,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.NoError(t, err)
 		modelsIndex, err := modelsindex.Load(unoQPlatform, paths.New("testdata"), paths.New("not_exixsting_path"), paths.New("not_exixsting_path"), nil, config.Configuration{})
 		require.NoError(t, err)
-		brickService := NewService(modelsIndex, bricksIndex)
+		brickService := NewService(modelsOf(modelsIndex), bricksIndex)
 
 		modelID := "ei-model-123-1"
 		req := BrickCreateUpdateRequest{
@@ -473,7 +474,7 @@ bricks:
 
 	svc := &Service{
 		bricksIndex: bIndex,
-		modelsIndex: mIndex,
+		models:      modelsOf(mIndex),
 	}
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
@@ -654,7 +655,7 @@ bricks:
 
 	svc := &Service{
 		bricksIndex: bIndex,
-		modelsIndex: mIndex,
+		models:      modelsOf(mIndex),
 	}
 
 	tests := []struct {
@@ -1049,7 +1050,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 			require.NoError(t, err)
 			svc := &Service{
 				bricksIndex: bIndex,
-				modelsIndex: modelsIdx,
+				models:      modelsOf(modelsIdx),
 			}
 			result := svc.AppBrickInstancesList(tt.app)
 			if tt.validate != nil {
@@ -1073,7 +1074,7 @@ func TestLocalBrickRename(t *testing.T) {
 
 	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 	require.NoError(t, err)
-	svc := NewService(nil, bricksIndex)
+	svc := NewService(NoModelLookup, bricksIndex)
 
 	t.Run("fails when old and new id are the same", func(t *testing.T) {
 		a := setup(t)
@@ -1161,4 +1162,23 @@ func mustEdit(t *testing.T, appPath *paths.Path) app.Editable {
 	editable, err := a.GetAsEditable()
 	require.NoError(t, err)
 	return editable
+}
+
+// modelsOf reads the models of a brick from the models index, as the service locator does.
+func modelsOf(idx *modelsindex.ModelsIndex) ModelLookup {
+	return ModelLookup{
+		ForBrick: func(ctx context.Context, brickID string) ([]AIModel, error) {
+			matches, err := idx.NewLookup().ByBrick(ctx, brickID)
+			return f.Map(matches, func(m modelsindex.AIModelLite) AIModel {
+				return AIModel{ID: m.ID, Name: m.Name, Description: m.Description}
+			}), err
+		},
+		ModelForBrick: func(ctx context.Context, modelID, brickID string) (string, bool, error) {
+			model, err := idx.NewLookup().ModelForBrick(ctx, modelID, brickID)
+			if err != nil || model == nil {
+				return "", false, err
+			}
+			return model.ID, true, nil
+		},
+	}
 }

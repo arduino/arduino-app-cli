@@ -18,13 +18,12 @@ import (
 	yaml "github.com/goccy/go-yaml"
 	"go.bug.st/f"
 
-	apimodels "github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
+	"github.com/arduino/arduino-app-cli/internal/modelid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -35,17 +34,31 @@ var (
 	ErrBrickIDConflict = errors.New("a brick with the new id already exists")
 )
 
+// ModelLookup finds the AI models a brick can use.
+type ModelLookup struct {
+	// ForBrick lists the models the brick can use, with their plain ids.
+	ForBrick func(ctx context.Context, brickID string) ([]AIModel, error)
+	// ModelForBrick returns the id of the model, and false if the brick cannot use it.
+	ModelForBrick func(ctx context.Context, modelID, brickID string) (string, bool, error)
+}
+
+// NoModelLookup has no model: a brick lists none and cannot set one.
+var NoModelLookup = ModelLookup{
+	ForBrick:      func(context.Context, string) ([]AIModel, error) { return nil, nil },
+	ModelForBrick: func(context.Context, string, string) (string, bool, error) { return "", false, nil },
+}
+
 type Service struct {
-	modelsIndex *modelsindex.ModelsIndex
+	models      ModelLookup
 	bricksIndex *bricksindex.BricksIndex
 }
 
 func NewService(
-	modelsIndex *modelsindex.ModelsIndex,
+	models ModelLookup,
 	bricksIndex *bricksindex.BricksIndex,
 ) *Service {
 	return &Service{
-		modelsIndex: modelsIndex,
+		models:      models,
 		bricksIndex: bricksIndex,
 	}
 }
@@ -89,7 +102,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) AppBrickInstancesResu
 			Category:        brick.Category,
 			Status:          "installed",
 			RequireModel:    brick.RequireModel,
-			ModelID:         apimodels.EncodeModelID(cmp.Or(brickInstance.Model, brick.ModelName)),
+			ModelID:         modelid.Encode(cmp.Or(brickInstance.Model, brick.ModelName)),
 			Variables:       variablesMap,
 			ConfigVariables: configVariables,
 			// Deprecated: always empty here, a container run is too expensive for a list. Use AppBrickInstanceDetails.
@@ -101,18 +114,14 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) AppBrickInstancesResu
 }
 
 // compatibleModels lists the models the brick can use, with the ids encoded.
-func compatibleModels(ctx context.Context, models *modelsindex.Lookup, brickID string) []AIModel {
-	matches, err := models.ByBrick(ctx, brickID)
+func compatibleModels(ctx context.Context, models ModelLookup, brickID string) []AIModel {
+	matches, err := models.ForBrick(ctx, brickID)
 	if err != nil {
 		slog.Warn("cannot get models info, brick compatibility list may be incomplete", "brick", brickID, "err", err)
 	}
-	return f.Map(matches, func(m modelsindex.AIModelLite) AIModel {
-		return AIModel{
-			ID:   apimodels.EncodeModelID(m.ID),
-			Name: m.Name,
-			// TODO: deprecated field, remove in future versions
-			Description: m.Description,
-		}
+	return f.Map(matches, func(m AIModel) AIModel {
+		m.ID = modelid.Encode(m.ID)
+		return m
 	})
 }
 
@@ -145,8 +154,8 @@ func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp
 		RequireModel:     brick.RequireModel,
 		Variables:        variables,
 		ConfigVariables:  configVariables,
-		ModelID:          apimodels.EncodeModelID(cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName)),
-		CompatibleModels: compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID),
+		ModelID:          modelid.Encode(cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName)),
+		CompatibleModels: compatibleModels(ctx, s.models, brick.ID),
 		Readme:           readme,
 	}, nil
 }
@@ -225,7 +234,7 @@ func (s *Service) BricksDetails(ctx context.Context, id string, idProvider *appi
 		ApiDocsPath:               apiDocsPath,
 		CodeExamples:              codeExamples,
 		UsedByApps:                usedByApps,
-		CompatibleModels:          compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID),
+		CompatibleModels:          compatibleModels(ctx, s.models, brick.ID),
 		ConfigVariables:           configVariables,
 		AIFrameworksCompatibility: brick.AIFrameworksCompatibility,
 	}, nil
@@ -381,14 +390,14 @@ func (s *Service) BrickCreate(
 	brickInstance.ID = req.ID
 
 	if req.Model != nil {
-		model, err := s.modelsIndex.NewLookup().ModelForBrick(ctx, *req.Model, req.ID)
+		model, found, err := s.models.ModelForBrick(ctx, *req.Model, req.ID)
 		if err != nil {
 			return fmt.Errorf("checking model %s: %w", *req.Model, err)
 		}
-		if model == nil {
+		if !found {
 			return fmt.Errorf("model %s does not exsist", *req.Model)
 		}
-		brickInstance.Model = model.ID
+		brickInstance.Model = model
 	}
 	brickInstance.Variables = req.Variables
 
@@ -438,14 +447,14 @@ func (s *Service) BrickUpdate(
 		if isRelease {
 			return fmt.Errorf("%w: the model of a release is frozen", ErrReleaseSecretsOnly)
 		}
-		model, err := s.modelsIndex.NewLookup().ModelForBrick(ctx, *req.Model, req.ID)
+		model, found, err := s.models.ModelForBrick(ctx, *req.Model, req.ID)
 		if err != nil {
 			return fmt.Errorf("checking model %s: %w", *req.Model, err)
 		}
-		if model == nil {
+		if !found {
 			return fmt.Errorf("model %s is not supported by brick %q", *req.Model, req.ID)
 		}
-		brickModel = model.ID
+		brickModel = model
 	}
 
 	secretValues := make(map[string]string)

@@ -6,34 +6,27 @@
 package orchestrator
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"slices"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
-	"github.com/goccy/go-yaml"
-	"github.com/gosimple/slug"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
 	semver "go.bug.st/relaxed-semver"
 
+	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
-	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	appgenerator "github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -45,12 +38,12 @@ import (
 )
 
 var (
-	ErrAppAlreadyExists = fmt.Errorf("app already exists")
-	ErrAppDoesntExists  = fmt.Errorf("app doesn't exist")
+	ErrAppAlreadyExists = appbook.ErrAppAlreadyExists
+	ErrAppDoesntExists  = appbook.ErrAppDoesntExists
 	ErrAppNotFound      = fmt.Errorf("app not found")
-	ErrBadRequest       = fmt.Errorf("bad request")
+	ErrBadRequest       = appbook.ErrBadRequest
 	ErrNotPrepared      = fmt.Errorf("app is not prepared")
-	ErrAppRunning       = fmt.Errorf("app is running")
+	ErrAppRunning       = appbook.ErrAppRunning
 )
 
 type AppStreamMessage struct {
@@ -110,7 +103,18 @@ func StartApp(
 
 	bricksIndex = appToStart.Bricks(bricksIndex)
 
-	modelsIndex = appToStart.Models(modelsIndex, docker, cfg, platform)
+	// A release validates against the models index its build froze, which knows its custom models.
+	modelsIndex = func() *modelsindex.ModelsIndex {
+		if appToStart.IsRelease() {
+			frozen, err := releaseModels(&appToStart, docker, cfg, platform)
+			if err != nil {
+				slog.Warn("cannot read the models the release ships", slog.String("app", appToStart.Name), slog.String("error", err.Error()))
+			} else {
+				return frozen
+			}
+		}
+		return modelsIndex
+	}()
 
 	if prepare && !appToStart.IsRelease() {
 		if err := prepareModels(ctx, docker, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex, platform, cb); err != nil {
@@ -473,40 +477,7 @@ func StartDefaultApp(
 	return nil
 }
 
-type ListAppResult struct {
-	Apps       []AppInfo       `json:"apps"`
-	BrokenApps []BrokenAppInfo `json:"broken_apps"`
-}
-
-type AppInfo struct {
-	ID          appid.ID `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Icon        string   `json:"icon"`
-	Status      Status   `json:"status,omitempty"`
-	Example     bool     `json:"example"`
-	Default     bool     `json:"default"`
-	// Release tells an app installed from a release, which is frozen, from an app,
-	// which is edited. ReleaseID is the release it comes from.
-	Release      bool       `json:"release"`
-	ReleaseID    string     `json:"release_id,omitempty"`
-	ReleaseLabel string     `json:"release_label,omitempty"`
-	CreatedAt    *time.Time `json:"created_at,omitempty"`
-}
-
-type BrokenAppInfo struct {
-	Name  string `json:"name"`
-	Error string `json:"error"`
-}
-
-type ListAppRequest struct {
-	ShowExamples    bool
-	ShowOnlyDefault bool // List only the default app (runs at startup)
-	ShowApps        bool
-	ShowReleases    bool // List the apps installed from a release, which are read-only
-	StatusFilter    Status
-}
-
+// ListApps lists the catalog with the status of each app.
 func ListApps(
 	ctx context.Context,
 	docker command.Cli,
@@ -516,100 +487,23 @@ func ListApps(
 	cfg config.Configuration,
 	platform platform.Platform,
 ) (ListAppResult, error) {
-	// Get the default app to mark it in the list
-	defaultApp, err := GetDefaultApp(cfg)
+	res, err := appbook.ListApps(req, idProvider, bricksIndex, cfg, platform)
 	if err != nil {
-		slog.Warn("unable to get default app", slog.String("error", err.Error()))
+		return res, err
 	}
 
 	// Get the status of all apps (it will return only the apps that have been started at least once)
-	appsStatus, err := getAppsStatus(ctx, docker.Client())
+	appsStatus, err := AppsStatus(ctx, docker)
 	if err != nil {
 		slog.Error("unable to get running app", slog.String("error", err.Error()))
 	}
-
-	// Retrieve all apps from the filesystem
-	var pathsToExplore paths.PathList
-	if req.ShowExamples || req.ShowOnlyDefault {
-		pathsToExplore.AddAll(cfg.ExamplesDirs(platform))
-		pathsToExplore.AddAll(cfg.ExamplesAdditionalDirs())
+	for i, a := range res.Apps {
+		res.Apps[i].Status = StatusUninitialized
+		if status, ok := appsStatus[a.ID.ToPath().String()]; ok {
+			res.Apps[i].Status = status
+		}
 	}
-	if req.ShowApps || req.ShowOnlyDefault {
-		pathsToExplore.Add(cfg.AppsDir())
-	}
-	// The releases are apps, installed apart because they are read-only.
-	if req.ShowReleases || req.ShowOnlyDefault {
-		pathsToExplore.Add(cfg.ReleasesDir())
-	}
-
-	appPaths, err := app.FindAppsInFolders(pathsToExplore)
-	if err != nil {
-		slog.Error("unable to list apps", slog.String("error", err.Error()))
-		return ListAppResult{}, err
-	}
-
-	// Go through all the known app paths, and create a result item for each.
-	result := ListAppResult{Apps: []AppInfo{}, BrokenApps: []BrokenAppInfo{}}
-	for _, file := range appPaths {
-		app, err := app.Load(file)
-		if err != nil {
-			result.BrokenApps = append(result.BrokenApps, BrokenAppInfo{
-				Name:  file.Base(),
-				Error: fmt.Sprintf("unable to parse the app.yaml: %s", err.Error()),
-			})
-			continue
-		}
-
-		// Apply default-apps-only filter if requested
-		isDefault := defaultApp != nil && defaultApp.FullPath.EqualsTo(app.FullPath)
-		if req.ShowOnlyDefault && !isDefault {
-			continue
-		}
-
-		// Retrieve the app status if available
-		status := StatusUninitialized
-		if idx := slices.IndexFunc(appsStatus, func(a AppStatusInfo) bool {
-			return a.AppPath.EqualsTo(app.FullPath)
-		}); idx != -1 {
-			status = appsStatus[idx].Status
-		}
-
-		// Apply status filter if requested
-		if req.StatusFilter != "" && req.StatusFilter != status {
-			continue
-		}
-
-		// Get the app ID
-		id, err := idProvider.IDFromPath(app.FullPath)
-		if err != nil {
-			return ListAppResult{}, fmt.Errorf("failed to get app ID from path %s: %w", file.String(), err)
-		}
-
-		// Filter example apps that use bricks incompatible with the board
-		if bricksIndex != nil && id.IsExample() && !exampleCompatibleWithBricksIndex(app, bricksIndex) {
-			continue
-		}
-
-		release, isRelease := app.GetRelease()
-
-		result.Apps = append(result.Apps,
-			AppInfo{
-				ID:           id,
-				Name:         app.Name,
-				Description:  app.Descriptor.Description,
-				Icon:         app.Descriptor.Icon,
-				Status:       status,
-				Example:      id.IsExample(),
-				Default:      isDefault,
-				Release:      isRelease,
-				ReleaseID:    release.ID,
-				ReleaseLabel: release.ReleaseLabel,
-				CreatedAt:    release.CreatedAt,
-			},
-		)
-	}
-
-	return result, nil
+	return res, nil
 }
 
 // ListActiveApps returns all the apps that have a non-uninitialized status in Docker,
@@ -660,49 +554,6 @@ func ListActiveApps(
 	}), nil
 }
 
-// exampleCompatibleWithBricksIndex returns true if all built-in bricks referenced by the app
-// are present in the given bricks index. Local bricks bundled with the app are always treated
-// as compatible and are skipped in the check.
-func exampleCompatibleWithBricksIndex(a app.ArduinoApp, idx *bricksindex.BricksIndex) bool {
-	localBrickIDs := make(map[string]struct{}, len(a.LocalBricks))
-	for _, lb := range a.LocalBricks {
-		localBrickIDs[lb.ID] = struct{}{}
-	}
-	for _, brick := range a.Descriptor.Bricks {
-		if _, isLocal := localBrickIDs[brick.ID]; isLocal {
-			continue
-		}
-		if _, ok := idx.FindBrickByID(brick.ID); !ok {
-			return false
-		}
-	}
-	return true
-}
-
-type AppDetailedInfo struct {
-	ID           appid.ID           `json:"id" required:"true" `
-	Name         string             `json:"name" required:"true"`
-	Path         string             `json:"path"`
-	Description  string             `json:"description"`
-	Icon         string             `json:"icon"`
-	Status       Status             `json:"status" required:"true"`
-	Example      bool               `json:"example"`
-	Default      bool               `json:"default"`
-	Release      bool               `json:"release"`
-	ReleaseID    string             `json:"release_id,omitempty"`
-	ReleaseLabel string             `json:"release_label,omitempty"`
-	CreatedAt    *time.Time         `json:"created_at,omitempty"`
-	Notes        string             `json:"notes,omitempty"`
-	Bricks       []AppDetailedBrick `json:"bricks,omitempty"`
-}
-
-type AppDetailedBrick struct {
-	ID           string `json:"id" required:"true"`
-	Name         string `json:"name" required:"true"`
-	Category     string `json:"category,omitempty"`
-	RequireModel bool   `json:"require_model"`
-}
-
 func AppDetails(
 	ctx context.Context,
 	docker command.Cli,
@@ -711,432 +562,25 @@ func AppDetails(
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (AppDetailedInfo, error) {
-	bricksIndex = bricksIndex.WithAppBricks(userApp.LocalBricks)
-	var wg sync.WaitGroup
-	wg.Add(2)
-	var defaultAppPath string
-	var status Status
-	go func() {
-		defer wg.Done()
-		app, err := getAppStatus(ctx, docker.Client(), userApp)
-		if err != nil {
+	return appbook.AppDetails(ctx, userApp, func(ctx context.Context) (map[string]Status, error) {
+		status := StatusStopped
+		if app, err := getAppStatus(ctx, docker.Client(), userApp); err != nil {
 			slog.Warn("unable to get app status", slog.String("error", err.Error()), slog.String("path", userApp.FullPath.String()))
-			status = StatusStopped
 		} else {
 			status = app.Status
 		}
-	}()
-	go func() {
-		defer wg.Done()
-		defaultApp, err := GetDefaultApp(cfg)
-		if err != nil {
-			slog.Warn("unable to get default app", slog.String("error", err.Error()))
-			return
-		}
-		if defaultApp == nil {
-			return
-		}
-		defaultAppPath = defaultApp.FullPath.String()
+		return map[string]Status{userApp.FullPath.String(): status}, nil
+	}, bricksIndex, idProvider, cfg)
+}
 
-	}()
-	wg.Wait()
-
-	id, err := idProvider.IDFromPath(userApp.FullPath)
+// CheckAppNotRunning returns ErrAppRunning if the app runs, starts or stops.
+func CheckAppNotRunning(ctx context.Context, docker command.Cli, a app.ArduinoApp) error {
+	status, err := getAppStatus(ctx, docker.Client(), a)
 	if err != nil {
-		return AppDetailedInfo{}, err
+		return fmt.Errorf("failed to get app status: %w", err)
 	}
-
-	release, isRelease := userApp.GetRelease()
-
-	return AppDetailedInfo{
-		ID:           id,
-		Name:         userApp.Name,
-		Path:         userApp.FullPath.String(),
-		Description:  userApp.Descriptor.Description,
-		Icon:         userApp.Descriptor.Icon,
-		Status:       status,
-		Example:      id.IsExample(),
-		Default:      defaultAppPath == userApp.FullPath.String(),
-		Release:      isRelease,
-		ReleaseID:    release.ID,
-		ReleaseLabel: release.ReleaseLabel,
-		CreatedAt:    release.CreatedAt,
-		Notes:        release.Notes,
-		Bricks: f.Map(userApp.Descriptor.Bricks, func(b app.Brick) AppDetailedBrick {
-			res := AppDetailedBrick{ID: b.ID}
-			bi, found := bricksIndex.FindBrickByID(b.ID)
-			if !found {
-				slog.Warn("brick not found in bricks index", slog.String("id", b.ID), slog.String("app", userApp.FullPath.String()))
-				return res
-			}
-			res.Name = bi.Name
-			res.Category = bi.Category
-			res.RequireModel = bi.RequireModel
-			return res
-		}),
-	}, nil
-}
-
-type CreateAppRequest struct {
-	Name        string
-	Icon        string
-	Description string
-	Bricks      []string
-	SkipSketch  bool
-}
-
-type CreateAppResponse struct {
-	ID appid.ID `json:"id"`
-}
-
-func CreateApp(
-	req CreateAppRequest,
-	bricksIndex *bricksindex.BricksIndex,
-	idProvider *appid.Provider,
-	cfg config.Configuration,
-) (CreateAppResponse, error) {
-	if req.Name == "" {
-		return CreateAppResponse{}, fmt.Errorf("app name cannot be empty")
-	}
-
-	appBricks := make([]app.Brick, 0, len(req.Bricks))
-	for _, id := range req.Bricks {
-		if _, found := bricksIndex.FindBrickByID(id); !found {
-			return CreateAppResponse{}, fmt.Errorf("%w: brick %q not found", ErrBadRequest, id)
-		}
-		appBricks = append(appBricks, app.Brick{ID: id})
-	}
-
-	basePath, appExists := findAppPathByName(req.Name, cfg)
-	if appExists {
-		existingID, err := idProvider.IDFromPath(basePath)
-		if err != nil {
-			return CreateAppResponse{}, ErrAppAlreadyExists
-		}
-		return CreateAppResponse{}, fmt.Errorf("%w with id: %q", ErrAppAlreadyExists, existingID)
-	}
-	appName := req.Name
-	newApp := app.AppDescriptor{
-		Name:        appName,
-		Description: req.Description,
-		Ports:       []int{},
-		Bricks:      appBricks,
-		Icon:        req.Icon,
-	}
-	if err := newApp.IsValid(); err != nil {
-		return CreateAppResponse{}, fmt.Errorf("%w: %v", app.ErrInvalidApp, err)
-	}
-
-	if err := appgenerator.GenerateApp(basePath, newApp, req.SkipSketch); err != nil {
-		return CreateAppResponse{}, fmt.Errorf("failed to create app: %w", err)
-	}
-	fatomic.Sync()
-	id, err := idProvider.IDFromPath(basePath)
-	if err != nil {
-		return CreateAppResponse{}, fmt.Errorf("failed to get app id: %w", err)
-	}
-	return CreateAppResponse{ID: id}, nil
-}
-
-type CloneAppRequest struct {
-	FromID appid.ID
-
-	Name *string
-	Icon *string
-}
-
-type CloneAppResponse struct {
-	ID appid.ID `json:"id"`
-}
-
-func CloneApp(
-	req CloneAppRequest,
-	idProvider *appid.Provider,
-	cfg config.Configuration,
-) (response CloneAppResponse, cloneErr error) {
-	originPath := req.FromID.ToPath()
-	if !originPath.Exist() {
-		return CloneAppResponse{}, ErrAppDoesntExists
-	}
-	if !originPath.Join("app.yaml").Exist() {
-		return CloneAppResponse{}, app.ErrInvalidApp
-	}
-
-	var dstPath *paths.Path
-	if req.Name != nil && *req.Name != "" {
-		dstPath = cfg.AppsDir().Join(slug.Make(*req.Name))
-		if dstPath.Exist() {
-			return CloneAppResponse{}, ErrAppAlreadyExists
-		}
-	} else {
-		for i := range 100 { // In case of name collision, we try up to 100 times.
-			dstName := fmt.Sprintf("%s-copy%d", originPath.Base(), i)
-			dstPath = cfg.AppsDir().Join(dstName)
-			if !dstPath.Exist() {
-				break
-			}
-		}
-	}
-	if err := dstPath.MkdirAll(); err != nil {
-		return CloneAppResponse{}, fmt.Errorf("failed to create app directory: %w", err)
-	}
-
-	// In case something during the clone operation fails we remove the dst path
-	defer func() {
-		if cloneErr != nil {
-			_ = dstPath.RemoveAll()
-		}
-	}()
-
-	// The manifest stays behind: a copy of a release is an app, and is edited.
-	list, err := originPath.ReadDir(paths.FilterOutNames(".cache", "data", app.ReleaseManifestFileName))
-	if err != nil {
-		return CloneAppResponse{}, fmt.Errorf("failed to read app directory: %w", err)
-	}
-	for _, file := range list {
-		if file.IsDir() {
-			if err := file.CopyDirTo(dstPath.Join(file.Base())); err != nil {
-				return CloneAppResponse{}, fmt.Errorf("failed to copy directory: %w", err)
-			}
-		} else {
-			if err := file.CopyTo(dstPath.Join(file.Base())); err != nil {
-				return CloneAppResponse{}, fmt.Errorf("failed to copy file: %w", err)
-			}
-		}
-	}
-
-	if (req.Name != nil && *req.Name != "") || (req.Icon != nil && *req.Icon != "") {
-
-		appYamlPath := dstPath.Join("app.yaml")
-		if !appYamlPath.Exist() {
-			return CloneAppResponse{}, fmt.Errorf("app.yaml not found in cloned app")
-		}
-		descriptor, err := app.ParseDescriptorFile(appYamlPath)
-		if err != nil {
-			return CloneAppResponse{}, fmt.Errorf("failed to parse app.yaml file: %w", err)
-		}
-		if req.Name != nil && *req.Name != "" {
-			descriptor.Name = *req.Name
-		}
-		if req.Icon != nil && *req.Icon != "" {
-			descriptor.Icon = *req.Icon
-		}
-
-		// TODO: implement MarshalYaml directly in the descriptor.
-		newDescriptor, err := yaml.Marshal(descriptor)
-		if err != nil {
-			// TODO: should we consider this a fatal error, or we prefer to silently ignore the error?
-			// Worst case, the optional fields will be the same as the source app.
-			return CloneAppResponse{}, fmt.Errorf("failed to marshal app.yaml file: %w", err)
-		}
-		if err := appYamlPath.WriteFile(newDescriptor); err != nil {
-			return CloneAppResponse{}, fmt.Errorf("failed to write app.yaml file: %w", err)
-		}
-	}
-	fatomic.Sync()
-
-	id, err := idProvider.IDFromPath(dstPath)
-	if err != nil {
-		return CloneAppResponse{}, fmt.Errorf("failed to get app id: %w", err)
-	}
-	return CloneAppResponse{ID: id}, nil
-}
-
-func DeleteApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration) error {
-	// We try to remove docker related resources at best effort
-	_ = StopAndDestroyApp(ctx, dockerClient, platform, app, cfg, func(StreamMessage) {})
-	// TODO: Shall we report stop error?
-
-	if err := app.FullPath.RemoveAll(); err != nil {
-		return err
-	}
-	fatomic.Sync()
-	return nil
-}
-
-const defaultAppFileName = "default.app"
-
-func SetDefaultApp(app *app.ArduinoApp, cfg config.Configuration) error {
-	defaultAppPath := cfg.DataDir().Join(defaultAppFileName)
-
-	// Remove the default app file if the app is nil.
-	if app == nil {
-		err := defaultAppPath.Remove()
-		if err != nil {
-			slog.Warn("failed to remove default app file", slog.String("path", defaultAppPath.String()), slog.String("error", err.Error()))
-			return nil
-		}
-		fatomic.Sync()
-		return nil
-	}
-
-	return fatomic.WriteFile(defaultAppPath.String(), []byte(app.FullPath.String()), os.FileMode(0644))
-}
-
-func GetDefaultApp(cfg config.Configuration) (*app.ArduinoApp, error) {
-	defaultAppFilePath := cfg.DataDir().Join(defaultAppFileName)
-	if !defaultAppFilePath.Exist() {
-		return nil, nil
-	}
-
-	defaultAppPath, err := defaultAppFilePath.ReadFile()
-	if err != nil {
-		return nil, err
-	}
-	defaultAppPath = bytes.TrimSpace(defaultAppPath)
-	if len(defaultAppPath) == 0 {
-		// If the file is empty, we remove it
-		slog.Warn("default app file is empty", slog.String("path", string(defaultAppPath)))
-		_ = defaultAppFilePath.Remove()
-		return nil, nil
-	}
-
-	app, err := app.Load(paths.New(string(defaultAppPath)))
-	if err != nil {
-		// If the app is not valid, we remove the file
-		slog.Warn("default app is not valid", slog.String("path", string(defaultAppPath)), slog.String("error", err.Error()))
-		_ = defaultAppFilePath.Remove()
-		return nil, err
-	}
-
-	return &app, nil
-}
-
-type AppEditRequest struct {
-	Name        *string
-	Icon        *string
-	Description *string
-	Default     *bool
-}
-
-func EditApp(
-	ctx context.Context,
-	docker command.Cli,
-	req AppEditRequest,
-	editApp *app.ArduinoApp,
-	cfg config.Configuration,
-) (editErr error) {
-	if req.Name != nil && slug.Make(*req.Name) == "" {
-		return fmt.Errorf("%w: invalid app name %q", app.ErrInvalidApp, *req.Name)
-	}
-
-	if req.Name != nil {
-		// Containers keep the old app path in their labels: renaming a running app breaks them.
-		status, err := getAppStatus(ctx, docker.Client(), *editApp)
-		if err != nil {
-			return fmt.Errorf("failed to get app status: %w", err)
-		}
-		if status.Status == StatusRunning || status.Status == StatusStarting || status.Status == StatusStopping {
-			return ErrAppRunning
-		}
-	}
-
-	if req.Name != nil || req.Icon != nil || req.Description != nil {
-		if err := editAppFolder(req, editApp, cfg); err != nil {
-			return err
-		}
-	}
-
-	if req.Default != nil {
-		if err := editAppDefaults(editApp, *req.Default, cfg); err != nil {
-			return fmt.Errorf("failed to edit app defaults: %w", err)
-		}
-	}
-	return nil
-}
-
-func editAppFolder(req AppEditRequest, editApp *app.ArduinoApp, cfg config.Configuration) error {
-	editable, err := editApp.GetAsEditable()
-	if err != nil {
-		return err
-	}
-
-	if req.Name != nil {
-		editable.Descriptor.Name = *req.Name
-	}
-	if req.Icon != nil {
-		editable.Descriptor.Icon = *req.Icon
-	}
-	if req.Description != nil {
-		editable.Descriptor.Description = *req.Description
-	}
-
-	if err := editable.Descriptor.IsValid(); err != nil {
-		return fmt.Errorf("%w: %w", app.ErrInvalidApp, err)
-	}
-
-	if req.Name != nil {
-		newPath, err := findRenamePath(editable.FullPath, slug.Make(*req.Name))
-		if err != nil {
-			return err
-		}
-		if !newPath.EqualsTo(editable.FullPath) {
-			oldPath := editable.FullPath
-			if err := editable.FullPath.Rename(newPath); err != nil {
-				return fmt.Errorf("failed to rename app path: %w", err)
-			}
-			fatomic.Sync()
-			editable.FullPath = newPath
-			// The folder is already renamed: the edit must complete, so the client gets the new ID.
-			if err := moveDefaultApp(oldPath, editApp, cfg); err != nil {
-				slog.Warn("failed to update default app after renaming", slog.String("path", newPath.String()), slog.String("error", err.Error()))
-			}
-		}
-		editable.Name = editable.Descriptor.Name
-	}
-
-	return editable.Save()
-}
-
-func findRenamePath(appPath *paths.Path, folderName string) (*paths.Path, error) {
-	candidate := appPath.Parent().Join(folderName)
-	for i := 1; i <= 100; i++ {
-		if candidate.EqualsTo(appPath) || candidate.NotExist() {
-			return candidate, nil
-		}
-		candidate = appPath.Parent().Join(fmt.Sprintf("%s-%d", folderName, i))
-	}
-	return nil, ErrAppAlreadyExists
-}
-
-func moveDefaultApp(oldPath *paths.Path, movedApp *app.ArduinoApp, cfg config.Configuration) error {
-	defaultAppFilePath := cfg.DataDir().Join(defaultAppFileName)
-	if defaultAppFilePath.NotExist() {
-		return nil
-	}
-	defaultAppPath, err := defaultAppFilePath.ReadFile()
-	if err != nil {
-		return err
-	}
-	if string(bytes.TrimSpace(defaultAppPath)) != oldPath.String() {
-		return nil
-	}
-	return SetDefaultApp(movedApp, cfg)
-}
-
-func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configuration) error {
-	if isDefault {
-		if err := SetDefaultApp(userApp, cfg); err != nil {
-			return fmt.Errorf("failed to set default app: %w", err)
-		}
-		return nil
-	}
-
-	defaultApp, err := GetDefaultApp(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to get default app: %w", err)
-	}
-
-	// No default app set, nothing to unset.
-	if defaultApp == nil {
-		return nil
-	}
-
-	// Unset only if the current default is the same as the app being edited.
-	if defaultApp.FullPath.String() == userApp.FullPath.String() {
-		if err := SetDefaultApp(nil, cfg); err != nil {
-			return fmt.Errorf("failed to unset default app: %w", err)
-		}
+	if status.Status == StatusRunning || status.Status == StatusStarting || status.Status == StatusStopping {
+		return ErrAppRunning
 	}
 	return nil
 }
@@ -1453,27 +897,4 @@ func migrateRemoveRouterBridgeIfNeeded(ctx context.Context, platform platform.Pl
 	}
 
 	return false, nil
-}
-
-type ConfigResponse struct {
-	Directories  ConfigDirectories `json:"directories"`
-	PythonRunner string            `json:"python_runner"`
-}
-
-type ConfigDirectories struct {
-	Data     string `json:"data"`
-	Apps     string `json:"apps"`
-	Examples string `json:"examples"`
-}
-
-func GetOrchestratorConfig(cfg config.Configuration) ConfigResponse {
-	return ConfigResponse{
-		Directories: ConfigDirectories{
-			Data: cfg.DataDir().String(),
-			Apps: cfg.AppsDir().String(),
-			// FIXME: ExamplesDir() is not the right directory, we should return the examples by board directory.
-			// Examples: cfg.ExamplesDir().String(),
-		},
-		PythonRunner: cfg.RunnerVersion,
-	}
 }

@@ -1761,6 +1761,47 @@ paths:
       summary: application version
       tags:
       - Application
+  /v2/apps:
+    get:
+      description: Returns the catalog of the apps and examples, with no status. Use
+        /v2/apps/status for the status.
+      operationId: getAppsCatalog
+      parameters:
+      - description: Filters apps by apps,examples,releases,default
+        in: query
+        name: filter
+        schema:
+          description: Filters apps by apps,examples,releases,default
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppListResponse'
+          description: Successful response
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Get the catalog of the apps
+      tags:
+      - Application
+  /v2/apps/status:
+    get:
+      description: Returns the apps started at least once, with their status, including
+        apps that are no longer on disk.
+      operationId: getAppsStatus
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppsStatusResponse'
+          description: Successful response
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Get the status of the apps
+      tags:
+      - Application
 components:
   responses:
     BadRequest:
@@ -2092,6 +2133,15 @@ components:
           type: string
         name:
           type: string
+      type: object
+    AppsStatusResponse:
+      properties:
+        apps:
+          description: The apps started at least once, with their status
+          items:
+            $ref: '#/components/schemas/AppInfo'
+          nullable: true
+          type: array
       type: object
     BrickConfigVariable:
       properties:

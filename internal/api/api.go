@@ -29,7 +29,9 @@ import (
 //go:embed docs
 var docsFS embed.FS
 
+// NewHTTPRouter serves the routes that run the apps, and passes the others to appbook.
 func NewHTTPRouter(
+	appbook http.Handler,
 	dockerClient command.Cli,
 	version string,
 	updater *update.Manager,
@@ -48,10 +50,6 @@ func NewHTTPRouter(
 	mux.Handle("GET /debug/", http.DefaultServeMux) // pprof endpoints
 
 	mux.Handle("GET /v1/version", handlers.HandlerVersion(version))
-	mux.Handle("GET /v1/config", handlers.HandleConfig(cfg))
-	mux.Handle("GET /v1/examples", handlers.HandleExamples(cfg, bricksIndex, idProvider))
-	mux.Handle("GET /v1/bricks", handlers.HandleBrickList(brickService))
-	mux.Handle("GET /v1/bricks/{brickID}", handlers.HandleBrickDetails(brickService, idProvider, cfg, platform))
 
 	mux.Handle("GET /v1/properties", handlers.HandlePropertyKeys(cfg))
 	mux.Handle("GET /v1/properties/{key}", handlers.HandlePropertyGet(cfg))
@@ -73,31 +71,20 @@ func NewHTTPRouter(
 	mux.Handle("DELETE /v1/models/{modelID}", handlers.HandlerDeleteModelByID(dockerClient, cfg, modelsIndex, bricksIndex, idProvider, platform))
 
 	mux.Handle("GET /v1/apps", handlers.HandleAppList(dockerClient, idProvider, bricksIndex, cfg, platform))
-	mux.Handle("POST /v1/apps", handlers.HandleAppCreate(bricksIndex, idProvider, cfg))
+	mux.Handle("GET /v2/apps/status", handlers.HandleAppsStatus(dockerClient, idProvider))
 	mux.Handle("GET /v1/apps/events", handlers.HandlerAppStatus(dockerClient, idProvider, bricksIndex, cfg, platform))
-	mux.Handle("GET /v1/apps/{appID}", handlers.HandleAppDetails(dockerClient, bricksIndex, idProvider, cfg))
-	mux.Handle("PATCH /v1/apps/{appID}", handlers.HandleAppDetailsEdits(dockerClient, bricksIndex, idProvider, cfg))
 	mux.Handle("GET /v1/apps/{appID}/logs", handlers.HandleAppLogs(dockerClient, idProvider, bricksIndex, servicesIndex, cfg))
 	mux.Handle("POST /v1/apps/{appID}/start", handlers.HandleAppStart(dockerClient, provisioner, modelsIndex, bricksIndex, servicesIndex, idProvider, cfg, platform))
 	mux.Handle("POST /v1/apps/{appID}/stop", handlers.HandleAppStop(dockerClient, idProvider, platform, cfg))
 	mux.Handle("POST /v1/apps/{appID}/build", handlers.HandleAppBuild(dockerClient, provisioner, idProvider, cfg, buildEvents))
 	mux.Handle("GET /v1/apps/build/events", handlers.HandleAppBuildEvents(buildEvents))
-	mux.Handle("POST /v1/apps/{appID}/clone", handlers.HandleAppClone(idProvider, cfg))
 	mux.Handle("PUT /v1/apps/install", handlers.HandleAppInstall(dockerClient, provisioner, idProvider, cfg, platform))
 	mux.Handle("PUT /v1/apps/{appID}/prepare", handlers.HandleAppPrepare(dockerClient, provisioner, idProvider, cfg, platform))
-	mux.Handle("DELETE /v1/apps/{appID}", handlers.HandleAppDelete(dockerClient, idProvider, platform, cfg))
-	mux.Handle("GET /v1/apps/{appID}/export", handlers.HandleAppExport(idProvider, bricksIndex))
-	mux.Handle("POST /v1/apps/import", handlers.HandleAppImport(cfg, idProvider))
 	mux.Handle("GET /v1/apps/{appID}/exposed-ports", handlers.HandleAppPorts(bricksIndex, servicesIndex, idProvider))
 	mux.Handle("PUT /v1/apps/{appID}/sketch/libraries/{libRef}", handlers.HandleSketchAddLibrary(idProvider))
 	mux.Handle("DELETE /v1/apps/{appID}/sketch/libraries/{libRef}", handlers.HandleSketchRemoveLibrary(idProvider))
 	mux.Handle("GET /v1/apps/{appID}/sketch/libraries", handlers.HandleSketchListLibraries(idProvider))
 
-	mux.Handle("GET /v1/apps/{appID}/bricks", handlers.HandleAppBrickInstancesList(brickService, idProvider))
-	mux.Handle("GET /v1/apps/{appID}/bricks/{brickID}", handlers.HandleAppBrickInstanceDetails(brickService, idProvider))
-	mux.Handle("PUT /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickCreate(brickService, idProvider))
-	mux.Handle("PATCH /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickUpdates(brickService, idProvider))
-	mux.Handle("DELETE /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickDelete(brickService, idProvider))
 	mux.Handle("POST /v1/apps/{appID}/bricks", handlers.HandleAppLocalBrickCreate(idProvider))
 	mux.Handle("POST /v1/apps/{appID}/bricks/{brickID}/rename", handlers.HandleAppLocalBrickRename(brickService, idProvider))
 
@@ -106,6 +93,8 @@ func NewHTTPRouter(
 	mux.Handle("GET /v1/monitor/ws", handlers.HandleMonitorWS(allowedOrigins))
 
 	mux.Handle("GET /v1/libraries", handlers.HandleLibraryList(cfg.LibrariesAPIURL, version))
+
+	mux.Handle("/", appbook)
 
 	return mux
 }

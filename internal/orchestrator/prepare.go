@@ -54,7 +54,7 @@ func PrepareRelease(
 
 	// The release ships the records of its models: the index of this board is not the one
 	// that built it and may not know them.
-	models, err := arduinoApp.ReleaseModels(docker, cfg, plat)
+	models, err := releaseModels(&arduinoApp, docker, cfg, plat)
 	if err != nil {
 		return fmt.Errorf("cannot read the models the release ships: %w", err)
 	}
@@ -178,7 +178,7 @@ func renderRelease(
 	if err != nil {
 		return nil, fmt.Errorf("cannot read the bricks the release ships: %w", err)
 	}
-	modelsIndex, err := arduinoApp.ReleaseModels(docker, cfg, plat)
+	modelsIndex, err := releaseModels(&arduinoApp, docker, cfg, plat)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read the models the release ships: %w", err)
 	}
@@ -192,4 +192,17 @@ func renderRelease(
 		return nil, fmt.Errorf("failed to render the compose file of the release: %w", err)
 	}
 	return prj, nil
+}
+
+// releaseModels is the models index a release ships in its .cache, the ones its build
+// wired the app with.
+func releaseModels(a *app.ArduinoApp, docker command.Cli, cfg config.Configuration, plat platform.Platform) (*modelsindex.ModelsIndex, error) {
+	return modelsindex.Load(
+		plat,
+		a.ProvisioningStateDir(),
+		cfg.ModelsDir(),
+		cfg.CustomModelsDir(),
+		docker.Client(),
+		cfg,
+	)
 }

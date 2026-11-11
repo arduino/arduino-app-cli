@@ -49,6 +49,17 @@ type RequiredRuntime struct {
 	Group string
 }
 
+// New is the configuration of the app CRUD only: its directories.
+func New(appsDir, dataDir, assetDir *paths.Path) Configuration {
+	return Configuration{
+		appsDir:       appsDir,
+		dataDir:       dataDir,
+		releasesDir:   dataDir.Join("releases"),
+		assetDir:      assetDir,
+		RunnerVersion: RunnerVersion,
+	}
+}
+
 func NewFromEnv() (Configuration, error) {
 	appsDir := paths.New(os.Getenv("ARDUINO_APP_CLI__APPS_DIR"))
 	if appsDir == nil {

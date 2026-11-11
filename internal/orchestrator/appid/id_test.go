@@ -39,6 +39,8 @@ func TestNewIDFromPath(t *testing.T) {
 	require.NoError(t, examplesBaseDir.Join("core-and-foundational", "nested1", "nested2").MkdirAll())
 	require.NoError(t, examplesBaseDir.Join("bricks", "nested1").MkdirAll())
 	require.NoError(t, tmp.Join("other-location-app").MkdirAll())
+	require.NoError(t, orchestratorConfig.AppsDir().Join("group", "user-app").MkdirAll())
+	require.NoError(t, orchestratorConfig.ReleasesDir().Join("release1", "app").MkdirAll())
 
 	idProvider := NewAppProvider(orchestratorConfig, unoQPlatform)
 
@@ -92,6 +94,16 @@ func TestNewIDFromPath(t *testing.T) {
 			name: "bricks",
 			in:   examplesBaseDir.Join("bricks", "nested1"),
 			want: f.Must(idProvider.ParseID("examples:bricks/nested1")),
+		},
+		{
+			name: "nested user id uses slashes",
+			in:   orchestratorConfig.AppsDir().Join("group", "user-app"),
+			want: f.Must(idProvider.ParseID("user:group/user-app")),
+		},
+		{
+			name: "nested release id uses slashes",
+			in:   orchestratorConfig.ReleasesDir().Join("release1", "app"),
+			want: f.Must(idProvider.ParseID("release:release1/app")),
 		},
 	}
 

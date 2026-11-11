@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package orchestrator
+package appbook
 
 import (
 	"archive/zip"
@@ -48,9 +48,9 @@ func ExportAppZip(
 	return zipBytes, filename, nil
 }
 
-// appSourceFilter selects what an app is made of, dropping what is state: .cache and
+// AppSourceFilter selects what an app is made of, dropping what is state: .cache and
 // __pycache__ are generated, the manifest is the release's and data is the board's.
-func appSourceFilter(includeData bool) paths.ReadDirFilter {
+func AppSourceFilter(includeData bool) paths.ReadDirFilter {
 	return func(p *paths.Path) bool {
 		switch p.Base() {
 		case ".cache", "__pycache__", app.ReleaseManifestFileName:
@@ -66,7 +66,7 @@ func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, roo
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
 
-	skipFilter := appSourceFilter(includeData)
+	skipFilter := AppSourceFilter(includeData)
 
 	entries, err := paths.New(sourcePath).ReadDirRecursiveFiltered(skipFilter, skipFilter)
 	if err != nil {
@@ -120,7 +120,7 @@ func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, roo
 				zipWriter.Close()
 				return nil, err
 			}
-			redactSecrets(bricksIndex, &desc)
+			RedactSecrets(bricksIndex, &desc)
 			if err := yaml.NewEncoder(writer).Encode(desc); err != nil {
 				zipWriter.Close()
 				return nil, err
@@ -321,7 +321,8 @@ func readAppDescriptorFromZip(r *zip.Reader, rootPrefix string) (app.AppDescript
 	return descriptor, fmt.Errorf("app.yaml not found in archive")
 }
 
-func redactSecrets(bricksindex *bricksindex.BricksIndex, desc *app.AppDescriptor) {
+// RedactSecrets empties the secret values of the bricks in the descriptor.
+func RedactSecrets(bricksindex *bricksindex.BricksIndex, desc *app.AppDescriptor) {
 	for i := range desc.Bricks {
 		brick := &desc.Bricks[i]
 

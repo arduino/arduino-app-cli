@@ -21,6 +21,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/appbook/httpapi"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
@@ -471,7 +472,7 @@ func (g *Generator) InitOperations() {
 			OperationId: "cloneApp",
 			Method:      http.MethodPost,
 			Path:        "/v1/apps/{id}/clone",
-			Request:     handlers.CloneRequest{},
+			Request:     httpapi.CloneRequest{},
 			Parameters: (*struct {
 				ID string `path:"id" description:"application identifier."`
 			})(nil),
@@ -748,7 +749,7 @@ Contains a JSON object with the details of an error.
 			OperationId: "editApp",
 			Method:      http.MethodPatch,
 			Path:        "/v1/apps/{id}",
-			Request:     handlers.EditRequest{},
+			Request:     httpapi.EditRequest{},
 			Parameters: (*struct {
 				ID string `path:"id" description:"application identifier."`
 			})(nil),
@@ -911,7 +912,7 @@ Contains a JSON object with the details of an error.
 			OperationId: "createApp",
 			Method:      http.MethodPost,
 			Path:        "/v1/apps",
-			Request:     handlers.CreateAppRequest{},
+			Request:     httpapi.CreateAppRequest{},
 			Parameters: (*struct {
 				SkipSketch bool `query:"skip-sketch" description:"If true, the app will not be created with the sketch part."`
 			})(nil),
@@ -941,12 +942,50 @@ Contains a JSON object with the details of an error.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: handlers.AppListResponse{},
+				DataStructure: httpapi.AppListResponse{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
 			Description: "Returns a list of all apps, and example present. It is also possible to apply different filters.",
 			Summary:     "Get a list of installed apps/examples",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "getAppsCatalog",
+			Method:      http.MethodGet,
+			Path:        "/v2/apps",
+			Request:     (*orchestrator.ListAppRequest)(nil),
+			Parameters: (*struct {
+				Filter string `query:"filter" description:"Filters apps by apps,examples,releases,default"`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: httpapi.AppListResponse{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Returns the catalog of the apps and examples, with no status. Use /v2/apps/status for the status.",
+			Summary:     "Get the catalog of the apps",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "getAppsStatus",
+			Method:      http.MethodGet,
+			Path:        "/v2/apps/status",
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: handlers.AppsStatusResponse{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Returns the apps started at least once, with their status, including apps that are no longer on disk.",
+			Summary:     "Get the status of the apps",
 			Tags:        []Tag{ApplicationTag},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},

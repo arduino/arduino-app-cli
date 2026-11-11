@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
 
+	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -202,6 +203,15 @@ func TestEditApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 	docker := newFakeDockerCli(t, nil)
+	// The flow of the appbook router with Docker: the Docker check, then the edit.
+	editApp := func(ctx context.Context, docker command.Cli, req AppEditRequest, a *app.ArduinoApp, cfg config.Configuration) error {
+		if req.Name != nil {
+			if err := CheckAppNotRunning(ctx, docker, *a); err != nil {
+				return err
+			}
+		}
+		return appbook.EditApp(req, a, cfg)
+	}
 
 	t.Run("with default", func(t *testing.T) {
 		_, err := CreateApp(CreateAppRequest{Name: "app-default"}, &bricksindex.BricksIndex{}, idProvider, cfg)
@@ -215,7 +225,7 @@ func TestEditApp(t *testing.T) {
 			require.NoError(t, err)
 			require.Nil(t, previousDefaultApp)
 
-			err = EditApp(t.Context(), docker, AppEditRequest{Default: new(true)}, &app, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Default: new(true)}, &app, cfg)
 			require.NoError(t, err)
 
 			currentDefaultApp, err := GetDefaultApp(cfg)
@@ -231,7 +241,7 @@ func TestEditApp(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, appDir.EquivalentTo(previousDefaultApp.FullPath))
 
-			err = EditApp(t.Context(), docker, AppEditRequest{Default: new(false)}, &app, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Default: new(false)}, &app, cfg)
 			require.NoError(t, err)
 
 			currentDefaultApp, err := GetDefaultApp(cfg)
@@ -248,7 +258,7 @@ func TestEditApp(t *testing.T) {
 		userApp := f.Must(app.Load(appDir))
 		originalPath := userApp.FullPath
 
-		err = EditApp(t.Context(), docker, AppEditRequest{Name: new("new-name")}, &userApp, cfg)
+		err = editApp(t.Context(), docker, AppEditRequest{Name: new("new-name")}, &userApp, cfg)
 		require.NoError(t, err)
 		editedApp, err := app.Load(cfg.AppsDir().Join("new-name"))
 		require.NoError(t, err)
@@ -262,7 +272,7 @@ func TestEditApp(t *testing.T) {
 			appDir := cfg.AppsDir().Join(existingAppName)
 			existingApp := f.Must(app.Load(appDir))
 
-			err = EditApp(t.Context(), docker, AppEditRequest{Name: new("new-name")}, &existingApp, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Name: new("new-name")}, &existingApp, cfg)
 			require.NoError(t, err)
 			require.Equal(t, cfg.AppsDir().Join("new-name-1").String(), existingApp.FullPath.String())
 			require.True(t, appDir.NotExist())
@@ -271,7 +281,7 @@ func TestEditApp(t *testing.T) {
 			require.Equal(t, "new-name", editedApp.Name)
 
 			// The app already sits in the first free suffixed folder: it stays there.
-			err = EditApp(t.Context(), docker, AppEditRequest{Name: new("New-Name")}, &existingApp, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Name: new("New-Name")}, &existingApp, cfg)
 			require.NoError(t, err)
 			require.Equal(t, cfg.AppsDir().Join("new-name-1").String(), existingApp.FullPath.String())
 		})
@@ -283,7 +293,7 @@ func TestEditApp(t *testing.T) {
 			appDir := cfg.AppsDir().Join(appName)
 			emptySlugApp := f.Must(app.Load(appDir))
 
-			err = EditApp(t.Context(), docker, AppEditRequest{Name: new("$$$"), Default: new(true)}, &emptySlugApp, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Name: new("$$$"), Default: new(true)}, &emptySlugApp, cfg)
 			require.ErrorIs(t, err, app.ErrInvalidApp)
 			defaultApp, err := GetDefaultApp(cfg)
 			require.NoError(t, err)
@@ -302,7 +312,7 @@ func TestEditApp(t *testing.T) {
 			appDir := cfg.AppsDir().Join(appName)
 			sameSlugApp := f.Must(app.Load(appDir))
 
-			err = EditApp(t.Context(), docker, AppEditRequest{Name: new("Same-Slug")}, &sameSlugApp, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Name: new("Same-Slug")}, &sameSlugApp, cfg)
 			require.NoError(t, err)
 			require.Equal(t, appDir.String(), sameSlugApp.FullPath.String())
 			editedApp, err := app.Load(appDir)
@@ -322,13 +332,13 @@ func TestEditApp(t *testing.T) {
 				Status: "Up 5 minutes",
 			}})
 
-			err = EditApp(t.Context(), runningDocker, AppEditRequest{Name: new("running-renamed")}, &runningApp, cfg)
+			err = editApp(t.Context(), runningDocker, AppEditRequest{Name: new("running-renamed")}, &runningApp, cfg)
 			require.ErrorIs(t, err, ErrAppRunning)
 			require.True(t, appDir.Exist())
 			require.True(t, cfg.AppsDir().Join("running-renamed").NotExist())
 
 			// Only the rename is refused: other fields can still be edited.
-			err = EditApp(t.Context(), runningDocker, AppEditRequest{Description: new("new desc")}, &runningApp, cfg)
+			err = editApp(t.Context(), runningDocker, AppEditRequest{Description: new("new desc")}, &runningApp, cfg)
 			require.NoError(t, err)
 		})
 
@@ -343,14 +353,14 @@ func TestEditApp(t *testing.T) {
 			t.Cleanup(func() { _ = SetDefaultApp(nil, cfg) })
 
 			// Renaming another app leaves the default app untouched.
-			err = EditApp(t.Context(), docker, AppEditRequest{Name: new("other-renamed")}, &otherApp, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Name: new("other-renamed")}, &otherApp, cfg)
 			require.NoError(t, err)
 			currentDefaultApp, err := GetDefaultApp(cfg)
 			require.NoError(t, err)
 			require.NotNil(t, currentDefaultApp)
 			require.True(t, cfg.AppsDir().Join("default-to-rename").EqualsTo(currentDefaultApp.FullPath))
 
-			err = EditApp(t.Context(), docker, AppEditRequest{Name: new("default-renamed")}, &defaultApp, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Name: new("default-renamed")}, &defaultApp, cfg)
 			require.NoError(t, err)
 			currentDefaultApp, err = GetDefaultApp(cfg)
 			require.NoError(t, err)
@@ -364,14 +374,14 @@ func TestEditApp(t *testing.T) {
 			userApp := f.Must(app.Load(cfg.AppsDir().Join("set-and-rename")))
 			t.Cleanup(func() { _ = SetDefaultApp(nil, cfg) })
 
-			err = EditApp(t.Context(), docker, AppEditRequest{Name: new("set-and-renamed"), Default: new(true)}, &userApp, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Name: new("set-and-renamed"), Default: new(true)}, &userApp, cfg)
 			require.NoError(t, err)
 			currentDefaultApp, err := GetDefaultApp(cfg)
 			require.NoError(t, err)
 			require.NotNil(t, currentDefaultApp)
 			require.True(t, cfg.AppsDir().Join("set-and-renamed").EqualsTo(currentDefaultApp.FullPath))
 
-			err = EditApp(t.Context(), docker, AppEditRequest{Name: new("unset-and-renamed"), Default: new(false)}, &userApp, cfg)
+			err = editApp(t.Context(), docker, AppEditRequest{Name: new("unset-and-renamed"), Default: new(false)}, &userApp, cfg)
 			require.NoError(t, err)
 			currentDefaultApp, err = GetDefaultApp(cfg)
 			require.NoError(t, err)
@@ -386,7 +396,7 @@ func TestEditApp(t *testing.T) {
 		commonAppDir := cfg.AppsDir().Join(commonAppName)
 		commonApp := f.Must(app.Load(commonAppDir))
 
-		err = EditApp(t.Context(), docker, AppEditRequest{
+		err = editApp(t.Context(), docker, AppEditRequest{
 			Icon:        new("💻"),
 			Description: new("new desc"),
 		}, &commonApp, cfg)
@@ -458,7 +468,6 @@ func TestListApp(t *testing.T) {
 		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps:     true,
 			ShowExamples: true,
-			StatusFilter: "",
 		}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
@@ -497,7 +506,6 @@ func TestListApp(t *testing.T) {
 		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps:     true,
 			ShowExamples: false,
-			StatusFilter: "",
 		}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
@@ -527,7 +535,6 @@ func TestListApp(t *testing.T) {
 		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps:     false,
 			ShowExamples: true,
-			StatusFilter: "",
 		}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)

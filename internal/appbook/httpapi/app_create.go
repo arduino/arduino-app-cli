@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package handlers
+package httpapi
 
 import (
 	"encoding/json"
@@ -12,8 +12,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/arduino/arduino-app-cli/internal/api/models"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/appbook"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -43,12 +42,12 @@ func HandleAppCreate(
 		var req CreateAppRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			slog.Error("unable to decode app create request", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode app create request"})
+			render.EncodeResponse(w, http.StatusBadRequest, render.ErrorResponse{Details: "unable to decode app create request"})
 			return
 		}
 
-		resp, err := orchestrator.CreateApp(
-			orchestrator.CreateAppRequest{
+		resp, err := appbook.CreateApp(
+			appbook.CreateAppRequest{
 				Name:        req.Name,
 				Icon:        req.Icon,
 				Description: req.Description,
@@ -60,16 +59,16 @@ func HandleAppCreate(
 		)
 		if err != nil {
 			switch {
-			case errors.Is(err, orchestrator.ErrAppAlreadyExists):
+			case errors.Is(err, appbook.ErrAppAlreadyExists):
 				slog.Error("app already exists", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
+				render.EncodeResponse(w, http.StatusConflict, render.ErrorResponse{Details: err.Error()})
 
 			case errors.Is(err, app.ErrInvalidApp):
 				slog.Error("invalid app data", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+				render.EncodeResponse(w, http.StatusBadRequest, render.ErrorResponse{Details: err.Error()})
 			default:
 				slog.Error("unable to create app", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "an unexpected error occurred"})
+				render.EncodeResponse(w, http.StatusInternalServerError, render.ErrorResponse{Details: "an unexpected error occurred"})
 			}
 			return
 		}
