@@ -12,20 +12,39 @@ import (
 	"slices"
 
 	"github.com/arduino/go-paths-helper"
-	yaml "github.com/goccy/go-yaml"
 	semver "go.bug.st/relaxed-semver"
+
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
-type InstalledBrick struct {
-	Namespace string
-	Version   string
-	// Brick is read from the brick_config.yaml of the installed version.
-	Brick Brick
+// installedBricks returns the latest version of each installed brick that supports the board.
+func (b *BricksIndex) installedBricks() []Brick {
+	if b.installedDir == nil {
+		return nil
+	}
+	installed, err := listInstalled(b.platform, b.installedDir)
+	if err != nil {
+		slog.Warn("cannot read the installed bricks", "error", err)
+		return nil
+	}
+	var res []Brick
+	for _, brick := range installed {
+		if !brick.SupportsBoard(b.platform) {
+			continue
+		}
+		// The versions of a brick are sorted from the oldest, so the last one wins.
+		if n := len(res); n > 0 && res[n-1].ID == brick.ID {
+			res[n-1] = brick
+		} else {
+			res = append(res, brick)
+		}
+	}
+	return res
 }
 
-// ListInstalled returns the bricks installed in bricksDir, one entry per version, sorted by
+// listInstalled returns the bricks installed in bricksDir, one entry per version, sorted by
 // id and then by version. Folders that are not valid installed bricks are skipped.
-func ListInstalled(bricksDir *paths.Path) ([]InstalledBrick, error) {
+func listInstalled(platform platform.Platform, bricksDir *paths.Path) ([]Brick, error) {
 	if bricksDir.NotExist() {
 		return nil, nil
 	}
@@ -34,7 +53,7 @@ func ListInstalled(bricksDir *paths.Path) ([]InstalledBrick, error) {
 		return nil, fmt.Errorf("reading installed bricks: %w", err)
 	}
 
-	var res []InstalledBrick
+	var res []Brick
 	for _, namespaceDir := range namespaceDirs {
 		namespace := namespaceDir.Base()
 		// Skips the temporary folders of install and uninstall.
@@ -56,18 +75,19 @@ func ListInstalled(bricksDir *paths.Path) ([]InstalledBrick, error) {
 			}
 			for _, version := range versions {
 				brickDir := nameDir.Join(version.String())
-				brick, err := loadInstalledBrick(brickDir, namespace+":"+name)
+				brick, err := loadInstalledBrick(platform, brickDir, namespace, name)
 				if err != nil {
 					slog.Warn("skipping invalid installed brick", "path", brickDir, "error", err)
 					continue
 				}
-				res = append(res, InstalledBrick{Namespace: namespace, Version: version.String(), Brick: brick})
+				brick.Version = version.String()
+				res = append(res, brick)
 			}
 		}
 	}
 
 	// The versions are already sorted.
-	slices.SortStableFunc(res, func(a, b InstalledBrick) int { return cmp.Compare(a.Brick.ID, b.Brick.ID) })
+	slices.SortStableFunc(res, func(a, b Brick) int { return cmp.Compare(a.ID, b.ID) })
 	return res, nil
 }
 
@@ -94,18 +114,13 @@ func installedVersions(nameDir *paths.Path) ([]*semver.Version, error) {
 	return versions, nil
 }
 
-func loadInstalledBrick(brickDir *paths.Path, id string) (Brick, error) {
-	data, err := brickDir.Join(brickConfigFileName).ReadFile()
+func loadInstalledBrick(platform platform.Platform, brickDir *paths.Path, namespace, name string) (Brick, error) {
+	brick, err := LoadBrickDir(platform, brickDir, namespace)
 	if err != nil {
 		return Brick{}, err
 	}
-	var brick Brick
-	if err := yaml.Unmarshal(data, &brick); err != nil {
-		return Brick{}, fmt.Errorf("invalid %s: %w", brickConfigFileName, err)
-	}
-	if brick.ID != id {
+	if id := namespace + ":" + name; brick.ID != id {
 		return Brick{}, fmt.Errorf("%s declares id %q instead of %q", brickConfigFileName, brick.ID, id)
 	}
-	brick.FullPath = brickDir
 	return brick, nil
 }
