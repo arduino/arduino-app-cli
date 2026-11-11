@@ -88,7 +88,11 @@ func ComposeStop(ctx context.Context, docker command.Cli, projectName string, li
 		return err
 	}
 	timeout := stopTimeout
-	return backend.Stop(ctx, projectName, api.StopOptions{Timeout: &timeout})
+	if err := backend.Stop(ctx, projectName, api.StopOptions{Timeout: &timeout}); err != nil {
+		return err
+	}
+	// Workaround: moby returns a stop before its container list shows it, and a status read in that gap finds the app running.
+	return waitStopped(ctx, docker.Client(), api.ProjectLabel+"="+projectName, stopTimeout)
 }
 
 // ComposeDown removes the containers of the app, its volumes, the images it built and its
