@@ -1233,6 +1233,10 @@ func checkPrebuiltSketch(a app.ArduinoApp, fwFile *paths.Path) error {
 // checkPrebuiltSketchPlatform checks that the board can run a prebuilt sketch. It runs
 // before the start does any work, as the answer depends only on the board and its core.
 func checkPrebuiltSketchPlatform(ctx context.Context, platform platform.Platform) error {
+	// Only a board that supports flash-to-RAM can need it: the others skip the lookup.
+	if !platform.SupportFlashToRam() {
+		return nil
+	}
 	menuOptions, err := GetPlatformMenuOptions(ctx, platform)
 	if err != nil {
 		return fmt.Errorf("failed to get platform menu options: %w", err)

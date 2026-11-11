@@ -1225,3 +1225,9 @@ func TestUsesLegacyFlashToRam(t *testing.T) {
 	require.False(t, usesLegacyFlashToRam(withWaitForApp, unoq), "UNO Q with a core with wait_linux_boot=app")
 	require.False(t, usesLegacyFlashToRam(nil, other), "board without flash to RAM")
 }
+
+func TestCheckPrebuiltSketchPlatformSkipsBoardWithoutFlashToRam(t *testing.T) {
+	// The board cannot flash to RAM, so the check passes without asking arduino-cli.
+	ventunoq := platform.Platform{FQBN: "arduino:zephyr:ventunoq"}
+	require.NoError(t, checkPrebuiltSketchPlatform(t.Context(), ventunoq))
+}
