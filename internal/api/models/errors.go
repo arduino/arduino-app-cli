@@ -5,7 +5,6 @@
 
 package models
 
-type ErrorResponse struct {
-	Code    string `json:"code,omitempty"`
-	Details string `json:"details"`
-}
+import "github.com/arduino/arduino-app-cli/internal/render"
+
+type ErrorResponse = render.ErrorResponse
