@@ -110,7 +110,18 @@ func StartApp(
 
 	bricksIndex = appToStart.Bricks(bricksIndex)
 
-	modelsIndex = appToStart.Models(modelsIndex, docker, cfg, platform)
+	// A release validates against the models index its build froze, which knows its custom models.
+	modelsIndex = func() *modelsindex.ModelsIndex {
+		if appToStart.IsRelease() {
+			frozen, err := releaseModels(&appToStart, docker, cfg, platform)
+			if err != nil {
+				slog.Warn("cannot read the models the release ships", slog.String("app", appToStart.Name), slog.String("error", err.Error()))
+			} else {
+				return frozen
+			}
+		}
+		return modelsIndex
+	}()
 
 	if prepare && !appToStart.IsRelease() {
 		if err := prepareModels(ctx, docker, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex, platform, cb); err != nil {
