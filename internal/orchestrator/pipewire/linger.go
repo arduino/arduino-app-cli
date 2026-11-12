@@ -28,7 +28,7 @@ func enableLingering(ctx context.Context, cfg config.Configuration) error {
 		return fmt.Errorf("get current user: %w", err)
 	}
 
-	alreadyOn, err := runShowLingerCommand(ctx, user.Username)
+	alreadyOn, err := isLingerEnabled(user.Username)
 	if err != nil {
 		return fmt.Errorf("check linger: %w", err)
 	}
@@ -152,19 +152,15 @@ func runDisableLingerCommand(ctx context.Context, username string) error {
 	return nil
 }
 
-func runShowLingerCommand(ctx context.Context, username string) (bool, error) {
-	cmdArgs := []string{"loginctl", "show-user", username, "-p", "Linger", "--value"}
-	cmd, err := paths.NewProcess(nil, cmdArgs...)
-	if err != nil {
-		return false, fmt.Errorf("create process %q: %w", strings.Join(cmdArgs, " "), err)
+// isLingerEnabled reads the state logind keeps, the linger file of the user: what
+// `loginctl show-user -p Linger` reports, without the process it costs.
+func isLingerEnabled(username string) (bool, error) {
+	_, err := os.Stat(filepath.Join("/var/lib/systemd/linger", username))
+	if err == nil {
+		return true, nil
 	}
-
-	out, err := cmd.RunAndCaptureCombinedOutput(ctx)
-	if err != nil {
-		if strings.Contains(string(out), "is not logged in or lingering") {
-			return false, nil
-		}
-		return false, fmt.Errorf("%s: %w: %s", strings.Join(cmdArgs, " "), err, strings.TrimSpace(string(out)))
+	if os.IsNotExist(err) {
+		return false, nil
 	}
-	return strings.TrimSpace(string(out)) == "yes", nil
+	return false, err
 }

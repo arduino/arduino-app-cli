@@ -30,6 +30,27 @@ func Init(cfg config.Configuration) {
 	globalConfig = cfg
 }
 
+// PreloadIndexes loads the bricks, models and services indexes together: each one
+// parses its own files, and a start needs all three.
+func PreloadIndexes() {
+	// The assets the indexes read are provisioned here, when they are missing.
+	GetProvisioner()
+
+	var wg sync.WaitGroup
+	for _, load := range []func(){
+		func() { GetBricksIndex() },
+		func() { GetModelsIndex() },
+		func() { GetServicesIndex() },
+	} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			load()
+		}()
+	}
+	wg.Wait()
+}
+
 var (
 	GetBricksIndex = sync.OnceValue(func() *bricksindex.BricksIndex {
 		return f.Must(bricksindex.Load(GetPlatform(), globalConfig.AssetDir()))
