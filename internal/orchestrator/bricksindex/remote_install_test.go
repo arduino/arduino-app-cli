@@ -132,9 +132,11 @@ func TestFindRelease(t *testing.T) {
 func TestInstall(t *testing.T) {
 	bricksDir := paths.New(t.TempDir())
 	release := archiveRelease(t, makeZip(t, map[string]string{
-		"camera/brick_config.yaml":  "id: acme:camera\n",
-		"camera/README.md":          "readme",
-		"__MACOSX/camera/._file.md": "metadata",
+		"camera/src/brick_config.yaml": "id: acme:camera\n",
+		"camera/src/README.md":         "readme",
+		"camera/docs/API.md":           "api",
+		"camera/examples/main.py":      "example",
+		"__MACOSX/camera/._file.md":    "metadata",
 	}))
 
 	var downloaded, total int64
@@ -145,8 +147,10 @@ func TestInstall(t *testing.T) {
 	require.Equal(t, release.Size, downloaded)
 	require.Equal(t, release.Size, total)
 	require.Equal(t, bricksDir.Join("acme", "camera", "1.0.0").String(), res.Path.String())
-	require.FileExists(t, res.Path.Join("brick_config.yaml").String())
-	require.FileExists(t, res.Path.Join("README.md").String())
+	require.FileExists(t, res.Path.Join("src", "brick_config.yaml").String())
+	require.FileExists(t, res.Path.Join("src", "README.md").String())
+	require.FileExists(t, res.Path.Join("docs", "API.md").String())
+	require.FileExists(t, res.Path.Join("examples", "main.py").String())
 
 	res, err = Install(t.Context(), DownloadConfig("test"), bricksDir, cameraBrick, release, platform.Platform{}, nil, nil)
 	require.NoError(t, err)
@@ -159,7 +163,7 @@ func TestInstall(t *testing.T) {
 }
 
 func TestInstallFailures(t *testing.T) {
-	validArchive := makeZip(t, map[string]string{"camera/brick_config.yaml": "id: acme:camera\n"})
+	validArchive := makeZip(t, map[string]string{"camera/src/brick_config.yaml": "id: acme:camera\n"})
 	tests := []struct {
 		name    string
 		release func(t *testing.T) *RemoteRelease
@@ -239,8 +243,8 @@ func TestInstallFailures(t *testing.T) {
 			name: "multiple root folders",
 			release: func(t *testing.T) *RemoteRelease {
 				return archiveRelease(t, makeZip(t, map[string]string{
-					"camera/brick_config.yaml": "id: acme:camera\n",
-					"other/file":               "x",
+					"camera/src/brick_config.yaml": "id: acme:camera\n",
+					"other/file":                   "x",
 				}))
 			},
 			wantErr: "single root folder",
@@ -256,8 +260,8 @@ func TestInstallFailures(t *testing.T) {
 			name: "path traversal",
 			release: func(t *testing.T) *RemoteRelease {
 				return archiveRelease(t, makeZip(t, map[string]string{
-					"camera/brick_config.yaml": "id: acme:camera\n",
-					"camera/../../evil":        "x",
+					"camera/src/brick_config.yaml": "id: acme:camera\n",
+					"camera/../../evil":            "x",
 				}))
 			},
 			wantErr: "invalid entry",
@@ -265,14 +269,21 @@ func TestInstallFailures(t *testing.T) {
 		{
 			name: "missing brick_config.yaml",
 			release: func(t *testing.T) *RemoteRelease {
-				return archiveRelease(t, makeZip(t, map[string]string{"camera/README.md": "readme"}))
+				return archiveRelease(t, makeZip(t, map[string]string{"camera/src/README.md": "readme"}))
 			},
-			wantErr: "does not contain a valid brick_config.yaml",
+			wantErr: "does not contain a valid src/brick_config.yaml",
+		},
+		{
+			name: "brick_config.yaml outside src",
+			release: func(t *testing.T) *RemoteRelease {
+				return archiveRelease(t, makeZip(t, map[string]string{"camera/brick_config.yaml": "id: acme:camera\n"}))
+			},
+			wantErr: "does not contain a valid src/brick_config.yaml",
 		},
 		{
 			name: "wrong brick id",
 			release: func(t *testing.T) *RemoteRelease {
-				return archiveRelease(t, makeZip(t, map[string]string{"camera/brick_config.yaml": "id: other:camera\n"}))
+				return archiveRelease(t, makeZip(t, map[string]string{"camera/src/brick_config.yaml": "id: other:camera\n"}))
 			},
 			wantErr: `declares id "other:camera"`,
 		},

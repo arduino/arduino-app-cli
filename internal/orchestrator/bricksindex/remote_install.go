@@ -247,7 +247,7 @@ func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Pat
 		return InstallResult{}, fmt.Errorf("extracting brick %s: %w", ref, err)
 	}
 	brickDir := extractDir.Join(rootName)
-	if err := checkBrickConfig(brickDir, brick.ID); err != nil {
+	if err := checkBrickConfig(brickDir.Join(releaseSrcDir), brick.ID); err != nil {
 		return InstallResult{}, fmt.Errorf("brick %s: %w", ref, err)
 	}
 
@@ -391,11 +391,11 @@ func extractFile(destRoot *os.Root, f *zip.File, name string) error {
 	return dst.Close()
 }
 
-// checkBrickConfig verifies that brickDir contains a brick_config.yaml describing the brick with the given id.
-func checkBrickConfig(brickDir *paths.Path, id string) error {
-	data, err := brickDir.Join(brickConfigFileName).ReadFile()
+// checkBrickConfig verifies that srcDir contains a brick_config.yaml describing the brick with the given id.
+func checkBrickConfig(srcDir *paths.Path, id string) error {
+	data, err := srcDir.Join(brickConfigFileName).ReadFile()
 	if err != nil {
-		return fmt.Errorf("the archive does not contain a valid %s: %w", brickConfigFileName, err)
+		return fmt.Errorf("the archive does not contain a valid %s/%s: %w", releaseSrcDir, brickConfigFileName, err)
 	}
 	var config struct {
 		ID string `yaml:"id"`

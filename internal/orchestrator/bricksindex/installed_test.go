@@ -19,7 +19,8 @@ func writeInstalledBrick(t *testing.T, bricksDir *paths.Path, folder, config str
 	dir := bricksDir.Join(folder)
 	require.NoError(t, dir.MkdirAll())
 	if config != "" {
-		require.NoError(t, dir.Join(brickConfigFileName).WriteFile([]byte(config)))
+		require.NoError(t, dir.Join(releaseSrcDir).MkdirAll())
+		require.NoError(t, dir.Join(releaseSrcDir, brickConfigFileName).WriteFile([]byte(config)))
 	}
 }
 
@@ -47,7 +48,11 @@ func TestInstalledBricks(t *testing.T) {
 		"acme:audio@1.0.0 Audio",
 		"acme:camera@1.10.0 Camera",
 	}, got)
-	require.Equal(t, bricksDir.Join("acme", "audio", "1.0.0", "README.md").String(), installed[0].ReadmeFile.String())
+	audioDir := bricksDir.Join("acme", "audio", "1.0.0")
+	require.Equal(t, audioDir.Join("src").String(), installed[0].FullPath.String())
+	require.Equal(t, audioDir.Join("src", "README.md").String(), installed[0].ReadmeFile.String())
+	require.Equal(t, audioDir.Join("examples").String(), installed[0].ExamplesPath.String())
+	require.Equal(t, audioDir.Join("docs", "API.md").String(), installed[0].DocsAPIPath.String())
 
 	require.Empty(t, (&BricksIndex{}).WithInstalledBricks(bricksDir.Join("missing")).installedBricks())
 }

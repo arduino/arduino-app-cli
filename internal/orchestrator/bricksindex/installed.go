@@ -97,13 +97,21 @@ func installedVersions(nameDir *paths.Path) ([]*semver.Version, error) {
 	return versions, nil
 }
 
+const (
+	releaseSrcDir      = "src"
+	releaseDocsDir     = "docs"
+	releaseExamplesDir = "examples"
+)
+
 func loadInstalledBrick(platform platform.Platform, brickDir *paths.Path, namespace, name string) (Brick, error) {
-	brick, err := LoadBrickDir(platform, brickDir, namespace)
+	brick, err := LoadBrickDir(platform, brickDir.Join(releaseSrcDir), namespace)
 	if err != nil {
 		return Brick{}, err
 	}
 	if id := namespace + ":" + name; brick.ID != id {
 		return Brick{}, fmt.Errorf("%s declares id %q instead of %q", brickConfigFileName, brick.ID, id)
 	}
+	brick.ExamplesPath = brickDir.Join(releaseExamplesDir)
+	brick.DocsAPIPath = brickDir.Join(releaseDocsDir, "API.md")
 	return brick, nil
 }
