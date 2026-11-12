@@ -68,18 +68,30 @@ func InstallRelease(
 		return InstallReleaseResult{}, fmt.Errorf("%w: %s not found", ErrBadRequest, archive)
 	}
 
-	stagingDir, err := mkStagingDir(cfg.ReleasesDir())
-	if err != nil {
-		return InstallReleaseResult{}, err
-	}
-	defer removeStagingDir(stagingDir)
-
-	releaseName, err := extractRelease(archive, stagingDir, appLayout)
+	// The name is read before extracting: the staging dir is named after it, and a
+	// release already installed is refused before writing anything.
+	releaseName, err := readReleaseName(archive)
 	if err != nil {
 		return InstallReleaseResult{}, err
 	}
 	if !app.IsValidFolderName(releaseName) {
 		return InstallReleaseResult{}, fmt.Errorf("%w: release name %q is not valid", ErrBadRequest, releaseName)
+	}
+	releasePath := cfg.ReleasesDir().Join(releaseName)
+	if releasePath.Exist() {
+		return InstallReleaseResult{}, fmt.Errorf("%w: %s is already installed", ErrAppAlreadyExists, releaseName)
+	}
+
+	// Staged beside what it installs, so that installing it is a rename on the same
+	// filesystem and nothing half extracted is ever started.
+	stagingDir, cleanup, err := app.MkTmpAppDir(cfg.ReleasesDir(), releaseName)
+	if err != nil {
+		return InstallReleaseResult{}, fmt.Errorf("failed to create the staging dir: %w", err)
+	}
+	defer cleanup()
+
+	if _, err := extractRelease(archive, stagingDir, appLayout); err != nil {
+		return InstallReleaseResult{}, err
 	}
 
 	// The manifest the archive ships is kept as it is: it is what marks the app as
@@ -103,7 +115,7 @@ func InstallRelease(
 		return InstallReleaseResult{}, fmt.Errorf("%w: the release does not hold a valid app: %v", ErrBadRequest, err)
 	}
 
-	releasePath := cfg.ReleasesDir().Join(releaseName)
+	// Checked again: another install may have taken the name while this one extracted.
 	if releasePath.Exist() {
 		return InstallReleaseResult{}, fmt.Errorf("%w: %s is already installed", ErrAppAlreadyExists, releaseName)
 	}
@@ -202,6 +214,35 @@ func installEIModels(shippedDir *paths.Path, eiModelsDir *paths.Path) error {
 	}
 	// The app folder is what the staging dir becomes, and the models are not part of it.
 	return shippedDir.RemoveAll()
+}
+
+// readReleaseName returns the folder the archive is rooted at, read off its first
+// entry alone. extractRelease checks that every other entry is under it.
+func readReleaseName(archive *paths.Path) (string, error) {
+	file, err := archive.Open()
+	if err != nil {
+		return "", fmt.Errorf("cannot open %s: %w", archive, err)
+	}
+	defer file.Close()
+
+	gzipReader, err := gzip.NewReader(file)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s is not a release archive: %v", ErrBadRequest, archive.Base(), err)
+	}
+	defer gzipReader.Close()
+
+	header, err := tar.NewReader(gzipReader).Next()
+	if errors.Is(err, io.EOF) {
+		return "", fmt.Errorf("%w: %s is empty", ErrBadRequest, archive.Base())
+	}
+	if err != nil {
+		return "", fmt.Errorf("%w: cannot read %s: %v", ErrBadRequest, archive.Base(), err)
+	}
+	root, _, _ := strings.Cut(path.Clean(filepath.ToSlash(header.Name)), "/")
+	if root == "" || root == "." || root == ".." {
+		return "", fmt.Errorf("%w: %s is not rooted at a single release folder", ErrBadRequest, archive.Base())
+	}
+	return root, nil
 }
 
 // extractRelease unpacks the archive into destDir, each entry where layout puts it.
@@ -310,23 +351,4 @@ func writeReleaseFile(destRoot *os.Root, target string, perm os.FileMode, conten
 		return err
 	}
 	return file.Close()
-}
-
-// mkStagingDir stages an install beside what it installs, so that installing it is a
-// rename on the same filesystem and nothing half extracted is ever started.
-func mkStagingDir(installDir *paths.Path) (*paths.Path, error) {
-	if err := installDir.MkdirAll(); err != nil {
-		return nil, fmt.Errorf("failed to create %s: %w", installDir, err)
-	}
-	stagingDir, err := paths.MkTempDir(installDir.String(), "tmp_install_")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create the staging dir: %w", err)
-	}
-	return stagingDir, nil
-}
-
-func removeStagingDir(stagingDir *paths.Path) {
-	if err := stagingDir.RemoveAll(); err != nil && !os.IsNotExist(err) {
-		slog.Warn("cannot remove the install staging dir", slog.String("path", stagingDir.String()), slog.String("error", err.Error()))
-	}
 }
