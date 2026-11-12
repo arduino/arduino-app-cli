@@ -786,6 +786,8 @@ paths:
             Contains a JSON object with the percentage of completion.
             'event: progress'
             'data: {"name":"containers","progress":25}'
+            A model download also carries its bytes, named after the model.
+            'data: {"name":"yolox-object-detection","progress":60,"current":1048576,"total":4194304}'
 
             **Event 'message'**:
             Contains a JSON object with an informational message.

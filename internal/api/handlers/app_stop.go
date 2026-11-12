@@ -51,6 +51,8 @@ func HandleAppStop(
 		type progress struct {
 			Name     string  `json:"name"`
 			Progress float32 `json:"progress"`
+			Current  int64   `json:"current,omitempty"`
+			Total    int64   `json:"total,omitempty"`
 		}
 		type log struct {
 			Message string `json:"message"`
