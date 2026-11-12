@@ -166,7 +166,6 @@ func getAllSupportedBrickImages(bricksIndex *bricksindex.BricksIndex, servicesIn
 		for _, r := range brick.RequiresServices {
 			service, ok := servicesIndex.FindServiceByID(r.ID)
 			if !ok {
-				feedback.Warnf("brick %s requires service %s, but it was not found in the services index", brick.ID, r.ID)
 				continue
 			}
 			if serviceComposeFile, ok := service.GetComposeFile(); ok {
