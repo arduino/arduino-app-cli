@@ -33,31 +33,36 @@ var ErrIndexNotFound = errors.New("bricks index not found, run 'arduino-app-cli 
 var validBrickIDPart = regexp.MustCompile(`^[a-z_][a-z0-9_]*$`)
 
 type RemoteIndex struct {
-	// Bricks has an entry for each release of each brick.
 	Bricks []RemoteBrick `json:"bricks"`
 }
 
-// RemoteBrick is a release of a brick in the bricks index.
+// RemoteBrick is a brick in the bricks index, with its releases.
 type RemoteBrick struct {
-	ID              string          `json:"id"`
-	Namespace       string          `json:"namespace"`
+	ID        string `json:"id"`
+	Namespace string `json:"namespace"`
+	// Author is the display name of the namespace.
+	Author          string          `json:"author"`
 	Name            string          `json:"name"`
-	Version         *semver.Version `json:"version"`
 	Description     string          `json:"description"`
 	Deprecated      bool            `json:"deprecated"`
 	DeprecationNote string          `json:"deprecation_note,omitempty"`
-	URL             string          `json:"url"`
+	Releases        []RemoteRelease `json:"releases"`
+}
+
+// RemoteRelease is a release of a brick in the bricks index.
+type RemoteRelease struct {
+	Version *semver.Version `json:"version"`
+	URL     string          `json:"url"`
 	// Hash is the SHA-256 of the archive, in hex.
-	Hash       string `json:"hash"`
-	Size       int64  `json:"size"`
-	Repository string `json:"repository"`
+	Hash string `json:"hash"`
+	Size int64  `json:"size"`
 	// SupportedBoards is empty when the release supports every board.
 	SupportedBoards []string `json:"supported_boards,omitempty"`
 }
 
 // SupportsBoard reports whether the release can be used on the board of platform.
-func (b RemoteBrick) SupportsBoard(platform platform.Platform) bool {
-	return supportsBoard(b.SupportedBoards, platform)
+func (r RemoteRelease) SupportsBoard(platform platform.Platform) bool {
+	return supportsBoard(r.SupportedBoards, platform)
 }
 
 // LoadRemoteIndex reads the index saved in dir. It returns ErrIndexNotFound if it was never downloaded.
@@ -84,22 +89,46 @@ func parseRemoteIndex(data []byte) (*RemoteIndex, error) {
 }
 
 func (idx *RemoteIndex) validate() error {
-	seen := make(map[string][]*semver.Version, len(idx.Bricks))
+	seen := make(map[string]bool, len(idx.Bricks))
 	for _, b := range idx.Bricks {
 		if err := b.validate(); err != nil {
 			return err
 		}
-		for _, v := range seen[b.ID] {
-			if v.Equal(b.Version) {
-				return fmt.Errorf("duplicate release %s@%s", b.ID, b.Version)
-			}
+		if seen[b.ID] {
+			return fmt.Errorf("duplicate brick %q", b.ID)
 		}
-		seen[b.ID] = append(seen[b.ID], b.Version)
+		seen[b.ID] = true
 	}
 	return nil
 }
 
 func (b RemoteBrick) validate() error {
+	if err := b.validateID(); err != nil {
+		return err
+	}
+	if b.Name == "" {
+		return fmt.Errorf("brick %q: missing name", b.ID)
+	}
+	if b.Author == "" {
+		return fmt.Errorf("brick %q: missing author", b.ID)
+	}
+	if len(b.Releases) == 0 {
+		return fmt.Errorf("brick %q: no releases", b.ID)
+	}
+	for i, r := range b.Releases {
+		if err := r.validate(b.ID); err != nil {
+			return err
+		}
+		for _, prev := range b.Releases[:i] {
+			if prev.Version.Equal(r.Version) {
+				return fmt.Errorf("duplicate release %s@%s", b.ID, r.Version)
+			}
+		}
+	}
+	return nil
+}
+
+func (b RemoteBrick) validateID() error {
 	namespace, _, err := splitBrickID(b.ID)
 	if err != nil {
 		return err
@@ -107,22 +136,23 @@ func (b RemoteBrick) validate() error {
 	if namespace != b.Namespace {
 		return fmt.Errorf("brick %q: namespace %q does not match its id", b.ID, b.Namespace)
 	}
+	return nil
+}
+
+func (r RemoteRelease) validate(id string) error {
 	// semver.Parse accepts an empty string.
-	if b.Version == nil || b.Version.String() == "" {
-		return fmt.Errorf("brick %q: missing version", b.ID)
+	if r.Version == nil || r.Version.String() == "" {
+		return fmt.Errorf("brick %q: release with missing version", id)
 	}
-	ref := b.ID + "@" + b.Version.String()
-	if b.Name == "" {
-		return fmt.Errorf("brick %s: missing name", ref)
+	ref := id + "@" + r.Version.String()
+	if u, err := url.Parse(r.URL); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+		return fmt.Errorf("brick %s: invalid url %q", ref, r.URL)
 	}
-	if u, err := url.Parse(b.URL); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
-		return fmt.Errorf("brick %s: invalid url %q", ref, b.URL)
+	if hash, err := hex.DecodeString(r.Hash); err != nil || len(hash) != sha256.Size {
+		return fmt.Errorf("brick %s: invalid SHA-256 hash %q", ref, r.Hash)
 	}
-	if hash, err := hex.DecodeString(b.Hash); err != nil || len(hash) != sha256.Size {
-		return fmt.Errorf("brick %s: invalid SHA-256 hash %q", ref, b.Hash)
-	}
-	if b.Size <= 0 {
-		return fmt.Errorf("brick %s: invalid size %d", ref, b.Size)
+	if r.Size <= 0 {
+		return fmt.Errorf("brick %s: invalid size %d", ref, r.Size)
 	}
 	return nil
 }

@@ -69,36 +69,44 @@ func ParseBrickReference(ref string) (id string, version *semver.Version, err er
 	return id, version, nil
 }
 
-// FindRelease returns the release of the brick with the given version or, if version is nil,
-// the latest release that supports the board of platform.
-func (idx *RemoteIndex) FindRelease(id string, version *semver.Version, platform platform.Platform) (*RemoteBrick, error) {
-	releases := idx.releases(id)
-	if len(releases) == 0 {
-		return nil, fmt.Errorf("%w: %s", ErrBrickNotFound, id)
+// FindBrick returns the brick with the given id.
+func (idx *RemoteIndex) FindBrick(id string) (*RemoteBrick, error) {
+	for i := range idx.Bricks {
+		if idx.Bricks[i].ID == id {
+			return &idx.Bricks[i], nil
+		}
 	}
+	return nil, fmt.Errorf("%w: %s", ErrBrickNotFound, id)
+}
+
+// FindRelease returns the release with the given version or, if version is nil,
+// the latest release that supports the board of platform.
+func (b *RemoteBrick) FindRelease(version *semver.Version, platform platform.Platform) (*RemoteRelease, error) {
 	if version == nil {
-		if latest := idx.Latest(id, platform); latest != nil {
+		if latest := b.Latest(platform); latest != nil {
 			return latest, nil
 		}
-		return nil, fmt.Errorf("%w: no release of %s supports %s", ErrUnsupportedBoard, id, platform.BoardName)
+		return nil, fmt.Errorf("%w: no release of %s supports %s", ErrUnsupportedBoard, b.ID, platform.BoardName)
 	}
-	for _, r := range releases {
+	for i := range b.Releases {
+		r := &b.Releases[i]
 		if !r.Version.Equal(version) {
 			continue
 		}
 		if !r.SupportsBoard(platform) {
-			return nil, fmt.Errorf("%w: %s@%s does not support %s", ErrUnsupportedBoard, id, version, platform.BoardName)
+			return nil, fmt.Errorf("%w: %s@%s does not support %s", ErrUnsupportedBoard, b.ID, version, platform.BoardName)
 		}
 		return r, nil
 	}
-	return nil, fmt.Errorf("%w: %s@%s", ErrReleaseNotFound, id, version)
+	return nil, fmt.Errorf("%w: %s@%s", ErrReleaseNotFound, b.ID, version)
 }
 
-// Latest returns the release with the highest version of the brick that supports the board of
-// platform, or nil if there is none.
-func (idx *RemoteIndex) Latest(id string, platform platform.Platform) *RemoteBrick {
-	var latest *RemoteBrick
-	for _, r := range idx.releases(id) {
+// Latest returns the release with the highest version that supports the board of platform,
+// or nil if there is none.
+func (b *RemoteBrick) Latest(platform platform.Platform) *RemoteRelease {
+	var latest *RemoteRelease
+	for i := range b.Releases {
+		r := &b.Releases[i]
 		if r.SupportsBoard(platform) && (latest == nil || r.Version.GreaterThan(latest.Version)) {
 			latest = r
 		}
@@ -106,21 +114,15 @@ func (idx *RemoteIndex) Latest(id string, platform platform.Platform) *RemoteBri
 	return latest
 }
 
-// Releases returns the releases of the brick that support the board of platform, sorted by version.
-func (idx *RemoteIndex) Releases(id string, platform platform.Platform) []*RemoteBrick {
-	res := slices.DeleteFunc(idx.releases(id), func(r *RemoteBrick) bool { return !r.SupportsBoard(platform) })
-	slices.SortFunc(res, func(a, b *RemoteBrick) int { return a.Version.CompareTo(b.Version) })
-	return res
-}
-
-// releases returns all the releases of the brick.
-func (idx *RemoteIndex) releases(id string) []*RemoteBrick {
-	var res []*RemoteBrick
-	for i := range idx.Bricks {
-		if idx.Bricks[i].ID == id {
-			res = append(res, &idx.Bricks[i])
+// SupportedReleases returns the releases that support the board of platform, sorted by version.
+func (b *RemoteBrick) SupportedReleases(platform platform.Platform) []*RemoteRelease {
+	var res []*RemoteRelease
+	for i := range b.Releases {
+		if b.Releases[i].SupportsBoard(platform) {
+			res = append(res, &b.Releases[i])
 		}
 	}
+	slices.SortFunc(res, func(a, b *RemoteRelease) int { return a.Version.CompareTo(b.Version) })
 	return res
 }
 
@@ -186,24 +188,24 @@ type InstallResult struct {
 	AlreadyInstalled bool
 }
 
-// Install downloads the release of the brick and installs it in bricksDir. Releases are
-// never replaced: each version is installed in its own folder. progress, if not nil, is called
-// periodically during the download with the bytes downloaded and the size of the archive.
-// onWait, if not nil, is called when the install has to wait for another install or uninstall.
-func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Path, brick *RemoteBrick, platform platform.Platform, progress func(downloaded, total int64), onWait func()) (InstallResult, error) {
+// Install downloads the release of the brick and installs it in bricksDir.
+func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Path, brick *RemoteBrick, release *RemoteRelease, platform platform.Platform, progress func(downloaded, total int64), onWait func()) (InstallResult, error) {
 	// The release usually comes from a validated index: this protects the paths built from it.
-	if err := brick.validate(); err != nil {
+	if err := brick.validateID(); err != nil {
 		return InstallResult{}, err
 	}
-	ref := brick.ID + "@" + brick.Version.String()
-	if !brick.SupportsBoard(platform) {
+	if err := release.validate(brick.ID); err != nil {
+		return InstallResult{}, err
+	}
+	ref := brick.ID + "@" + release.Version.String()
+	if !release.SupportsBoard(platform) {
 		return InstallResult{}, fmt.Errorf("%w: %s does not support %s", ErrUnsupportedBoard, ref, platform.BoardName)
 	}
-	expectedHash, err := hex.DecodeString(brick.Hash)
+	expectedHash, err := hex.DecodeString(release.Hash)
 	if err != nil {
 		return InstallResult{}, err
 	}
-	brickPath := installPath(bricksDir, brick.ID, brick.Version)
+	brickPath := installPath(bricksDir, brick.ID, release.Version)
 	if err := bricksDir.MkdirAll(); err != nil {
 		return InstallResult{}, fmt.Errorf("creating bricks directory: %w", err)
 	}
@@ -225,14 +227,14 @@ func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Pat
 	defer func() { _ = tempDir.RemoveAll() }()
 
 	archivePath := tempDir.Join("archive.zip")
-	if err := checkFreeSpace(bricksDir, uint64(brick.Size)); err != nil { // nolint:gosec // validate checks that the size is positive
+	if err := checkFreeSpace(bricksDir, uint64(release.Size)); err != nil { // nolint:gosec // validate checks that the size is positive
 		return InstallResult{}, fmt.Errorf("downloading brick %s: %w", ref, err)
 	}
 	var downloadProgress func(int64)
 	if progress != nil {
-		downloadProgress = func(downloaded int64) { progress(downloaded, brick.Size) }
+		downloadProgress = func(downloaded int64) { progress(downloaded, release.Size) }
 	}
-	if err := downloadArchive(ctx, config, brick, archivePath, expectedHash, downloadProgress); err != nil {
+	if err := downloadArchive(ctx, config, release, archivePath, expectedHash, downloadProgress); err != nil {
 		return InstallResult{}, fmt.Errorf("downloading brick %s: %w", ref, err)
 	}
 
@@ -273,9 +275,9 @@ func checkFreeSpace(dir *paths.Path, required uint64) error {
 	return nil
 }
 
-// downloadArchive downloads the archive of the brick into dest and checks its size and hash.
-func downloadArchive(ctx context.Context, config downloader.Config, brick *RemoteBrick, dest *paths.Path, expectedHash []byte, progress func(int64)) error {
-	if err := downloadFile(ctx, config, brick.URL, dest.String(), brick.Size, brick.Size, progress); err != nil {
+// downloadArchive downloads the archive of the release into dest and checks its size and hash.
+func downloadArchive(ctx context.Context, config downloader.Config, release *RemoteRelease, dest *paths.Path, expectedHash []byte, progress func(int64)) error {
+	if err := downloadFile(ctx, config, release.URL, dest.String(), release.Size, release.Size, progress); err != nil {
 		return err
 	}
 	file, err := dest.Open()
@@ -288,8 +290,8 @@ func downloadArchive(ctx context.Context, config downloader.Config, brick *Remot
 	if err != nil {
 		return err
 	}
-	if size != brick.Size {
-		return fmt.Errorf("size mismatch: expected %d bytes, got %d", brick.Size, size)
+	if size != release.Size {
+		return fmt.Errorf("size mismatch: expected %d bytes, got %d", release.Size, size)
 	}
 	if actual := hasher.Sum(nil); !bytes.Equal(actual, expectedHash) {
 		return fmt.Errorf("SHA-256 mismatch: expected %x, got %x", expectedHash, actual)

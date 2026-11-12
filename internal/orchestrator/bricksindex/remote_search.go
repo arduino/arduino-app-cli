@@ -13,34 +13,28 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
-// Search returns, for each brick that contains every word of query ignoring case, its latest release
-// that supports the platform. The results are sorted by id. An empty query matches all the
-// bricks. Deprecated releases are skipped unless includeDeprecated is set.
+// Search returns the bricks that contain every word of query ignoring case and have a release that
+// supports the platform. The results are sorted by id. An empty query matches all the bricks.
+// Deprecated bricks are skipped unless includeDeprecated is set.
 func (idx *RemoteIndex) Search(query string, includeDeprecated bool, platform platform.Platform) []*RemoteBrick {
 	terms := strings.Fields(strings.ToLower(query))
 	res := []*RemoteBrick{}
-	seen := map[string]bool{}
-	for _, b := range idx.Bricks {
-		if seen[b.ID] {
+	for i := range idx.Bricks {
+		b := &idx.Bricks[i]
+		if (b.Deprecated && !includeDeprecated) || b.Latest(platform) == nil {
 			continue
 		}
-		seen[b.ID] = true
-		latest := idx.Latest(b.ID, platform)
-		if latest == nil || (latest.Deprecated && !includeDeprecated) {
-			continue
-		}
-		if latest.matches(terms) {
-			res = append(res, latest)
+		if b.matches(terms) {
+			res = append(res, b)
 		}
 	}
 	slices.SortFunc(res, func(a, b *RemoteBrick) int { return cmp.Compare(a.ID, b.ID) })
 	return res
 }
 
-// matches reports whether every term is contained in the release, ignoring case.
+// matches reports whether every term is contained in the brick, ignoring case.
 func (b RemoteBrick) matches(terms []string) bool {
-	// TODO: should we match the older releases as well, the --all flag is passed here?
-	text := strings.ToLower(strings.Join([]string{b.ID, b.Name, b.Namespace, b.Description, b.Repository}, " "))
+	text := strings.ToLower(strings.Join([]string{b.ID, b.Name, b.Namespace, b.Author, b.Description}, " "))
 	for _, term := range terms {
 		if !strings.Contains(text, term) {
 			return false

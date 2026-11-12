@@ -41,18 +41,27 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 
 	// Everything is resolved first, so that an unknown brick does not leave the others half done.
 	platform := servicelocator.GetPlatform()
-	resolved := make([]*bricksindex.RemoteBrick, 0, len(refs))
+	type resolvedRelease struct {
+		brick   *bricksindex.RemoteBrick
+		release *bricksindex.RemoteRelease
+	}
+	resolved := make([]resolvedRelease, 0, len(refs))
 	for _, ref := range refs {
-		brick, err := index.FindRelease(ref.id, ref.version, platform)
+		brick, err := index.FindBrick(ref.id)
 		if err != nil {
 			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 		}
-		resolved = append(resolved, brick)
+		release, err := brick.FindRelease(ref.version, platform)
+		if err != nil {
+			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+		}
+		resolved = append(resolved, resolvedRelease{brick, release})
 	}
 
 	out, _, _ := feedback.OutputStreams()
 	var res installResult
-	for _, brick := range resolved {
+	for _, r := range resolved {
+		brick, release := r.brick, r.release
 		if brick.Deprecated {
 			msg := fmt.Sprintf("Brick %s is deprecated", brick.ID)
 			if brick.DeprecationNote != "" {
@@ -60,8 +69,8 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 			}
 			feedback.Warnf("%s", msg)
 		}
-		progress := downloadProgress(out, brick.ID+"@"+brick.Version.String())
-		installed, err := bricksindex.Install(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksDir(), brick, platform, progress, printWaiting)
+		progress := downloadProgress(out, brick.ID+"@"+release.Version.String())
+		installed, err := bricksindex.Install(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksDir(), brick, release, platform, progress, printWaiting)
 		if err != nil {
 			if len(res.Bricks) > 0 {
 				feedback.PrintResult(res)
@@ -70,7 +79,7 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 		}
 		res.Bricks = append(res.Bricks, installedBrick{
 			ID:               brick.ID,
-			Version:          brick.Version.String(),
+			Version:          release.Version.String(),
 			Path:             installed.Path.String(),
 			AlreadyInstalled: installed.AlreadyInstalled,
 		})

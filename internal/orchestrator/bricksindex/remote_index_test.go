@@ -26,68 +26,89 @@ const validHash = "0000000000000000000000000000000000000000000000000000000000000
 
 const validIndex = `{
   "bricks": [
-    {"id": "acme:camera", "namespace": "acme", "name": "Camera Brick", "version": "1.0.0",
-     "url": "https://example.com/camera-1.0.0.zip", "hash": "` + validHash + `", "size": 1}
+    {"id": "acme:camera", "namespace": "acme", "author": "Acme", "name": "Camera Brick",
+     "releases": [{"version": "1.0.0", "url": "https://example.com/camera-1.0.0.zip", "hash": "` + validHash + `", "size": 1}]}
   ]
 }`
 
-func TestParseRemoteIndexValidation(t *testing.T) {
-	// release returns a valid release entry, with the given fields replaced.
-	release := func(replace map[string]any) map[string]any {
-		r := map[string]any{
-			"id": "acme:camera", "namespace": "acme", "name": "Camera Brick", "version": "1.0.0",
-			"url": "https://example.com/camera.zip", "hash": validHash, "size": 1,
+// withFields returns a copy of m with the given fields replaced. A nil value removes the field.
+func withFields(m, replace map[string]any) map[string]any {
+	res := maps.Clone(m)
+	maps.Copy(res, replace)
+	for k, v := range res {
+		if v == nil {
+			delete(res, k)
 		}
-		maps.Copy(r, replace)
-		for k, v := range r {
-			if v == nil {
-				delete(r, k)
-			}
-		}
-		return r
 	}
-	parse := func(releases ...map[string]any) error {
-		data, err := json.Marshal(map[string]any{"bricks": releases})
+	return res
+}
+
+func TestParseRemoteIndexValidation(t *testing.T) {
+	// release returns a valid release, with the given fields replaced.
+	release := func(replace map[string]any) map[string]any {
+		return withFields(map[string]any{"version": "1.0.0", "url": "https://example.com/camera.zip", "hash": validHash, "size": 1}, replace)
+	}
+	// brick returns a valid brick with a valid release, with the given fields replaced.
+	brick := func(replace map[string]any) map[string]any {
+		return withFields(map[string]any{
+			"id": "acme:camera", "namespace": "acme", "author": "Acme", "name": "Camera Brick",
+			"releases": []map[string]any{release(nil)},
+		}, replace)
+	}
+	parse := func(bricks ...map[string]any) error {
+		data, err := json.Marshal(map[string]any{"bricks": bricks})
 		require.NoError(t, err)
 		_, err = parseRemoteIndex(data)
 		return err
 	}
+	withRelease := func(replace map[string]any) map[string]any {
+		return brick(map[string]any{"releases": []map[string]any{release(replace)}})
+	}
 
-	require.NoError(t, parse(release(nil), release(map[string]any{"version": "1.1.0"})))
-	require.NoError(t, parse(release(map[string]any{"id": "acme_2:_my_camera2", "namespace": "acme_2"})))
+	require.NoError(t, parse(brick(nil), brick(map[string]any{"id": "acme:audio"})))
+	require.NoError(t, parse(brick(map[string]any{"id": "acme_2:_my_camera2", "namespace": "acme_2"})))
+	require.NoError(t, parse(brick(map[string]any{"releases": []map[string]any{release(nil), release(map[string]any{"version": "1.1.0"})}})))
 
 	tests := []struct {
 		name    string
-		release map[string]any
+		brick   map[string]any
 		wantErr string
 	}{
-		{"id without namespace", release(map[string]any{"id": "camera"}), "invalid brick id"},
-		{"uppercase in id", release(map[string]any{"id": "acme:Camera"}), "invalid brick id"},
-		{"dash in id", release(map[string]any{"id": "acme:my-camera"}), "invalid brick id"},
-		{"leading digit in id", release(map[string]any{"id": "acme:2camera"}), "invalid brick id"},
-		{"dot in namespace", release(map[string]any{"id": "acme.io:camera", "namespace": "acme.io"}), "invalid brick id"},
-		{"namespace mismatch", release(map[string]any{"namespace": "other"}), "does not match"},
-		{"missing version", release(map[string]any{"version": nil}), "missing version"},
-		{"empty version", release(map[string]any{"version": ""}), "missing version"},
-		{"invalid version", release(map[string]any{"version": "v1"}), "decoding bricks index"},
-		{"missing name", release(map[string]any{"name": nil}), "missing name"},
-		{"missing url", release(map[string]any{"url": nil}), "invalid url"},
-		{"relative url", release(map[string]any{"url": "camera.zip"}), "invalid url"},
-		{"unsupported url scheme", release(map[string]any{"url": "file:///camera.zip"}), "invalid url"},
-		{"missing hash", release(map[string]any{"hash": nil}), "invalid SHA-256 hash"},
-		{"hash with algorithm prefix", release(map[string]any{"hash": "SHA-256:" + validHash}), "invalid SHA-256 hash"},
-		{"short hash", release(map[string]any{"hash": "abcd"}), "invalid SHA-256 hash"},
-		{"missing size", release(map[string]any{"size": nil}), "invalid size"},
-		{"negative size", release(map[string]any{"size": -1}), "invalid size"},
+		{"id without namespace", brick(map[string]any{"id": "camera"}), "invalid brick id"},
+		{"uppercase in id", brick(map[string]any{"id": "acme:Camera"}), "invalid brick id"},
+		{"dash in id", brick(map[string]any{"id": "acme:my-camera"}), "invalid brick id"},
+		{"leading digit in id", brick(map[string]any{"id": "acme:2camera"}), "invalid brick id"},
+		{"dot in namespace", brick(map[string]any{"id": "acme.io:camera", "namespace": "acme.io"}), "invalid brick id"},
+		{"namespace mismatch", brick(map[string]any{"namespace": "other"}), "does not match"},
+		{"missing name", brick(map[string]any{"name": nil}), "missing name"},
+		{"missing author", brick(map[string]any{"author": nil}), "missing author"},
+		{"missing releases", brick(map[string]any{"releases": nil}), "no releases"},
+		{"empty releases", brick(map[string]any{"releases": []map[string]any{}}), "no releases"},
+		{"missing version", withRelease(map[string]any{"version": nil}), "missing version"},
+		{"empty version", withRelease(map[string]any{"version": ""}), "missing version"},
+		{"invalid version", withRelease(map[string]any{"version": "v1"}), "decoding bricks index"},
+		{"missing url", withRelease(map[string]any{"url": nil}), "invalid url"},
+		{"relative url", withRelease(map[string]any{"url": "camera.zip"}), "invalid url"},
+		{"unsupported url scheme", withRelease(map[string]any{"url": "file:///camera.zip"}), "invalid url"},
+		{"missing hash", withRelease(map[string]any{"hash": nil}), "invalid SHA-256 hash"},
+		{"hash with algorithm prefix", withRelease(map[string]any{"hash": "SHA-256:" + validHash}), "invalid SHA-256 hash"},
+		{"short hash", withRelease(map[string]any{"hash": "abcd"}), "invalid SHA-256 hash"},
+		{"missing size", withRelease(map[string]any{"size": nil}), "invalid size"},
+		{"negative size", withRelease(map[string]any{"size": -1}), "invalid size"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.ErrorContains(t, parse(tt.release), tt.wantErr)
+			require.ErrorContains(t, parse(tt.brick), tt.wantErr)
 		})
 	}
 
+	t.Run("duplicate brick", func(t *testing.T) {
+		require.ErrorContains(t, parse(brick(nil), brick(nil)), `duplicate brick "acme:camera"`)
+	})
 	t.Run("duplicate release", func(t *testing.T) {
-		err := parse(release(map[string]any{"version": "1.2"}), release(map[string]any{"version": "1.2.0"}))
+		err := parse(brick(map[string]any{"releases": []map[string]any{
+			release(map[string]any{"version": "1.2"}), release(map[string]any{"version": "1.2.0"}),
+		}}))
 		require.ErrorContains(t, err, "duplicate release acme:camera@1.2.0")
 	})
 }
