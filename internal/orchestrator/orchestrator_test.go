@@ -545,8 +545,9 @@ func TestListApp(t *testing.T) {
 	})
 
 	t.Run("ignore temporary apps starting with .tmp_", func(t *testing.T) {
-		tmpAppDir, err := app.MkTmpAppDir(cfg.AppsDir(), "tmp-app")
+		tmpAppDir, cleanup, err := app.MkTmpAppDir(cfg.AppsDir(), "tmp-app")
 		require.NoError(t, err)
+		defer cleanup()
 		tmpAppPath := tmpAppDir.Parent()
 
 		tmpAppName := tmpAppPath.Base()
@@ -595,10 +596,10 @@ func TestListApp(t *testing.T) {
 	})
 
 	t.Run("ignore releases staged by an install", func(t *testing.T) {
-		stagingDir, err := mkStagingDir(cfg.ReleasesDir())
+		stagingDir, cleanup, err := app.MkTmpAppDir(cfg.ReleasesDir(), "staged-release")
 		require.NoError(t, err)
+		defer cleanup()
 		containerPath := stagingDir.Parent()
-		defer removeStagingDir(containerPath)
 		require.True(t, strings.HasPrefix(containerPath.Base(), ".tmp_"))
 		require.True(t, app.IsValidFolderName(stagingDir.Base()), "the staged release must be loadable")
 		require.NoError(t, stagingDir.Join("app.yaml").WriteFile([]byte("name: staged-release")))

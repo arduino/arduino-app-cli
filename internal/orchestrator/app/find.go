@@ -7,6 +7,7 @@ package app
 
 import (
 	"errors"
+	"log/slog"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -54,17 +55,25 @@ func IsTmpAppDir(p *paths.Path) bool {
 	return strings.HasPrefix(p.Base(), tmpAppPrefix)
 }
 
-// MkTmpAppDir creates parentDir/.tmp_XXX/name, skipped by the app list.
-// The caller removes it with its parent.
-func MkTmpAppDir(parentDir *paths.Path, name string) (*paths.Path, error) {
+// MkTmpAppDir creates parentDir/.tmp_XXX/name, skipped by the app list, creating
+// parentDir if missing. The returned cleanup removes .tmp_XXX and all it holds.
+func MkTmpAppDir(parentDir *paths.Path, name string) (*paths.Path, func(), error) {
+	if err := parentDir.MkdirAll(); err != nil {
+		return nil, nil, err
+	}
 	container, err := paths.MkTempDir(parentDir.String(), tmpAppPrefix)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	cleanup := func() {
+		if err := container.RemoveAll(); err != nil {
+			slog.Warn("cannot remove the temporary app dir", slog.String("path", container.String()), slog.String("error", err.Error()))
+		}
 	}
 	appDir := container.Join(name)
 	if err := appDir.Mkdir(); err != nil {
-		_ = container.RemoveAll()
-		return nil, err
+		cleanup()
+		return nil, nil, err
 	}
-	return appDir, nil
+	return appDir, cleanup, nil
 }
