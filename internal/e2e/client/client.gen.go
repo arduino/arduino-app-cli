@@ -400,8 +400,9 @@ type ConfigDirectories struct {
 
 // ConfigResponse defines model for ConfigResponse.
 type ConfigResponse struct {
-	Directories  *ConfigDirectories `json:"directories,omitempty"`
-	PythonRunner *string            `json:"python_runner,omitempty"`
+	Directories          *ConfigDirectories `json:"directories,omitempty"`
+	PythonRunner         *string            `json:"python_runner,omitempty"`
+	PythonRunnerResolved *string            `json:"python_runner_resolved,omitempty"`
 }
 
 // CreateAppRequest defines model for CreateAppRequest.

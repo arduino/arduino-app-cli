@@ -62,7 +62,7 @@ full lifecycle of every App. Global flags: `--format text|json`,
 ```bash
 arduino-app-cli --help            # top-level command groups
 arduino-app-cli version           # CLI + daemon version
-arduino-app-cli config get        # data dir, apps dir, examples dir
+arduino-app-cli config get        # data, apps and examples dirs, Python runner image
 ```
 
 Command groups include `app`, `brick`, `model`, `monitor`, `properties`, `system`,
@@ -348,7 +348,7 @@ source (the API ground truth):
 | One Brick's API | `arduino-app-cli brick details arduino:<id>` or `…/assets/*/docs/arduino/<brick>/README.md` |
 | Full `app.yaml` / App format spec | `docs/app-specification.md` in the `arduino-app-cli` repository |
 | Working app patterns | `/var/lib/arduino-app-cli/examples/` |
-| Paths (apps/data/examples) | `arduino-app-cli config get` |
+| Paths (apps/data/examples), Python runner image | `arduino-app-cli config get` |
 | Python logs / MCU serial | `arduino-app-cli app logs … --follow` / `arduino-app-cli monitor` |
 | MCU core + bundled library sources | `~/.arduino15/packages/arduino/hardware/zephyr/*/libraries/` |
 

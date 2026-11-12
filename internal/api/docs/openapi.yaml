@@ -2272,6 +2272,8 @@ components:
           $ref: '#/components/schemas/ConfigDirectories'
         python_runner:
           type: string
+        python_runner_resolved:
+          type: string
       type: object
     CreateAppRequest:
       properties:
