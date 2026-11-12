@@ -576,10 +576,10 @@ func TestListApp(t *testing.T) {
 	})
 
 	t.Run("ignore apps staged inside a .tmp_ container", func(t *testing.T) {
-		containerPath, err := app.MkTmpAppDir(cfg.AppsDir())
+		stagedAppPath, cleanup, err := app.MkTmpAppDir(cfg.AppsDir(), "staged-app")
 		require.NoError(t, err)
-		stagedAppPath := containerPath.Join("staged-app")
-		require.NoError(t, stagedAppPath.MkdirAll())
+		defer cleanup()
+		containerPath := stagedAppPath.Parent()
 		require.NoError(t, stagedAppPath.Join("app.yaml").WriteFile([]byte("name: staged-app")))
 
 		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
