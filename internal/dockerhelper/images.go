@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/containerd/errdefs"
+	"github.com/moby/moby/api/types/jsonstream"
 	dockerClient "github.com/moby/moby/client"
 	"github.com/shirou/gopsutil/v4/disk"
 
@@ -232,10 +233,15 @@ func pullImage(ctx context.Context, docker dockerClient.APIClient, imageName str
 				Current int64 `json:"current"`
 				Total   int64 `json:"total"`
 			} `json:"progressDetail"`
+			Error *jsonstream.Error `json:"errorDetail"`
 		}
 
 		var payload Payload
 		if err := json.Unmarshal(scanner.Bytes(), &payload); err == nil {
+			// Once the stream has started, the engine reports a failed pull here.
+			if payload.Error != nil {
+				return payload.Error
+			}
 			// Accumulate the downloaded bytes across all layers/images and report
 			// the global download progress.
 			downloaded := min(updateLayerProgress(layerProgress, payload.Status, payload.ID, payload.ProgressDetail.Current), totalBytes)
