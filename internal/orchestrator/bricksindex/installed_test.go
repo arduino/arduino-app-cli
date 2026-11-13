@@ -19,8 +19,10 @@ func writeInstalledBrick(t *testing.T, bricksDir *paths.Path, folder, config str
 	dir := bricksDir.Join(folder)
 	require.NoError(t, dir.MkdirAll())
 	if config != "" {
-		require.NoError(t, dir.Join(releaseSrcDir).MkdirAll())
-		require.NoError(t, dir.Join(releaseSrcDir, brickConfigFileName).WriteFile([]byte(config)))
+		// The brick is in src/<name>/, where <name> is the folder above the version.
+		srcDir := dir.Join(releaseSrcDir, dir.Parent().Base())
+		require.NoError(t, srcDir.MkdirAll())
+		require.NoError(t, srcDir.Join(brickConfigFileName).WriteFile([]byte(config)))
 	}
 }
 
@@ -31,6 +33,8 @@ func TestInstalledBricks(t *testing.T) {
 	write("acme/camera/1.2.0", "id: acme:camera\nname: Camera\n")
 	write("acme/camera/1.11.0", "id: acme:other\n") // declares another id: the previous version is used
 	write("acme/audio/1.0.0", "id: acme:audio\nname: Audio\n")
+	require.NoError(t, bricksDir.Join("acme", "audio", "1.0.0", "docs").MkdirAll())
+	require.NoError(t, bricksDir.Join("acme", "audio", "1.0.0", "docs", "API.md").WriteFile([]byte("api")))
 	write("acme/wrong/1.0.0", "id: acme:other\n")         // declares another id
 	write("acme/missing/1.0.0", "")                       // no brick_config.yaml
 	write("acme/camera/notes", "id: acme:camera\n")       // not created by install
@@ -49,8 +53,8 @@ func TestInstalledBricks(t *testing.T) {
 		"acme:camera@1.10.0 Camera",
 	}, got)
 	audioDir := bricksDir.Join("acme", "audio", "1.0.0")
-	require.Equal(t, audioDir.Join("src").String(), installed[0].FullPath.String())
-	require.Equal(t, audioDir.Join("src", "README.md").String(), installed[0].ReadmeFile.String())
+	require.Equal(t, audioDir.Join("src", "audio").String(), installed[0].FullPath.String())
+	require.Equal(t, audioDir.Join("src", "audio", "README.md").String(), installed[0].ReadmeFile.String())
 	require.Equal(t, audioDir.Join("examples").String(), installed[0].ExamplesPath.String())
 	require.Equal(t, audioDir.Join("docs", "API.md").String(), installed[0].DocsAPIPath.String())
 

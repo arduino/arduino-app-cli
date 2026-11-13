@@ -243,16 +243,18 @@ func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Pat
 	if err := extractDir.Mkdir(); err != nil {
 		return InstallResult{}, fmt.Errorf("creating temporary directory: %w", err)
 	}
-	rootName, err := extractZip(archivePath, extractDir)
-	if err != nil {
+	if err := extractZip(archivePath, extractDir); err != nil {
 		return InstallResult{}, fmt.Errorf("extracting brick %s: %w", ref, err)
 	}
-	brickDir := extractDir.Join(rootName)
-	if err := checkBrickConfig(brickDir.Join(releaseSrcDir), brick.ID); err != nil {
+	brickDir, err := releaseRoot(extractDir)
+	if err != nil {
+		return InstallResult{}, fmt.Errorf("brick %s: %w", ref, err)
+	}
+	namespace, brickName, _ := splitBrickID(brick.ID) // validated above
+	if err := checkBrickConfig(brickDir, brickName, brick.ID); err != nil {
 		return InstallResult{}, fmt.Errorf("brick %s: %w", ref, err)
 	}
 	if prepare != nil {
-		namespace, brickName, _ := splitBrickID(brick.ID) // validated above
 		extracted, err := loadInstalledBrick(platform, brickDir, namespace, brickName)
 		if err != nil {
 			return InstallResult{}, fmt.Errorf("brick %s: %w", ref, err)
@@ -311,12 +313,11 @@ func downloadArchive(ctx context.Context, config downloader.Config, release *Rem
 	return nil
 }
 
-// extractZip extracts the archive into destDir and returns the name of its root folder.
-// The archive must contain a single root folder, ignoring the __MACOSX metadata folder.
-func extractZip(archive *paths.Path, destDir *paths.Path) (string, error) {
+// extractZip extracts the archive into destDir, ignoring the __MACOSX metadata folder.
+func extractZip(archive *paths.Path, destDir *paths.Path) error {
 	reader, err := zip.OpenReader(archive.String())
 	if err != nil {
-		return "", fmt.Errorf("invalid archive: %w", err)
+		return fmt.Errorf("invalid archive: %w", err)
 	}
 	defer reader.Close()
 
@@ -326,30 +327,23 @@ func extractZip(archive *paths.Path, destDir *paths.Path) (string, error) {
 		extractedSize += f.UncompressedSize64
 	}
 	if err := checkFreeSpace(destDir, extractedSize); err != nil {
-		return "", err
+		return err
 	}
 	// Writing through a root prevents any entry from escaping destDir.
 	destRoot, err := os.OpenRoot(destDir.String())
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer destRoot.Close()
 
-	var rootName string
 	for _, f := range reader.File {
 		name := path.Clean(strings.ReplaceAll(f.Name, `\`, "/"))
-		root, entry, _ := strings.Cut(name, "/")
+		root, _, _ := strings.Cut(name, "/")
 		if root == "__MACOSX" {
 			continue
 		}
 		if path.IsAbs(name) || root == "" || root == "." || root == ".." {
-			return "", fmt.Errorf("invalid entry %s", f.Name)
-		}
-		if rootName == "" {
-			rootName = root
-		}
-		if root != rootName {
-			return "", errors.New("the archive must contain a single root folder")
+			return fmt.Errorf("invalid entry %s", f.Name)
 		}
 
 		mode := f.Mode()
@@ -357,21 +351,31 @@ func extractZip(archive *paths.Path, destDir *paths.Path) (string, error) {
 		case mode.IsDir():
 			err = destRoot.MkdirAll(name, 0o755)
 		case mode.IsRegular():
-			if entry == "" {
-				return "", errors.New("the archive must contain a single root folder")
-			}
 			err = extractFile(destRoot, f, name)
 		default:
-			return "", fmt.Errorf("unsupported entry %s: only files and folders are allowed", f.Name)
+			return fmt.Errorf("unsupported entry %s: only files and folders are allowed", f.Name)
 		}
 		if err != nil {
-			return "", fmt.Errorf("extracting %s: %w", f.Name, err)
+			return fmt.Errorf("extracting %s: %w", f.Name, err)
 		}
 	}
-	if rootName == "" {
-		return "", errors.New("the archive is empty")
+	return nil
+}
+
+// releaseRoot returns the folder of the extracted release that contains src/: the archive
+// has it at its root (as git archive makes it) or inside a single root folder.
+func releaseRoot(extractDir *paths.Path) (*paths.Path, error) {
+	if extractDir.Join(releaseSrcDir).IsDir() {
+		return extractDir, nil
 	}
-	return rootName, nil
+	entries, err := extractDir.ReadDir()
+	if err != nil {
+		return nil, err
+	}
+	if len(entries) == 1 && entries[0].Join(releaseSrcDir).IsDir() {
+		return entries[0], nil
+	}
+	return nil, fmt.Errorf("the archive does not contain a %s folder, at its root or inside a single root folder", releaseSrcDir)
 }
 
 func extractFile(destRoot *os.Root, f *zip.File, name string) error {
@@ -403,11 +407,13 @@ func extractFile(destRoot *os.Root, f *zip.File, name string) error {
 	return dst.Close()
 }
 
-// checkBrickConfig verifies that srcDir contains a brick_config.yaml describing the brick with the given id.
-func checkBrickConfig(srcDir *paths.Path, id string) error {
-	data, err := srcDir.Join(brickConfigFileName).ReadFile()
+// checkBrickConfig verifies that the release in releaseDir contains a
+// brick_config.yaml describing the brick with the given id.
+func checkBrickConfig(releaseDir *paths.Path, name, id string) error {
+	configPath := path.Join(releaseSrcDir, name, brickConfigFileName)
+	data, err := releaseDir.Join(configPath).ReadFile()
 	if err != nil {
-		return fmt.Errorf("the archive does not contain a valid %s/%s: %w", releaseSrcDir, brickConfigFileName, err)
+		return fmt.Errorf("the archive does not contain a valid %s: %w", configPath, err)
 	}
 	var config struct {
 		ID string `yaml:"id"`

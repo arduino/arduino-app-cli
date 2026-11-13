@@ -140,8 +140,9 @@ const (
 	releaseExamplesDir = "examples"
 )
 
+// loadInstalledBrick loads the release in brickDir
 func loadInstalledBrick(platform platform.Platform, brickDir *paths.Path, namespace, name string) (Brick, error) {
-	brick, err := LoadBrickDir(platform, brickDir.Join(releaseSrcDir), namespace)
+	brick, err := LoadBrickDir(platform, brickDir.Join(releaseSrcDir, name), namespace)
 	if err != nil {
 		return Brick{}, err
 	}
