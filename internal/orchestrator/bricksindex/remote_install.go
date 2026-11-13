@@ -188,8 +188,9 @@ type InstallResult struct {
 	AlreadyInstalled bool
 }
 
-// Install downloads the release of the brick and installs it in bricksDir.
-func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Path, brick *RemoteBrick, release *RemoteRelease, platform platform.Platform, progress func(downloaded, total int64), onWait func()) (InstallResult, error) {
+// Install downloads the release of the brick and installs it in bricksDir. If prepare is not nil,
+// required containers are installed
+func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Path, brick *RemoteBrick, release *RemoteRelease, platform platform.Platform, progress func(downloaded, total int64), onWait func(), prepare func(Brick) error) (InstallResult, error) {
 	// The release usually comes from a validated index: this protects the paths built from it.
 	if err := brick.validateID(); err != nil {
 		return InstallResult{}, err
@@ -249,6 +250,17 @@ func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Pat
 	brickDir := extractDir.Join(rootName)
 	if err := checkBrickConfig(brickDir.Join(releaseSrcDir), brick.ID); err != nil {
 		return InstallResult{}, fmt.Errorf("brick %s: %w", ref, err)
+	}
+	if prepare != nil {
+		namespace, brickName, _ := splitBrickID(brick.ID) // validated above
+		extracted, err := loadInstalledBrick(platform, brickDir, namespace, brickName)
+		if err != nil {
+			return InstallResult{}, fmt.Errorf("brick %s: %w", ref, err)
+		}
+		extracted.Version = release.Version.String()
+		if err := prepare(extracted); err != nil {
+			return InstallResult{}, fmt.Errorf("installing brick %s: %w", ref, err)
+		}
 	}
 
 	if err := brickPath.Parent().MkdirAll(); err != nil {

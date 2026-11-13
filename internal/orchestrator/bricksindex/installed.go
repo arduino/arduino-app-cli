@@ -6,7 +6,6 @@
 package bricksindex
 
 import (
-	"cmp"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -20,6 +19,43 @@ import (
 // installedBricks returns, for each installed brick, its latest version that supports the board,
 // sorted by id.
 func (b *BricksIndex) installedBricks() []Brick {
+	var res []Brick
+	for _, id := range b.installedIDs() {
+		if brick, found := b.findInstalledBrick(id); found {
+			res = append(res, brick)
+		}
+	}
+	return res
+}
+
+// AllInstalledBricks returns every installed version of every installed brick, whatever the
+// boards it supports, sorted by id and version. Versions that are not valid installed bricks are skipped.
+func (b *BricksIndex) AllInstalledBricks() []Brick {
+	var res []Brick
+	for _, id := range b.installedIDs() {
+		namespace, name, _ := splitBrickID(id) // installedIDs returns valid ids only
+		nameDir := b.installedDir.Join(namespace, name)
+		versions, err := installedVersions(nameDir)
+		if err != nil {
+			slog.Warn("cannot read the installed bricks", "error", err)
+			continue
+		}
+		for _, version := range versions {
+			brickDir := nameDir.Join(version.String())
+			brick, err := loadInstalledBrick(b.platform, brickDir, namespace, name)
+			if err != nil {
+				slog.Warn("skipping invalid installed brick", "path", brickDir, "error", err)
+				continue
+			}
+			brick.Version = version.String()
+			res = append(res, brick)
+		}
+	}
+	return res
+}
+
+// installedIDs returns the ids of the installed bricks, sorted.
+func (b *BricksIndex) installedIDs() []string {
 	if b.installedDir == nil || b.installedDir.NotExist() {
 		return nil
 	}
@@ -28,7 +64,7 @@ func (b *BricksIndex) installedBricks() []Brick {
 		slog.Warn("cannot read the installed bricks", "error", err)
 		return nil
 	}
-	var res []Brick
+	var res []string
 	for _, namespaceDir := range namespaceDirs {
 		nameDirs, err := namespaceDir.ReadDir(paths.FilterDirectories())
 		if err != nil {
@@ -37,12 +73,13 @@ func (b *BricksIndex) installedBricks() []Brick {
 		}
 		for _, nameDir := range nameDirs {
 			// The temporary folders of install and uninstall are not valid ids, so they are skipped.
-			if brick, found := b.findInstalledBrick(namespaceDir.Base() + ":" + nameDir.Base()); found {
-				res = append(res, brick)
+			id := namespaceDir.Base() + ":" + nameDir.Base()
+			if _, _, err := splitBrickID(id); err == nil {
+				res = append(res, id)
 			}
 		}
 	}
-	slices.SortFunc(res, func(a, b Brick) int { return cmp.Compare(a.ID, b.ID) })
+	slices.Sort(res)
 	return res
 }
 

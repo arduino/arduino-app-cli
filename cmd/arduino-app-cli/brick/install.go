@@ -16,6 +16,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
@@ -70,7 +71,9 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 			feedback.Warnf("%s", msg)
 		}
 		progress := downloadProgress(out, brick.ID+"@"+release.Version.String())
-		installed, err := bricksindex.Install(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksDir(), brick, release, platform, progress, printWaiting)
+		installed, err := orchestrator.InstallBrick(ctx, servicelocator.GetDockerClient(), bricksindex.DownloadConfig(userAgent(version)), cfg.BricksDir(),
+			servicelocator.GetServicesIndex(), brick, release, platform, progress, printWaiting,
+			func(line string) { fmt.Fprintln(out, line) }, pullProgress(out))
 		if err != nil {
 			if len(res.Bricks) > 0 {
 				feedback.PrintResult(res)
@@ -95,6 +98,15 @@ func downloadProgress(out io.Writer, ref string) func(downloaded, total int64) {
 		if percent != last {
 			last = percent
 			fmt.Fprintf(out, "Downloading %s: %d%%\n", ref, percent)
+		}
+	}
+}
+
+// pullProgress prints the progress of the pull of the images of a brick.
+func pullProgress(out io.Writer) func(label string, curr, total int64) {
+	return func(label string, curr, total int64) {
+		if total > 0 {
+			fmt.Fprintf(out, "%s: %d%%\n", label, curr*100/total)
 		}
 	}
 }

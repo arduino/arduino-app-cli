@@ -129,6 +129,27 @@ func ListImages(ctx context.Context, docker dockerClient.APIClient) ([]string, e
 	return result, nil
 }
 
+// ImageID is the id of the image the reference names, empty if the engine does not have it.
+// Two references name the same image when they have the same id.
+func ImageID(ctx context.Context, docker dockerClient.APIClient, image string) (string, error) {
+	info, err := docker.ImageInspect(ctx, image)
+	if errors.Is(err, errdefs.ErrNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect image %q: %w", image, err)
+	}
+	return info.ID, nil
+}
+
+// RemoveImageIfUnused removes the image unless a container, even a stopped one, uses it.
+func RemoveImageIfUnused(ctx context.Context, docker dockerClient.APIClient, image string) error {
+	if _, err := docker.ImageRemove(ctx, image, dockerClient.ImageRemoveOptions{PruneChildren: true}); err != nil {
+		return fmt.Errorf("failed to remove image %s: %w", image, err)
+	}
+	return nil
+}
+
 func RemoveImage(ctx context.Context, docker dockerClient.APIClient, imageName string) (int64, error) {
 	var size int64
 	if info, err := docker.ImageInspect(ctx, imageName); err != nil {

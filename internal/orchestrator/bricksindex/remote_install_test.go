@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"testing"
 
@@ -131,19 +132,31 @@ func TestFindRelease(t *testing.T) {
 }
 func TestInstall(t *testing.T) {
 	bricksDir := paths.New(t.TempDir())
+	const image = "ghcr.io/acme/camera:1.0@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	release := archiveRelease(t, makeZip(t, map[string]string{
-		"camera/src/brick_config.yaml": "id: acme:camera\n",
-		"camera/src/README.md":         "readme",
-		"camera/docs/API.md":           "api",
-		"camera/examples/main.py":      "example",
-		"__MACOSX/camera/._file.md":    "metadata",
+		"camera/src/brick_config.yaml":  "id: acme:camera\n",
+		"camera/src/brick_compose.yaml": "services:\n  camera:\n    image: " + image + "\n",
+		"camera/src/README.md":          "readme",
+		"camera/docs/API.md":            "api",
+		"camera/examples/main.py":       "example",
+		"__MACOSX/camera/._file.md":     "metadata",
 	}))
 
 	var downloaded, total int64
 	progress := func(d, tot int64) { downloaded, total = d, tot }
-	res, err := Install(t.Context(), DownloadConfig("test"), bricksDir, cameraBrick, release, platform.Platform{}, progress, nil)
+	var prepared []string
+	prepare := func(b Brick) error {
+		require.NoDirExists(t, bricksDir.Join("acme", "camera", "1.0.0").String(), "prepared before it is installed")
+		composeFile, ok := b.GetComposeFile()
+		require.True(t, ok)
+		require.FileExists(t, composeFile.String())
+		prepared = append(prepared, b.ID+"@"+b.Version)
+		return nil
+	}
+	res, err := Install(t.Context(), DownloadConfig("test"), bricksDir, cameraBrick, release, platform.Platform{}, progress, nil, prepare)
 	require.NoError(t, err)
 	require.False(t, res.AlreadyInstalled)
+	require.Equal(t, []string{"acme:camera@1.0.0"}, prepared)
 	require.Equal(t, release.Size, downloaded)
 	require.Equal(t, release.Size, total)
 	require.Equal(t, bricksDir.Join("acme", "camera", "1.0.0").String(), res.Path.String())
@@ -152,7 +165,7 @@ func TestInstall(t *testing.T) {
 	require.FileExists(t, res.Path.Join("docs", "API.md").String())
 	require.FileExists(t, res.Path.Join("examples", "main.py").String())
 
-	res, err = Install(t.Context(), DownloadConfig("test"), bricksDir, cameraBrick, release, platform.Platform{}, nil, nil)
+	res, err = Install(t.Context(), DownloadConfig("test"), bricksDir, cameraBrick, release, platform.Platform{}, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, res.AlreadyInstalled)
 
@@ -167,6 +180,7 @@ func TestInstallFailures(t *testing.T) {
 	tests := []struct {
 		name    string
 		release func(t *testing.T) *RemoteRelease
+		prepare func(Brick) error
 		wantErr string
 	}{
 		{
@@ -287,11 +301,17 @@ func TestInstallFailures(t *testing.T) {
 			},
 			wantErr: `declares id "other:camera"`,
 		},
+		{
+			name:    "prepare fails",
+			release: func(t *testing.T) *RemoteRelease { return archiveRelease(t, validArchive) },
+			prepare: func(Brick) error { return errors.New("cannot pull") },
+			wantErr: "cannot pull",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			bricksDir := paths.New(t.TempDir())
-			_, err := Install(t.Context(), DownloadConfig("test"), bricksDir, cameraBrick, tc.release(t), platform.Platform{BoardName: "unoq"}, nil, nil)
+			_, err := Install(t.Context(), DownloadConfig("test"), bricksDir, cameraBrick, tc.release(t), platform.Platform{BoardName: "unoq"}, nil, nil, tc.prepare)
 			require.ErrorContains(t, err, tc.wantErr)
 
 			// Nothing is installed and no temporary folders are left behind.

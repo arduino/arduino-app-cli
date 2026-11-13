@@ -12,8 +12,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -34,7 +35,9 @@ func uninstallHandler(ctx context.Context, args []string, cfg config.Configurati
 	failIfRoot("uninstall bricks")
 	var res uninstallResult
 	for _, ref := range parseBrickReferences(args) {
-		uninstalled, err := bricksindex.Uninstall(ctx, cfg.BricksDir(), ref.id, ref.version, printWaiting)
+		uninstalled, err := orchestrator.UninstallBrick(ctx, servicelocator.GetDockerClient(), cfg,
+			servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetModelsIndex(),
+			ref.id, ref.version, printWaiting, func(msg string) { feedback.Warnf("%s", msg) })
 		if err == nil || len(uninstalled.Versions) > 0 {
 			versions := uninstalled.Versions
 			if versions == nil {

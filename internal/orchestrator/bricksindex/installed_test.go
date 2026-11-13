@@ -98,6 +98,19 @@ func TestBricksIndexWithInstalledBricks(t *testing.T) {
 		require.ElementsMatch(t, []string{"arduino:builtin@", "acme:camera@1.10.0"}, got)
 	})
 
+	t.Run("all installed versions", func(t *testing.T) {
+		bricks := index.AllInstalledBricks()
+		got := make([]string, 0, len(bricks))
+		for _, b := range bricks {
+			got = append(got, b.ID+"@"+b.Version)
+		}
+		require.Equal(t, []string{
+			"acme:camera@1.2.0", "acme:camera@1.10.0", "acme:camera@2.0.0",
+			"acme:other_board@1.0.0",
+			"arduino:builtin@1.0.0",
+		}, got)
+	})
+
 	t.Run("bricks installed after loading are found", func(t *testing.T) {
 		write("acme/audio/1.0.0", "id: acme:audio\nname: Audio\n")
 		brick, ok := index.FindBrickByID("acme:audio")
