@@ -23,10 +23,11 @@ type GpioPin struct {
 }
 
 type Platform struct {
-	BoardName  string `json:"board_name"`
-	FQBN       string `json:"fqbn"`
-	PlatformID string `json:"-"`
-	Linux      struct {
+	BoardName   string `json:"board_name"`
+	FQBN        string `json:"fqbn"`
+	PlatformID  string `json:"-"`
+	CompileJobs int32  `json:"-"`
+	Linux       struct {
 		BoardLeds paths.PathList
 	} `json:"-"`
 	Micro struct {
@@ -69,6 +70,7 @@ func ForBoard(boardName string) (Platform, bool) {
 			Linux: struct{ BoardLeds paths.PathList }{
 				BoardLeds: GetUnoQBoardLeds(),
 			},
+			CompileJobs: 2,
 			Micro: struct{ ResetPin GpioPin }{
 				ResetPin: GpioPin{Chip: "gpiochip1", Number: 38},
 			},
@@ -81,6 +83,7 @@ func ForBoard(boardName string) (Platform, bool) {
 			Linux: struct{ BoardLeds paths.PathList }{
 				BoardLeds: GetVentunoQBoardLeds(),
 			},
+			CompileJobs: 0, // unlimited
 			Micro: struct{ ResetPin GpioPin }{
 				ResetPin: GpioPin{Chip: "gpiochip2", Number: 78},
 			},
@@ -155,12 +158,6 @@ func (p Platform) PackageAndArchitecture() (string, string, error) {
 		return "", "", fmt.Errorf("invalid platform id '%s': expected the form '<package>:<architecture>'", p.PlatformID)
 	}
 	return pkg, architecture, nil
-}
-
-// CompileJobs is the number of parallel jobs a sketch build runs: every core, nothing else
-// runs on the board during a build. The place to lower it when something does.
-func (p Platform) CompileJobs() int32 {
-	return 0
 }
 
 func (p Platform) SupportFlashToRam() bool {
