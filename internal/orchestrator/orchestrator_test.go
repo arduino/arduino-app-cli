@@ -29,7 +29,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -39,10 +38,10 @@ func TestCreateAppAlreadyExisting(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	existingApp, err := CreateApp(CreateAppRequest{Name: "existing-app"}, &bricksindex.BricksIndex{}, remotebricksindex.Source{}, idProvider, cfg)
+	existingApp, err := CreateApp(CreateAppRequest{Name: "existing-app"}, &bricksindex.BricksIndex{}, bricksindex.Source{}, idProvider, cfg)
 	require.NoError(t, err)
 
-	_, err = CreateApp(CreateAppRequest{Name: "existing-app"}, &bricksindex.BricksIndex{}, remotebricksindex.Source{}, idProvider, cfg)
+	_, err = CreateApp(CreateAppRequest{Name: "existing-app"}, &bricksindex.BricksIndex{}, bricksindex.Source{}, idProvider, cfg)
 	require.ErrorIs(t, err, ErrAppAlreadyExists)
 	require.Contains(t, err.Error(), existingApp.ID.String())
 }
@@ -51,9 +50,9 @@ func TestCreateAppWithThirdPartyBricks(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 	indexDir := paths.New(t.TempDir())
-	index := `{"bricks": [{"id": "acme:hello", "namespace": "acme", "latest": "1.2.0", "releases": [{"version": "1.0.0"}, {"version": "1.2.0"}]}]}`
-	require.NoError(t, indexDir.Join(remotebricksindex.IndexFileName).WriteFile([]byte(index)))
-	src := remotebricksindex.Source{IndexDir: indexDir, BricksDir: paths.New(t.TempDir())}
+	index := `{"bricks": [{"id": "acme:hello", "namespace": "acme", "releases": [{"version": "1.0.0", "url": "https://example.com/1.0.0.zip", "hash": "0000000000000000000000000000000000000000000000000000000000000000", "size": 1}, {"version": "1.2.0", "url": "https://example.com/1.2.0.zip", "hash": "0000000000000000000000000000000000000000000000000000000000000000", "size": 1}]}]}`
+	require.NoError(t, indexDir.Join(bricksindex.RemoteIndexFileName).WriteFile([]byte(index)))
+	src := bricksindex.Source{IndexDir: indexDir, BricksDir: paths.New(t.TempDir())}
 	bricksIndex := &bricksindex.BricksIndex{BuiltInBricks: []bricksindex.Brick{{ID: "arduino:camera"}}}
 
 	t.Run("bricks listed in the index are added, keeping the pinned version", func(t *testing.T) {
@@ -79,7 +78,7 @@ func TestCloneApp(t *testing.T) {
 
 	originalAppID := f.Must(idProvider.ParseID("user:original-app"))
 	originalAppPath := originalAppID.ToPath()
-	r, err := CreateApp(CreateAppRequest{Name: "original-app"}, &bricksindex.BricksIndex{}, remotebricksindex.Source{}, idProvider, cfg)
+	r, err := CreateApp(CreateAppRequest{Name: "original-app"}, &bricksindex.BricksIndex{}, bricksindex.Source{}, idProvider, cfg)
 	require.NoError(t, err)
 	require.Equal(t, originalAppID, r.ID)
 	require.DirExists(t, originalAppPath.String())
@@ -231,7 +230,7 @@ func TestEditApp(t *testing.T) {
 	docker := newFakeDockerCli(t, nil)
 
 	t.Run("with default", func(t *testing.T) {
-		_, err := CreateApp(CreateAppRequest{Name: "app-default"}, &bricksindex.BricksIndex{}, remotebricksindex.Source{}, idProvider, cfg)
+		_, err := CreateApp(CreateAppRequest{Name: "app-default"}, &bricksindex.BricksIndex{}, bricksindex.Source{}, idProvider, cfg)
 		require.NoError(t, err)
 		appDir := cfg.AppsDir().Join("app-default")
 
@@ -269,7 +268,7 @@ func TestEditApp(t *testing.T) {
 
 	t.Run("with name", func(t *testing.T) {
 		originalAppName := "original-name"
-		_, err := CreateApp(CreateAppRequest{Name: originalAppName}, &bricksindex.BricksIndex{}, remotebricksindex.Source{}, idProvider, cfg)
+		_, err := CreateApp(CreateAppRequest{Name: originalAppName}, &bricksindex.BricksIndex{}, bricksindex.Source{}, idProvider, cfg)
 		require.NoError(t, err)
 		appDir := cfg.AppsDir().Join(originalAppName)
 		userApp := f.Must(app.Load(appDir))
@@ -284,7 +283,7 @@ func TestEditApp(t *testing.T) {
 
 		t.Run("already existing name", func(t *testing.T) {
 			existingAppName := "existing-name"
-			_, err := CreateApp(CreateAppRequest{Name: existingAppName}, &bricksindex.BricksIndex{}, remotebricksindex.Source{}, idProvider, cfg)
+			_, err := CreateApp(CreateAppRequest{Name: existingAppName}, &bricksindex.BricksIndex{}, bricksindex.Source{}, idProvider, cfg)
 			require.NoError(t, err)
 			appDir := cfg.AppsDir().Join(existingAppName)
 			existingApp := f.Must(app.Load(appDir))
@@ -305,7 +304,7 @@ func TestEditApp(t *testing.T) {
 
 		t.Run("name with an empty slug", func(t *testing.T) {
 			appName := "empty-slug"
-			_, err := CreateApp(CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, remotebricksindex.Source{}, idProvider, cfg)
+			_, err := CreateApp(CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, bricksindex.Source{}, idProvider, cfg)
 			require.NoError(t, err)
 			appDir := cfg.AppsDir().Join(appName)
 			emptySlugApp := f.Must(app.Load(appDir))
@@ -324,7 +323,7 @@ func TestEditApp(t *testing.T) {
 
 		t.Run("same slug as the current folder", func(t *testing.T) {
 			appName := "same-slug"
-			_, err := CreateApp(CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, remotebricksindex.Source{}, idProvider, cfg)
+			_, err := CreateApp(CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, bricksindex.Source{}, idProvider, cfg)
 			require.NoError(t, err)
 			appDir := cfg.AppsDir().Join(appName)
 			sameSlugApp := f.Must(app.Load(appDir))
@@ -339,7 +338,7 @@ func TestEditApp(t *testing.T) {
 
 		t.Run("running app", func(t *testing.T) {
 			appName := "running-app"
-			_, err := CreateApp(CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, remotebricksindex.Source{}, idProvider, cfg)
+			_, err := CreateApp(CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, bricksindex.Source{}, idProvider, cfg)
 			require.NoError(t, err)
 			appDir := cfg.AppsDir().Join(appName)
 			runningApp := f.Must(app.Load(appDir))
@@ -360,10 +359,10 @@ func TestEditApp(t *testing.T) {
 		})
 
 		t.Run("renaming the default app keeps it default", func(t *testing.T) {
-			_, err := CreateApp(CreateAppRequest{Name: "default-to-rename"}, &bricksindex.BricksIndex{}, remotebricksindex.Source{}, idProvider, cfg)
+			_, err := CreateApp(CreateAppRequest{Name: "default-to-rename"}, &bricksindex.BricksIndex{}, bricksindex.Source{}, idProvider, cfg)
 			require.NoError(t, err)
 			defaultApp := f.Must(app.Load(cfg.AppsDir().Join("default-to-rename")))
-			_, err = CreateApp(CreateAppRequest{Name: "other-to-rename"}, &bricksindex.BricksIndex{}, remotebricksindex.Source{}, idProvider, cfg)
+			_, err = CreateApp(CreateAppRequest{Name: "other-to-rename"}, &bricksindex.BricksIndex{}, bricksindex.Source{}, idProvider, cfg)
 			require.NoError(t, err)
 			otherApp := f.Must(app.Load(cfg.AppsDir().Join("other-to-rename")))
 			require.NoError(t, SetDefaultApp(&defaultApp, cfg))
@@ -386,7 +385,7 @@ func TestEditApp(t *testing.T) {
 		})
 
 		t.Run("default and name in the same request", func(t *testing.T) {
-			_, err := CreateApp(CreateAppRequest{Name: "set-and-rename"}, &bricksindex.BricksIndex{}, remotebricksindex.Source{}, idProvider, cfg)
+			_, err := CreateApp(CreateAppRequest{Name: "set-and-rename"}, &bricksindex.BricksIndex{}, bricksindex.Source{}, idProvider, cfg)
 			require.NoError(t, err)
 			userApp := f.Must(app.Load(cfg.AppsDir().Join("set-and-rename")))
 			t.Cleanup(func() { _ = SetDefaultApp(nil, cfg) })
@@ -408,7 +407,7 @@ func TestEditApp(t *testing.T) {
 
 	t.Run("with icon and description", func(t *testing.T) {
 		commonAppName := "common-app"
-		_, err := CreateApp(CreateAppRequest{Name: commonAppName}, &bricksindex.BricksIndex{}, remotebricksindex.Source{}, idProvider, cfg)
+		_, err := CreateApp(CreateAppRequest{Name: commonAppName}, &bricksindex.BricksIndex{}, bricksindex.Source{}, idProvider, cfg)
 		require.NoError(t, err)
 		commonAppDir := cfg.AppsDir().Join(commonAppName)
 		commonApp := f.Must(app.Load(commonAppDir))
@@ -971,7 +970,7 @@ func createApp(
 	res, err := CreateApp(CreateAppRequest{
 		Name: name,
 		Icon: "😃",
-	}, &bricksindex.BricksIndex{}, remotebricksindex.Source{}, idProvider, cfg)
+	}, &bricksindex.BricksIndex{}, bricksindex.Source{}, idProvider, cfg)
 	require.NoError(t, err)
 	require.Empty(t, gCmp.Diff(f.Must(idProvider.ParseID("user:"+name)), res.ID))
 	if isExample {

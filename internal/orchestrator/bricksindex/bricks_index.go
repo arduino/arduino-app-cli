@@ -307,10 +307,7 @@ func unmarshalBricksIndex(content io.Reader) (*YamlBricksIndex, error) {
 	return &index, nil
 }
 
-const (
-	bricksListFileName  = "bricks-list.yaml"
-	brickConfigFileName = "brick_config.yaml"
-)
+const bricksListFileName = "bricks-list.yaml"
 
 // WriteBricksList writes the bricks into dir as the index Load reads back.
 func WriteBricksList(dir *paths.Path, bricks []Brick) error {

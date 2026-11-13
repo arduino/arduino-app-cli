@@ -6,103 +6,137 @@
 package bricksindex
 
 import (
-	"fmt"
+	"encoding/json"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
+	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
+// indexRelease is a release of the index that is never downloaded.
+func indexRelease(version string, boards ...string) RemoteRelease {
+	return RemoteRelease{
+		Version:         semver.MustParse(version),
+		URL:             "https://example.com/brick.zip",
+		Hash:            strings.Repeat("0", 64),
+		Size:            1,
+		SupportedBoards: boards,
+	}
+}
+
+// saveIndex saves the index in a new folder, which it returns.
+func saveIndex(t *testing.T, bricks ...RemoteBrick) *paths.Path {
+	t.Helper()
+	dir := paths.New(t.TempDir())
+	data, err := json.Marshal(RemoteIndex{Bricks: bricks})
+	require.NoError(t, err)
+	require.NoError(t, dir.Join(RemoteIndexFileName).WriteFile(data))
+	return dir
+}
+
+// installBrick installs a version of the brick in bricksDir, with the given config and a compose file.
+func installBrick(t *testing.T, bricksDir *paths.Path, id, version, config string) *paths.Path {
+	t.Helper()
+	namespace, name, err := ParseBrickID(id)
+	require.NoError(t, err)
+	srcDir := bricksDir.Join(namespace, name, version, releaseSrcDir, name)
+	require.NoError(t, srcDir.MkdirAll())
+	require.NoError(t, srcDir.Join(brickConfigFileName).WriteFile([]byte(config)))
+	require.NoError(t, srcDir.Join("brick_compose.yaml").WriteFile([]byte("services: {}\n")))
+	return srcDir
+}
+
 func TestResolve(t *testing.T) {
-	index := &Index{Bricks: []Brick{{
+	index := &RemoteIndex{Bricks: []RemoteBrick{{
 		ID:        "acme:hello",
 		Namespace: "acme",
-		Latest:    "1.2.0",
-		Releases:  []Release{{Version: "1.0.0"}, {Version: "1.2.0"}},
+		Releases:  []RemoteRelease{indexRelease("1.0.0"), indexRelease("1.2.0"), indexRelease("1.3.0", "ventunoq")},
 	}}}
+	unoq := platform.Platform{BoardName: "unoq"}
 
 	tests := []struct {
 		name          string
-		index         *Index
+		index         *RemoteIndex
 		installed     []string
 		ref           Reference
 		wantVersion   string
 		wantInstalled bool
 		wantErr       error
 	}{
-		{name: "unpinned resolves to the latest of the index", index: index, ref: Reference{ID: "acme:hello"}, wantVersion: "1.2.0"},
-		{name: "unpinned sticks to the installed version", index: index, installed: []string{"acme/hello@1.0.0"}, ref: Reference{ID: "acme:hello"}, wantVersion: "1.0.0", wantInstalled: true},
-		{name: "unpinned uses the latest installed version", index: index, installed: []string{"acme/hello@1.0.0", "acme/hello@1.2.0"}, ref: Reference{ID: "acme:hello"}, wantVersion: "1.2.0", wantInstalled: true},
-		{name: "unpinned installed but removed from the index", index: index, installed: []string{"acme/hello@0.9.0"}, ref: Reference{ID: "acme:hello"}, wantErr: ErrReleaseNotFound},
-		{name: "unpinned installed without index", installed: []string{"acme/hello@1.0.0"}, ref: Reference{ID: "acme:hello"}, wantVersion: "1.0.0", wantInstalled: true},
+		{name: "unpinned resolves to the latest of the index that supports the board", index: index, ref: Reference{ID: "acme:hello"}, wantVersion: "1.2.0"},
+		{name: "unpinned sticks to the installed version", index: index, installed: []string{"acme/hello/1.0.0"}, ref: Reference{ID: "acme:hello"}, wantVersion: "1.0.0", wantInstalled: true},
+		{name: "unpinned uses the latest installed version", index: index, installed: []string{"acme/hello/1.0.0", "acme/hello/1.2.0"}, ref: Reference{ID: "acme:hello"}, wantVersion: "1.2.0", wantInstalled: true},
+		{name: "unpinned installed but removed from the index", index: index, installed: []string{"acme/hello/0.9.0"}, ref: Reference{ID: "acme:hello"}, wantErr: ErrReleaseNotFound},
+		{name: "unpinned installed without index", installed: []string{"acme/hello/1.0.0"}, ref: Reference{ID: "acme:hello"}, wantVersion: "1.0.0", wantInstalled: true},
 		{name: "unpinned not installed without index", ref: Reference{ID: "acme:hello"}, wantErr: ErrIndexNotFound},
 		{name: "pinned", index: index, ref: Reference{ID: "acme:hello", Version: "1.0.0"}, wantVersion: "1.0.0"},
-		{name: "pinned installed but removed from the index", index: index, installed: []string{"acme/hello@0.9.0"}, ref: Reference{ID: "acme:hello", Version: "0.9.0"}, wantErr: ErrReleaseNotFound},
+		{name: "pinned to a version that does not support the board", index: index, ref: Reference{ID: "acme:hello", Version: "1.3.0"}, wantErr: ErrUnsupportedBoard},
+		{name: "pinned installed but removed from the index", index: index, installed: []string{"acme/hello/0.9.0"}, ref: Reference{ID: "acme:hello", Version: "0.9.0"}, wantErr: ErrReleaseNotFound},
 		{name: "pinned neither installed nor in the index", index: index, ref: Reference{ID: "acme:hello", Version: "0.9.0"}, wantErr: ErrReleaseNotFound},
 		{name: "unpinned not in the index", index: index, ref: Reference{ID: "acme:other"}, wantErr: ErrBrickNotFound},
-		{name: "pinned installed without index", installed: []string{"acme/hello@1.0.0"}, ref: Reference{ID: "acme:hello", Version: "1.0.0"}, wantVersion: "1.0.0", wantInstalled: true},
+		{name: "pinned installed without index", installed: []string{"acme/hello/1.0.0"}, ref: Reference{ID: "acme:hello", Version: "1.0.0"}, wantVersion: "1.0.0", wantInstalled: true},
 		{name: "pinned not installed without index", ref: Reference{ID: "acme:hello", Version: "1.0.0"}, wantErr: ErrIndexNotFound},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			bricksDir := installedBricks(t, tc.installed...)
-			res, err := Resolve(tc.index, bricksDir, []Reference{tc.ref})
+			res, err := Resolve(tc.index, bricksDir, unoq, []Reference{tc.ref})
 			if tc.wantErr != nil {
 				require.ErrorIs(t, err, tc.wantErr)
 				return
 			}
 			require.NoError(t, err)
 			require.Len(t, res, 1)
-			require.Equal(t, tc.wantVersion, res[0].Version)
+			require.Equal(t, tc.wantVersion, res[0].Version.String())
 			require.Equal(t, tc.wantInstalled, res[0].Installed)
 			if tc.index != nil {
-				require.Equal(t, tc.wantVersion, res[0].Release.Version)
+				require.Equal(t, tc.wantVersion, res[0].Release.Version.String())
 			} else {
 				require.Nil(t, res[0].Release)
 			}
-			require.Equal(t, bricksDir.Join("acme", "hello@"+tc.wantVersion), res[0].Path)
+			require.Equal(t, bricksDir.Join("acme", "hello", tc.wantVersion), res[0].Path)
 		})
 	}
 
 	t.Run("installed brick removed from the index", func(t *testing.T) {
-		_, err := Resolve(index, installedBricks(t, "acme/gone@1.0.0"), []Reference{{ID: "acme:gone", Version: "1.0.0"}})
+		_, err := Resolve(index, installedBricks(t, "acme/gone/1.0.0"), unoq, []Reference{{ID: "acme:gone", Version: "1.0.0"}})
 		require.ErrorIs(t, err, ErrBrickNotFound)
 		require.ErrorContains(t, err, "brick uninstall acme:gone@1.0.0")
 	})
 
 	t.Run("built-in and local bricks are skipped", func(t *testing.T) {
-		res, err := Resolve(nil, installedBricks(t), []Reference{{ID: "arduino:camera"}, {ID: "my-local-brick"}})
+		res, err := Resolve(nil, installedBricks(t), unoq, []Reference{{ID: "arduino:camera"}, {ID: "my-local-brick"}})
 		require.NoError(t, err)
 		require.Empty(t, res)
 	})
 
 	t.Run("only third-party bricks can be pinned", func(t *testing.T) {
-		_, err := Resolve(index, installedBricks(t), []Reference{{ID: "arduino:camera", Version: "1.0.0"}})
+		_, err := Resolve(index, installedBricks(t), unoq, []Reference{{ID: "arduino:camera", Version: "1.0.0"}})
 		require.ErrorContains(t, err, "only third-party bricks")
 	})
 }
 
 func TestLoadResolved(t *testing.T) {
 	bricksDir := paths.New(t.TempDir())
-	brickDir := bricksDir.Join("acme", "hello@1.0.0")
-	require.NoError(t, brickDir.MkdirAll())
-	require.NoError(t, brickDir.Join(brickConfigFileName).WriteFile([]byte("id: acme:hello\nname: Hello\nsupported_boards: [board-a]\n")))
-	require.NoError(t, brickDir.Join("brick_compose.yaml").WriteFile([]byte("services: {}\n")))
-	require.NoError(t, brickDir.Join("brick_compose.board-a.yaml").WriteFile([]byte("services: {}\n")))
-	hello := ResolvedBrick{ID: "acme:hello", Version: "1.0.0", Path: brickDir, Installed: true}
+	srcDir := installBrick(t, bricksDir, "acme:hello", "1.0.0", "id: acme:hello\nname: Hello\nsupported_boards: [board-a]\n")
+	require.NoError(t, srcDir.Join("brick_compose.board-a.yaml").WriteFile([]byte("services: {}\n")))
+	hello := ResolvedBrick{ID: "acme:hello", Version: semver.MustParse("1.0.0"), Path: bricksDir.Join("acme", "hello", "1.0.0"), Installed: true}
 
 	t.Run("installed", func(t *testing.T) {
 		bricks, err := LoadResolved(platform.Platform{BoardName: "board-a"}, []ResolvedBrick{hello})
 		require.NoError(t, err)
 		require.Len(t, bricks, 1)
 		require.Equal(t, "Hello", bricks[0].Name)
+		require.Equal(t, "1.0.0", bricks[0].Version)
 		require.Equal(t, "acme", bricks[0].Source)
-		require.Equal(t, brickDir, bricks[0].FullPath)
-		require.Equal(t, brickDir.Join("brick_compose.board-a.yaml"), bricks[0].ComposeFile)
+		require.Equal(t, srcDir, bricks[0].FullPath)
+		require.Equal(t, srcDir.Join("brick_compose.board-a.yaml"), bricks[0].ComposeFile)
 	})
 
 	t.Run("board not supported", func(t *testing.T) {
@@ -111,7 +145,7 @@ func TestLoadResolved(t *testing.T) {
 	})
 
 	t.Run("not installed", func(t *testing.T) {
-		missing := ResolvedBrick{ID: "acme:hello", Version: "1.2.0", Path: bricksDir.Join("acme", "hello@1.2.0")}
+		missing := ResolvedBrick{ID: "acme:hello", Version: semver.MustParse("1.2.0"), Path: bricksDir.Join("acme", "hello", "1.2.0")}
 		_, err := LoadResolved(platform.Platform{}, []ResolvedBrick{missing})
 		require.ErrorIs(t, err, ErrNotInstalled)
 		require.ErrorContains(t, err, "brick install acme:hello@1.2.0")
@@ -120,17 +154,11 @@ func TestLoadResolved(t *testing.T) {
 
 func TestSourceLoad(t *testing.T) {
 	bricksDir := paths.New(t.TempDir())
-	brickDir := bricksDir.Join("acme", "hello@1.2.0")
-	require.NoError(t, brickDir.MkdirAll())
-	require.NoError(t, brickDir.Join(brickConfigFileName).WriteFile([]byte("id: acme:hello\nname: Hello\n")))
-	require.NoError(t, brickDir.Join("brick_compose.yaml").WriteFile([]byte("services: {}\n")))
-
-	indexDir := paths.New(t.TempDir())
-	index := `{"bricks": [
-		{"id": "acme:hello", "namespace": "acme", "latest": "1.2.0", "releases": [{"version": "1.2.0"}]},
-		{"id": "acme:missing", "namespace": "acme", "latest": "1.0.0", "releases": [{"version": "1.0.0"}]}
-	]}`
-	require.NoError(t, indexDir.Join(IndexFileName).WriteFile([]byte(index)))
+	installBrick(t, bricksDir, "acme:hello", "1.2.0", "id: acme:hello\nname: Hello\n")
+	indexDir := saveIndex(t,
+		RemoteBrick{ID: "acme:hello", Namespace: "acme", Releases: []RemoteRelease{indexRelease("1.2.0")}},
+		RemoteBrick{ID: "acme:missing", Namespace: "acme", Releases: []RemoteRelease{indexRelease("1.0.0")}},
+	)
 
 	t.Run("loads the bricks it can and reports the others", func(t *testing.T) {
 		src := Source{IndexDir: indexDir, BricksDir: bricksDir}
@@ -170,17 +198,11 @@ func TestSourceLoad(t *testing.T) {
 
 func TestSourceLookup(t *testing.T) {
 	bricksDir := paths.New(t.TempDir())
-	brickDir := bricksDir.Join("acme", "hello@1.2.0")
-	require.NoError(t, brickDir.MkdirAll())
-	require.NoError(t, brickDir.Join(brickConfigFileName).WriteFile([]byte("id: acme:hello\nname: Hello\n")))
-	require.NoError(t, brickDir.Join("brick_compose.yaml").WriteFile([]byte("services: {}\n")))
-
-	indexDir := paths.New(t.TempDir())
-	index := `{"bricks": [
-		{"id": "acme:hello", "namespace": "acme", "latest": "1.2.0", "releases": [{"version": "1.2.0"}]},
-		{"id": "acme:missing", "namespace": "acme", "latest": "1.0.0", "releases": [{"version": "1.0.0"}]}
-	]}`
-	require.NoError(t, indexDir.Join(IndexFileName).WriteFile([]byte(index)))
+	installBrick(t, bricksDir, "acme:hello", "1.2.0", "id: acme:hello\nname: Hello\n")
+	indexDir := saveIndex(t,
+		RemoteBrick{ID: "acme:hello", Namespace: "acme", Releases: []RemoteRelease{indexRelease("1.2.0")}},
+		RemoteBrick{ID: "acme:missing", Namespace: "acme", Releases: []RemoteRelease{indexRelease("1.0.0")}},
+	)
 	src := Source{IndexDir: indexDir, BricksDir: bricksDir}
 
 	t.Run("installed brick", func(t *testing.T) {
@@ -214,20 +236,28 @@ func TestSourceLookup(t *testing.T) {
 
 func TestSourceInstall(t *testing.T) {
 	release := archiveRelease(t, makeZip(t, map[string]string{
-		"hello/brick_config.yaml":  "id: acme:hello\n",
-		"hello/brick_compose.yaml": "services: {}\n",
+		"src/hello/brick_config.yaml":  "id: acme:hello\n",
+		"src/hello/brick_compose.yaml": "services: {}\n",
 	}))
-	index := fmt.Sprintf(`{"bricks": [{"id": "acme:hello", "namespace": "acme", "latest": "1.0.0",
-		"releases": [{"version": "1.0.0", "url": %q, "hash": %q, "size": %d}]}]}`, release.URL, release.Hash, release.Size)
+	data, err := json.Marshal(RemoteIndex{Bricks: []RemoteBrick{{ID: "acme:hello", Namespace: "acme", Releases: []RemoteRelease{*release}}}})
+	require.NoError(t, err)
+	serveIndex := func(t *testing.T) *url.URL { return mustParseURL(t, serveFile(t, http.StatusOK, data, false)) }
 	refs := []Reference{{ID: "arduino:camera"}, {ID: "acme:hello"}}
+	config := DownloadConfig("test")
+	install := func(src Source) func(*RemoteBrick, *RemoteRelease) error {
+		return func(b *RemoteBrick, r *RemoteRelease) error {
+			_, err := Install(t.Context(), config, src.BricksDir, b, r, src.Platform, nil, nil, nil)
+			return err
+		}
+	}
 
 	t.Run("downloads the missing index and installs the missing bricks", func(t *testing.T) {
-		src := Source{IndexDir: paths.New(t.TempDir()), IndexURL: indexServer(t, http.StatusOK, index, ""), BricksDir: paths.New(t.TempDir())}
+		src := Source{IndexDir: paths.New(t.TempDir()), IndexURL: serveIndex(t), BricksDir: paths.New(t.TempDir())}
 		var messages []string
-		err := src.Install(t.Context(), http.DefaultClient, "test", refs, func(msg string) { messages = append(messages, msg) })
+		err := src.Install(t.Context(), config, refs, install(src), func(msg string) { messages = append(messages, msg) })
 		require.NoError(t, err)
 		require.Equal(t, []string{"updating the bricks index", "installing the brick acme:hello@1.0.0"}, messages)
-		require.DirExists(t, src.BricksDir.Join("acme", "hello@1.0.0").String())
+		require.DirExists(t, src.BricksDir.Join("acme", "hello", "1.0.0").String())
 
 		bricks, err := src.Load(refs)
 		require.NoError(t, err)
@@ -236,39 +266,36 @@ func TestSourceInstall(t *testing.T) {
 
 	t.Run("does not access the network when the index and the bricks are on the board", func(t *testing.T) {
 		indexDir := paths.New(t.TempDir())
-		require.NoError(t, indexDir.Join(IndexFileName).WriteFile([]byte(index)))
-		unreachable, err := url.Parse("http://127.0.0.1:0/brick-index.json")
-		require.NoError(t, err)
-		src := Source{IndexDir: indexDir, IndexURL: unreachable, BricksDir: installedBricks(t, "acme/hello@1.0.0")}
-		require.NoError(t, src.Install(t.Context(), http.DefaultClient, "test", refs, func(string) {}))
+		require.NoError(t, indexDir.Join(RemoteIndexFileName).WriteFile(data))
+		src := Source{IndexDir: indexDir, IndexURL: mustParseURL(t, "http://127.0.0.1:0/brick-index.json"), BricksDir: installedBricks(t, "acme/hello/1.0.0")}
+		require.NoError(t, src.Install(t.Context(), config, refs, install(src), func(string) {}))
 	})
 
 	t.Run("downloads a missing index even when the bricks are installed", func(t *testing.T) {
-		src := Source{IndexDir: paths.New(t.TempDir()), IndexURL: indexServer(t, http.StatusOK, index, ""), BricksDir: installedBricks(t, "acme/hello@1.0.0")}
+		src := Source{IndexDir: paths.New(t.TempDir()), IndexURL: serveIndex(t), BricksDir: installedBricks(t, "acme/hello/1.0.0")}
 		var messages []string
-		require.NoError(t, src.Install(t.Context(), http.DefaultClient, "test", refs, func(msg string) { messages = append(messages, msg) }))
+		require.NoError(t, src.Install(t.Context(), config, refs, install(src), func(msg string) { messages = append(messages, msg) }))
 		require.Equal(t, []string{"updating the bricks index"}, messages)
-		require.FileExists(t, src.IndexDir.Join(IndexFileName).String())
+		require.FileExists(t, src.IndexDir.Join(RemoteIndexFileName).String())
 	})
 
 	t.Run("removing the index does not skip the check of the versions it no longer lists", func(t *testing.T) {
-		src := Source{IndexDir: paths.New(t.TempDir()), IndexURL: indexServer(t, http.StatusOK, index, ""), BricksDir: installedBricks(t, "acme/hello@0.5.0")}
-		err := src.Install(t.Context(), http.DefaultClient, "test", refs, func(string) {})
+		src := Source{IndexDir: paths.New(t.TempDir()), IndexURL: serveIndex(t), BricksDir: installedBricks(t, "acme/hello/0.5.0")}
+		err := src.Install(t.Context(), config, refs, install(src), func(string) {})
 		require.ErrorIs(t, err, ErrReleaseNotFound)
 		require.ErrorContains(t, err, "brick uninstall acme:hello@0.5.0")
 	})
 
 	t.Run("updates the index when it does not list the brick", func(t *testing.T) {
-		indexDir := paths.New(t.TempDir())
-		require.NoError(t, indexDir.Join(IndexFileName).WriteFile([]byte(`{"bricks": []}`)))
-		src := Source{IndexDir: indexDir, IndexURL: indexServer(t, http.StatusOK, index, ""), BricksDir: paths.New(t.TempDir())}
-		require.NoError(t, src.Install(t.Context(), http.DefaultClient, "test", refs, func(string) {}))
-		require.DirExists(t, src.BricksDir.Join("acme", "hello@1.0.0").String())
+		indexDir := saveIndex(t)
+		src := Source{IndexDir: indexDir, IndexURL: serveIndex(t), BricksDir: paths.New(t.TempDir())}
+		require.NoError(t, src.Install(t.Context(), config, refs, install(src), func(string) {}))
+		require.DirExists(t, src.BricksDir.Join("acme", "hello", "1.0.0").String())
 	})
 
 	t.Run("fails when the index cannot be updated", func(t *testing.T) {
-		src := Source{IndexDir: paths.New(t.TempDir()), IndexURL: indexServer(t, http.StatusNotFound, "", ""), BricksDir: installedBricks(t, "acme/hello@1.0.0")}
-		err := src.Install(t.Context(), http.DefaultClient, "test", refs, func(string) {})
-		require.ErrorContains(t, err, "unexpected status")
+		src := Source{IndexDir: paths.New(t.TempDir()), IndexURL: mustParseURL(t, serveFile(t, http.StatusNotFound, nil, false)), BricksDir: installedBricks(t, "acme/hello/1.0.0")}
+		err := src.Install(t.Context(), config, refs, install(src), func(string) {})
+		require.ErrorContains(t, err, "updating bricks index")
 	})
 }

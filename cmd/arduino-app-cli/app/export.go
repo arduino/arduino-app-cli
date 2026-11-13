@@ -21,7 +21,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 )
 
 func newExportCmd(cfg config.Configuration) *cobra.Command {
@@ -63,7 +62,7 @@ Use '-' as output_path to write the zip to stdout.`,
 	return cmd
 }
 
-func exportHandler(bricksIndex *bricksindex.BricksIndex, bricksSource remotebricksindex.Source, appToExport app.ArduinoApp, outputDest string, includeData bool, override bool) error {
+func exportHandler(bricksIndex *bricksindex.BricksIndex, bricksSource bricksindex.Source, appToExport app.ArduinoApp, outputDest string, includeData bool, override bool) error {
 
 	zipBytes, originalName, err := orchestrator.ExportAppZip(bricksIndex, bricksSource, appToExport, includeData)
 	if err != nil {
