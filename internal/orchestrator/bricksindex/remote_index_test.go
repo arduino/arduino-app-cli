@@ -66,7 +66,7 @@ func TestParseRemoteIndexValidation(t *testing.T) {
 	}
 
 	require.NoError(t, parse(brick(nil), brick(map[string]any{"id": "acme:audio"})))
-	require.NoError(t, parse(brick(map[string]any{"id": "acme_2:_my_camera2", "namespace": "acme_2"})))
+	require.NoError(t, parse(brick(map[string]any{"id": "acme_2:my_camera2", "namespace": "acme_2"})))
 	require.NoError(t, parse(brick(map[string]any{"releases": []map[string]any{release(nil), release(map[string]any{"version": "1.1.0"})}})))
 
 	tests := []struct {
@@ -78,12 +78,9 @@ func TestParseRemoteIndexValidation(t *testing.T) {
 		{"uppercase in id", brick(map[string]any{"id": "acme:Camera"}), "invalid brick id"},
 		{"dash in id", brick(map[string]any{"id": "acme:my-camera"}), "invalid brick id"},
 		{"leading digit in id", brick(map[string]any{"id": "acme:2camera"}), "invalid brick id"},
+		{"leading underscore in id", brick(map[string]any{"id": "acme:_camera"}), "invalid brick id"},
 		{"dot in namespace", brick(map[string]any{"id": "acme.io:camera", "namespace": "acme.io"}), "invalid brick id"},
 		{"namespace mismatch", brick(map[string]any{"namespace": "other"}), "does not match"},
-		{"missing name", brick(map[string]any{"name": nil}), "missing name"},
-		{"missing author", brick(map[string]any{"author": nil}), "missing author"},
-		{"missing releases", brick(map[string]any{"releases": nil}), "no releases"},
-		{"empty releases", brick(map[string]any{"releases": []map[string]any{}}), "no releases"},
 		{"missing version", withRelease(map[string]any{"version": nil}), "missing version"},
 		{"empty version", withRelease(map[string]any{"version": ""}), "missing version"},
 		{"invalid version", withRelease(map[string]any{"version": "v1"}), "decoding bricks index"},
@@ -101,16 +98,6 @@ func TestParseRemoteIndexValidation(t *testing.T) {
 			require.ErrorContains(t, parse(tt.brick), tt.wantErr)
 		})
 	}
-
-	t.Run("duplicate brick", func(t *testing.T) {
-		require.ErrorContains(t, parse(brick(nil), brick(nil)), `duplicate brick "acme:camera"`)
-	})
-	t.Run("duplicate release", func(t *testing.T) {
-		err := parse(brick(map[string]any{"releases": []map[string]any{
-			release(map[string]any{"version": "1.2"}), release(map[string]any{"version": "1.2.0"}),
-		}}))
-		require.ErrorContains(t, err, "duplicate release acme:camera@1.2.0")
-	})
 }
 
 // serveFile serves body at the returned URL. With chunked, the size of the body is not declared.

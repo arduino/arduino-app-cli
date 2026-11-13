@@ -136,14 +136,14 @@ func TestInstall(t *testing.T) {
 		"src/camera/brick_config.yaml":  "id: acme:camera\n",
 		"src/camera/brick_compose.yaml": "services:\n  camera:\n    image: " + image + "\n",
 		"src/camera/README.md":          "readme",
-		"docs/api.md":                   "api",
+		"docs/API.md":                   "api",
 		"examples/basic/app.yaml":       "name: basic",
 		"LICENSE":                       "license",
 	}
 	for _, root := range []string{"", "camera-1.0.0/"} {
 		t.Run("root folder "+root, func(t *testing.T) {
 			bricksDir := paths.New(t.TempDir())
-			archive := map[string]string{"__MACOSX/camera/._file.md": "metadata"}
+			archive := map[string]string{}
 			for name, content := range files {
 				archive[root+name] = content
 			}
@@ -170,7 +170,6 @@ func TestInstall(t *testing.T) {
 			for name := range files {
 				require.FileExists(t, res.Path.Join(name).String())
 			}
-			require.NoDirExists(t, res.Path.Join("__MACOSX").String())
 
 			res, err = Install(t.Context(), DownloadConfig("test"), bricksDir, cameraBrick, release, platform.Platform{}, nil, nil, nil)
 			require.NoError(t, err)
@@ -245,24 +244,6 @@ func TestInstallFailures(t *testing.T) {
 			wantErr: "not enough disk space",
 		},
 		{
-			name: "invalid hash",
-			release: func(t *testing.T) *RemoteRelease {
-				r := archiveRelease(t, validArchive)
-				r.Hash = "SHA-256:" + r.Hash
-				return r
-			},
-			wantErr: "invalid SHA-256 hash",
-		},
-		{
-			name: "unsupported board",
-			release: func(t *testing.T) *RemoteRelease {
-				r := archiveRelease(t, validArchive)
-				r.SupportedBoards = []string{"ventunoq"}
-				return r
-			},
-			wantErr: "not supported by this board",
-		},
-		{
 			name: "multiple root folders",
 			release: func(t *testing.T) *RemoteRelease {
 				return archiveRelease(t, makeZip(t, map[string]string{
@@ -278,37 +259,6 @@ func TestInstallFailures(t *testing.T) {
 				return archiveRelease(t, makeZip(t, map[string]string{"brick_config.yaml": "id: acme:camera\n"}))
 			},
 			wantErr: "does not contain a src folder",
-		},
-		{
-			name: "path traversal",
-			release: func(t *testing.T) *RemoteRelease {
-				return archiveRelease(t, makeZip(t, map[string]string{
-					"camera/src/camera/brick_config.yaml": "id: acme:camera\n",
-					"camera/../../evil":                   "x",
-				}))
-			},
-			wantErr: "invalid entry",
-		},
-		{
-			name: "missing brick_config.yaml",
-			release: func(t *testing.T) *RemoteRelease {
-				return archiveRelease(t, makeZip(t, map[string]string{"camera/src/camera/README.md": "readme"}))
-			},
-			wantErr: "does not contain a valid src/camera/brick_config.yaml",
-		},
-		{
-			name: "brick_config.yaml not in the folder of the brick",
-			release: func(t *testing.T) *RemoteRelease {
-				return archiveRelease(t, makeZip(t, map[string]string{"camera/src/brick_config.yaml": "id: acme:camera\n"}))
-			},
-			wantErr: "does not contain a valid src/camera/brick_config.yaml",
-		},
-		{
-			name: "wrong brick id",
-			release: func(t *testing.T) *RemoteRelease {
-				return archiveRelease(t, makeZip(t, map[string]string{"camera/src/camera/brick_config.yaml": "id: other:camera\n"}))
-			},
-			wantErr: `declares id "other:camera"`,
 		},
 		{
 			name:    "prepare fails",

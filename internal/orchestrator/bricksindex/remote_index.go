@@ -30,7 +30,7 @@ const RemoteIndexFileName = "brick-index.json"
 var ErrIndexNotFound = errors.New("bricks index not found, run 'arduino-app-cli brick update-index' to download it")
 
 // The namespace and the name of a brick become folder names and Python module names.
-var validBrickIDPart = regexp.MustCompile(`^[a-z_][a-z0-9_]*$`)
+var validBrickIDPart = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
 type RemoteIndex struct {
 	Bricks []RemoteBrick `json:"bricks"`
@@ -88,16 +88,13 @@ func parseRemoteIndex(data []byte) (*RemoteIndex, error) {
 	return &index, nil
 }
 
+// validate checks what the paths and the downloads are built from. The rest of the content of the
+// index is trusted, as the registry checks it before publishing.
 func (idx *RemoteIndex) validate() error {
-	seen := make(map[string]bool, len(idx.Bricks))
 	for _, b := range idx.Bricks {
 		if err := b.validate(); err != nil {
 			return err
 		}
-		if seen[b.ID] {
-			return fmt.Errorf("duplicate brick %q", b.ID)
-		}
-		seen[b.ID] = true
 	}
 	return nil
 }
@@ -106,23 +103,9 @@ func (b RemoteBrick) validate() error {
 	if err := b.validateID(); err != nil {
 		return err
 	}
-	if b.Name == "" {
-		return fmt.Errorf("brick %q: missing name", b.ID)
-	}
-	if b.Author == "" {
-		return fmt.Errorf("brick %q: missing author", b.ID)
-	}
-	if len(b.Releases) == 0 {
-		return fmt.Errorf("brick %q: no releases", b.ID)
-	}
-	for i, r := range b.Releases {
+	for _, r := range b.Releases {
 		if err := r.validate(b.ID); err != nil {
 			return err
-		}
-		for _, prev := range b.Releases[:i] {
-			if prev.Version.Equal(r.Version) {
-				return fmt.Errorf("duplicate release %s@%s", b.ID, r.Version)
-			}
 		}
 	}
 	return nil

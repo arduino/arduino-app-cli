@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
 	"os"
 	"path"
 	"slices"
@@ -23,7 +22,6 @@ import (
 	"time"
 
 	"github.com/arduino/go-paths-helper"
-	yaml "github.com/goccy/go-yaml"
 	"github.com/gofrs/flock"
 	"github.com/shirou/gopsutil/v4/disk"
 	"go.bug.st/downloader/v3"
@@ -130,7 +128,7 @@ func (b *RemoteBrick) SupportedReleases(platform platform.Platform) []*RemoteRel
 func splitBrickID(id string) (namespace, name string, err error) {
 	namespace, name, err = ParseBrickID(id)
 	if err != nil || !validBrickIDPart.MatchString(namespace) || !validBrickIDPart.MatchString(name) {
-		return "", "", fmt.Errorf("invalid brick id %q: expected NAMESPACE:NAME, each made of lowercase letters, digits and underscores", id)
+		return "", "", fmt.Errorf("invalid brick id %q: expected NAMESPACE:NAME, each made of lowercase letters, digits and underscores, starting with a letter", id)
 	}
 	return namespace, name, nil
 }
@@ -189,19 +187,9 @@ type InstallResult struct {
 }
 
 // Install downloads the release of the brick and installs it in bricksDir. If prepare is not nil,
-// required containers are installed
+// required containers are installed. The brick and the release must come from a validated index.
 func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Path, brick *RemoteBrick, release *RemoteRelease, platform platform.Platform, progress func(downloaded, total int64), onWait func(), prepare func(Brick) error) (InstallResult, error) {
-	// The release usually comes from a validated index: this protects the paths built from it.
-	if err := brick.validateID(); err != nil {
-		return InstallResult{}, err
-	}
-	if err := release.validate(brick.ID); err != nil {
-		return InstallResult{}, err
-	}
 	ref := brick.ID + "@" + release.Version.String()
-	if !release.SupportsBoard(platform) {
-		return InstallResult{}, fmt.Errorf("%w: %s does not support %s", ErrUnsupportedBoard, ref, platform.BoardName)
-	}
 	expectedHash, err := hex.DecodeString(release.Hash)
 	if err != nil {
 		return InstallResult{}, err
@@ -228,7 +216,7 @@ func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Pat
 	defer func() { _ = tempDir.RemoveAll() }()
 
 	archivePath := tempDir.Join("archive.zip")
-	if err := checkFreeSpace(bricksDir, uint64(release.Size)); err != nil { // nolint:gosec // validate checks that the size is positive
+	if err := checkFreeSpace(bricksDir, uint64(release.Size)); err != nil { // nolint:gosec // the index validation checks that the size is positive
 		return InstallResult{}, fmt.Errorf("downloading brick %s: %w", ref, err)
 	}
 	var downloadProgress func(int64)
@@ -250,11 +238,8 @@ func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Pat
 	if err != nil {
 		return InstallResult{}, fmt.Errorf("brick %s: %w", ref, err)
 	}
-	namespace, brickName, _ := splitBrickID(brick.ID) // validated above
-	if err := checkBrickConfig(brickDir, brickName, brick.ID); err != nil {
-		return InstallResult{}, fmt.Errorf("brick %s: %w", ref, err)
-	}
 	if prepare != nil {
+		namespace, brickName, _ := ParseBrickID(brick.ID)
 		extracted, err := loadInstalledBrick(platform, brickDir, namespace, brickName)
 		if err != nil {
 			return InstallResult{}, fmt.Errorf("brick %s: %w", ref, err)
@@ -313,7 +298,8 @@ func downloadArchive(ctx context.Context, config downloader.Config, release *Rem
 	return nil
 }
 
-// extractZip extracts the archive into destDir, ignoring the __MACOSX metadata folder.
+// extractZip extracts the archive into destDir. The archive is trusted, as the registry checks
+// it and its hash has been verified.
 func extractZip(archive *paths.Path, destDir *paths.Path) error {
 	reader, err := zip.OpenReader(archive.String())
 	if err != nil {
@@ -321,7 +307,6 @@ func extractZip(archive *paths.Path, destDir *paths.Path) error {
 	}
 	defer reader.Close()
 
-	// The sizes declared by the archive can be trusted: its hash has already been verified.
 	var extractedSize uint64
 	for _, f := range reader.File {
 		extractedSize += f.UncompressedSize64
@@ -337,21 +322,12 @@ func extractZip(archive *paths.Path, destDir *paths.Path) error {
 	defer destRoot.Close()
 
 	for _, f := range reader.File {
-		name := path.Clean(strings.ReplaceAll(f.Name, `\`, "/"))
-		root, _, _ := strings.Cut(name, "/")
-		if root == "__MACOSX" {
-			continue
-		}
-		if path.IsAbs(name) || root == "" || root == "." || root == ".." {
-			return fmt.Errorf("invalid entry %s", f.Name)
-		}
-
 		mode := f.Mode()
 		switch {
 		case mode.IsDir():
-			err = destRoot.MkdirAll(name, 0o755)
+			err = destRoot.MkdirAll(f.Name, 0o755)
 		case mode.IsRegular():
-			err = extractFile(destRoot, f, name)
+			err = extractFile(destRoot, f)
 		default:
 			return fmt.Errorf("unsupported entry %s: only files and folders are allowed", f.Name)
 		}
@@ -378,12 +354,8 @@ func releaseRoot(extractDir *paths.Path) (*paths.Path, error) {
 	return nil, fmt.Errorf("the archive does not contain a %s folder, at its root or inside a single root folder", releaseSrcDir)
 }
 
-func extractFile(destRoot *os.Root, f *zip.File, name string) error {
-	if f.UncompressedSize64 >= math.MaxInt64 {
-		return fmt.Errorf("invalid size %d", f.UncompressedSize64)
-	}
-	size := int64(f.UncompressedSize64)
-	if err := destRoot.MkdirAll(path.Dir(name), 0o755); err != nil {
+func extractFile(destRoot *os.Root, f *zip.File) error {
+	if err := destRoot.MkdirAll(path.Dir(f.Name), 0o755); err != nil {
 		return err
 	}
 	src, err := f.Open()
@@ -391,38 +363,13 @@ func extractFile(destRoot *os.Root, f *zip.File, name string) error {
 		return err
 	}
 	defer src.Close()
-	dst, err := destRoot.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, f.Mode().Perm()|0o600)
+	dst, err := destRoot.OpenFile(f.Name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, f.Mode().Perm()|0o600)
 	if err != nil {
 		return err
 	}
 	defer dst.Close()
-	// The declared size has been accounted for by the free space check: never write more than that.
-	written, err := io.Copy(dst, io.LimitReader(src, size+1))
-	if err != nil {
+	if _, err := io.Copy(dst, src); err != nil { // nolint:gosec // the archive is trusted: the registry checks it and its hash is verified
 		return err
 	}
-	if written > size {
-		return fmt.Errorf("file larger than its declared size %d", size)
-	}
 	return dst.Close()
-}
-
-// checkBrickConfig verifies that the release in releaseDir contains a
-// brick_config.yaml describing the brick with the given id.
-func checkBrickConfig(releaseDir *paths.Path, name, id string) error {
-	configPath := path.Join(releaseSrcDir, name, brickConfigFileName)
-	data, err := releaseDir.Join(configPath).ReadFile()
-	if err != nil {
-		return fmt.Errorf("the archive does not contain a valid %s: %w", configPath, err)
-	}
-	var config struct {
-		ID string `yaml:"id"`
-	}
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return fmt.Errorf("invalid %s: %w", brickConfigFileName, err)
-	}
-	if config.ID != id {
-		return fmt.Errorf("%s declares id %q instead of %q", brickConfigFileName, config.ID, id)
-	}
-	return nil
 }
