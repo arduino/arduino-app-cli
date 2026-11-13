@@ -35,7 +35,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/pkg/release"
@@ -95,7 +94,7 @@ func BuildRelease(
 
 	// TODO: ship third-party bricks in the release
 	for _, ref := range appToBuild.BrickReferences() {
-		if remotebricksindex.IsThirdParty(ref.ID) {
+		if bricksindex.IsThirdParty(ref.ID) {
 			return BuildReleaseResult{}, nil, fmt.Errorf("%w: the app uses the third-party brick %q: releases do not support third-party bricks yet", ErrBadRequest, ref.ID)
 		}
 	}
@@ -106,7 +105,7 @@ func BuildRelease(
 		return BuildReleaseResult{}, nil, err
 	}
 
-	bricksIndex, err = appToBuild.ResolveBricks(bricksIndex, remotebricksindex.NewStrictSource(cfg, plat))
+	bricksIndex, err = appToBuild.ResolveBricks(bricksIndex, bricksindex.NewStrictSource(cfg, plat))
 	if err != nil {
 		return BuildReleaseResult{}, nil, err
 	}

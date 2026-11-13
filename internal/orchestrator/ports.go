@@ -12,7 +12,6 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 )
 
@@ -28,7 +27,7 @@ type PortInfo struct {
 func AppPorts(
 	a app.ArduinoApp,
 	index *bricksindex.BricksIndex,
-	bricksSource remotebricksindex.Source,
+	bricksSource bricksindex.Source,
 	servicesIndex *servicesindex.ServicesIndex,
 ) ([]PortInfo, error) {
 	index, err := a.ResolveBricks(index, bricksSource)

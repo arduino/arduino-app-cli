@@ -26,12 +26,11 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 )
 
 func ExportAppZip(
 	bricksIndex *bricksindex.BricksIndex,
-	bricksSource remotebricksindex.Source,
+	bricksSource bricksindex.Source,
 	appTarget app.ArduinoApp,
 	includeData bool,
 ) ([]byte, string, error) {
