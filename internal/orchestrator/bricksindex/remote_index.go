@@ -29,7 +29,6 @@ const RemoteIndexFileName = "brick-index.json"
 
 var ErrIndexNotFound = errors.New("bricks index not found, run 'arduino-app-cli brick update-index' to download it")
 
-// The namespace and the name of a brick become folder names and Python module names.
 var validBrickIDPart = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
 type RemoteIndex struct {
@@ -38,15 +37,12 @@ type RemoteIndex struct {
 
 // RemoteBrick is a brick in the bricks index, with its releases.
 type RemoteBrick struct {
-	ID        string `json:"id"`
-	Namespace string `json:"namespace"`
-	// Author is the display name of the namespace.
-	Author          string          `json:"author"`
-	Name            string          `json:"name"`
-	Description     string          `json:"description"`
-	Deprecated      bool            `json:"deprecated"`
-	DeprecationNote string          `json:"deprecation_note,omitempty"`
-	Releases        []RemoteRelease `json:"releases"`
+	ID          string          `json:"id"`
+	Namespace   string          `json:"namespace"`
+	Author      string          `json:"author"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Releases    []RemoteRelease `json:"releases"`
 }
 
 // RemoteRelease is a release of a brick in the bricks index.

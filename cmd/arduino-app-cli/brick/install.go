@@ -63,13 +63,6 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 	var res installResult
 	for _, r := range resolved {
 		brick, release := r.brick, r.release
-		if brick.Deprecated {
-			msg := fmt.Sprintf("Brick %s is deprecated", brick.ID)
-			if brick.DeprecationNote != "" {
-				msg += ": " + brick.DeprecationNote
-			}
-			feedback.Warnf("%s", msg)
-		}
 		progress := downloadProgress(out, brick.ID+"@"+release.Version.String())
 		installed, err := orchestrator.InstallBrick(ctx, servicelocator.GetDockerClient(), bricksindex.DownloadConfig(userAgent(version)), cfg.BricksDir(),
 			servicelocator.GetServicesIndex(), brick, release, platform, progress, printWaiting,
