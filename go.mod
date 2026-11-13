@@ -34,6 +34,7 @@ require (
 	github.com/tmaxmax/go-sse v0.11.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/warthog618/go-gpiocdev v0.9.1
+	go.bug.st/downloader/v3 v3.0.1
 	go.bug.st/f v0.5.0
 	go.bug.st/relaxed-semver v0.15.0
 	golang.org/x/crypto v0.58.0
@@ -279,7 +280,6 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zclconf/go-cty v1.19.0 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
-	go.bug.st/downloader/v3 v3.0.1 // indirect
 	go.bug.st/serial v1.8.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.45.0 // indirect

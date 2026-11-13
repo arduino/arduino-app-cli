@@ -182,7 +182,23 @@ func getAllSupportedBrickImages(bricksIndex *bricksindex.BricksIndex, servicesIn
 	return f.Uniq(result), nil
 }
 
+// extractImagesFromCompose returns the images of the compose file that are ours.
 func extractImagesFromCompose(composeFile *paths.Path) ([]string, error) {
+	images, err := composeImages(composeFile)
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(images, func(image string) bool {
+		if !isOurImage(image) {
+			slog.Warn("skipping image that is not one of ours", "image", image)
+			return true
+		}
+		return false
+	}), nil
+}
+
+// composeImages returns all the images of the compose file.
+func composeImages(composeFile *paths.Path) ([]string, error) {
 	var result []string
 
 	content, err := composeFile.ReadFile()
@@ -203,11 +219,7 @@ func extractImagesFromCompose(composeFile *paths.Path) ([]string, error) {
 		return nil, err
 	}
 	for _, v := range prj.Services {
-		if isOurImage(v.Image) {
-			result = append(result, v.Image)
-		} else {
-			slog.Warn("skipping image that is not one of ours", "image", v.Image)
-		}
+		result = append(result, v.Image)
 	}
 	return result, nil
 }
@@ -286,6 +298,8 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	if err != nil {
 		return result, err
 	}
+	// The bricks installed from the bricks index may run our images too.
+	imagesMustStay = append(imagesMustStay, installedBrickImages(bricksindex, servicesindex)...)
 	if !opts.Releases {
 		// A release that cannot be read can lose its images: its start fails until a prepare.
 		releaseImages, err := getReleaseImages(cfg)
@@ -303,6 +317,19 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	slog.Debug("all images already pulled", "allImages", allImages)
 
 	imagesToRemove := removableImages(allImages, imagesMustStay)
+	// An image that must stay can be named by another reference, a digest instead of a tag.
+	idsMustStay, err := imageIDs(ctx, docker.Client(), imagesMustStay)
+	if err != nil {
+		return result, err
+	}
+	imagesToRemove = slices.DeleteFunc(imagesToRemove, func(image string) bool {
+		id, err := dockerhelper.ImageID(ctx, docker.Client(), image)
+		if err != nil {
+			feedback.Warnf("failed to inspect image %s - %v", image, err)
+			return true
+		}
+		return idsMustStay[id]
+	})
 	slog.Info("images to remove", "imagesToRemove", imagesToRemove)
 
 	for _, image := range imagesToRemove {
@@ -353,7 +380,7 @@ func getReleaseImages(cfg config.Configuration) ([]string, error) {
 			errs = errors.Join(errs, fmt.Errorf("cannot load the release %s: %w", releasePath.Base(), err))
 			continue
 		}
-		releaseImages, err := extractImagesFromCompose(release.AppComposeFilePath())
+		releaseImages, err := composeImages(release.AppComposeFilePath())
 		if err != nil {
 			errs = errors.Join(errs, fmt.Errorf("cannot read the images of the release %s: %w", releasePath.Base(), err))
 			continue

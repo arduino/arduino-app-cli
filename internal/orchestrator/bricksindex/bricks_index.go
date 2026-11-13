@@ -27,10 +27,21 @@ import (
 type BricksIndex struct {
 	BuiltInBricks []Brick
 	AppBricks     []Brick
+
+	// installedDir is the folder of the bricks installed from the bricks index, nil if they are not included.
+	installedDir *paths.Path
+	platform     platform.Platform
 }
 
 func (b *BricksIndex) WithAppBricks(bricks []Brick) *BricksIndex {
 	b.AppBricks = bricks
+	return b
+}
+
+// WithInstalledBricks includes the bricks installed in dir from the bricks index. They are read
+// on every query, so a brick installed after the index is loaded is found too.
+func (b *BricksIndex) WithInstalledBricks(dir *paths.Path) *BricksIndex {
+	b.installedDir = dir
 	return b
 }
 
@@ -44,12 +55,21 @@ func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
 	if idx := slices.IndexFunc(b.BuiltInBricks, searchFunc); idx != -1 {
 		return &b.BuiltInBricks[idx], true
 	}
+	if brick, found := b.findInstalledBrick(id); found {
+		return &brick, true
+	}
 	return nil, false
 }
 
 // TODO: use iterator instead of returning a slice
 func (b *BricksIndex) ListBricks() []Brick {
 	bricks := slices.Concat(b.AppBricks, b.BuiltInBricks)
+	for _, installed := range b.installedBricks() {
+		// The bricks of the app and the built-in ones take precedence.
+		if !slices.ContainsFunc(bricks, func(brick Brick) bool { return brick.ID == installed.ID }) {
+			bricks = append(bricks, installed)
+		}
+	}
 	slices.SortFunc(bricks, func(a, b Brick) int {
 		return strings.Compare(a.Name, b.Name)
 	})
@@ -128,6 +148,8 @@ type Brick struct {
 	ModelConfigurationVariables []string                  `yaml:"model_configuration_variables,omitempty"`
 
 	Source string `yaml:"-"`
+	// Version is set only for the bricks installed from the bricks index.
+	Version string `yaml:"-"`
 
 	FullPath     *paths.Path `yaml:"-"`
 	ComposeFile  *paths.Path `yaml:"-"` // brick_compose.yaml file path, optional
@@ -192,7 +214,8 @@ func (b Brick) GetPorts() []string {
 	return slices.Compact(ports)
 }
 
-func (b Brick) isAiBrick(platform platform.Platform) bool {
+// IsAIBrick reports whether the brick needs an AI model on the given platform.
+func (b Brick) IsAIBrick(platform platform.Platform) bool {
 	for _, mb := range b.ModelByBoard {
 		if mb.Platform == platform.BoardName && mb.Model != "" {
 			return true
@@ -306,49 +329,85 @@ func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 		yamlIndex.Bricks[i].ReadmeFile = path.Join("docs", namespace, brickName, "README.md")
 		yamlIndex.Bricks[i].ExamplesPath = path.Join("examples", namespace, brickName)
 		yamlIndex.Bricks[i].DocsAPIPath = path.Join("api-docs", namespace, "app_bricks", brickName, "API.md")
-		yamlIndex.Bricks[i].RequireModel = yamlIndex.Bricks[i].isAiBrick(platform)
-
-		// Load main compose file and, if present, platform-specific compose files
-		var (
-			composePath     = path.Join("compose", namespace, brickName)
-			baseCompose     = composePath.Join("brick_compose.yaml")
-			specificCompose = composePath.Join(fmt.Sprintf("brick_compose.%s.yaml", platform.BoardName))
-		)
-		if platform.BoardName != "" && specificCompose.Exist() {
-			yamlIndex.Bricks[i].ComposeFile = specificCompose
-		} else if baseCompose.Exist() {
-			yamlIndex.Bricks[i].ComposeFile = baseCompose
-		}
-
-		// Extract ports from the compose file if it exists
-		if composeFile, ok := yamlIndex.Bricks[i].GetComposeFile(); ok {
-			if ports, err := composefile.ExtractPorts(composeFile); err == nil {
-				yamlIndex.Bricks[i].containerPorts = ports
-			} else {
-				slog.Warn("cannot extract ports from compose file, skipping", "brick_id", yamlIndex.Bricks[i].ID, "error", err)
-			}
-		}
-
-		// Resolve the board-specific model name, if any.
-		if platform.BoardName != "" {
-			idx := slices.IndexFunc(yamlIndex.Bricks[i].ModelByBoard, func(mb ModelsBoard) bool {
-				return mb.Platform == platform.BoardName
-			})
-			if idx != -1 {
-				yamlIndex.Bricks[i].ModelName = yamlIndex.Bricks[i].ModelByBoard[idx].Model
-			}
-		}
+		yamlIndex.Bricks[i].applyPlatform(platform, path.Join("compose", namespace, brickName))
 	}
 
 	yamlIndex.Bricks = slices.DeleteFunc(yamlIndex.Bricks, func(brick Brick) bool {
-		return platform.BoardName != "" &&
-			len(brick.SupportedBoards) != 0 &&
-			!slices.Contains(brick.SupportedBoards, platform.BoardName)
+		return !brick.SupportsBoard(platform)
 	})
 
 	return &BricksIndex{
 		BuiltInBricks: yamlIndex.Bricks,
+		platform:      platform,
 	}, nil
+}
+
+// LoadBrickDir loads the brick whose brick_config.yaml is in dir.
+func LoadBrickDir(platform platform.Platform, dir *paths.Path, source string) (Brick, error) {
+	data, err := dir.Join(brickConfigFileName).ReadFile()
+	if err != nil {
+		return Brick{}, err
+	}
+	var brick Brick
+	if err := yaml.Unmarshal(data, &brick); err != nil {
+		return Brick{}, fmt.Errorf("invalid %s: %w", brickConfigFileName, err)
+	}
+	brick.Source = source
+	brick.FullPath = dir
+	brick.ReadmeFile = dir.Join("README.md")
+	brick.ExamplesPath = dir.Join("examples")
+	brick.DocsAPIPath = dir.Join("docs", "API.md")
+	brick.applyPlatform(platform, dir)
+	return brick, nil
+}
+
+// SupportsBoard reports whether the brick can run on the board of the platform.
+func (b Brick) SupportsBoard(platform platform.Platform) bool {
+	return supportsBoard(b.SupportedBoards, platform)
+}
+
+// applyPlatform sets the fields of the brick that depend on the platform. composeDir is
+// the folder holding its compose files.
+func (b *Brick) applyPlatform(platform platform.Platform, composeDir *paths.Path) {
+	b.RequireModel = b.IsAIBrick(platform)
+
+	// Load main compose file and, if present, platform-specific compose files
+	var (
+		baseCompose     = composeDir.Join("brick_compose.yaml")
+		specificCompose = composeDir.Join(fmt.Sprintf("brick_compose.%s.yaml", platform.BoardName))
+	)
+	if platform.BoardName != "" && specificCompose.Exist() {
+		b.ComposeFile = specificCompose
+	} else if baseCompose.Exist() {
+		b.ComposeFile = baseCompose
+	}
+
+	// Extract ports from the compose file if it exists
+	if composeFile, ok := b.GetComposeFile(); ok {
+		if ports, err := composefile.ExtractPorts(composeFile); err == nil {
+			b.containerPorts = ports
+		} else {
+			slog.Warn("cannot extract ports from compose file, skipping", "brick_id", b.ID, "error", err)
+		}
+	}
+
+	// Resolve the board-specific model name, if any.
+	if platform.BoardName != "" {
+		idx := slices.IndexFunc(b.ModelByBoard, func(mb ModelsBoard) bool {
+			return mb.Platform == platform.BoardName
+		})
+		if idx != -1 {
+			b.ModelName = b.ModelByBoard[idx].Model
+		}
+	}
+}
+
+// supportsBoard reports whether a brick with the given supported boards can be used on the board
+// current board.
+func supportsBoard(supportedBoards []string, platform platform.Platform) bool {
+	return platform.BoardName == "" ||
+		len(supportedBoards) == 0 ||
+		slices.Contains(supportedBoards, platform.BoardName)
 }
 
 func ParseBrickID(brickID string) (namespace, name string, err error) {

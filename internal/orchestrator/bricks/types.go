@@ -17,6 +17,8 @@ type BrickListItem struct {
 	Category     string `json:"category"`
 	Status       string `json:"status"`
 	RequireModel bool   `json:"require_model"`
+	// Version is set only for the bricks installed from the bricks index.
+	Version string `json:"version,omitempty"`
 }
 
 type AppBrickInstancesResult struct {
