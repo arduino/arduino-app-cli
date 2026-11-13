@@ -14,7 +14,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
-	"sync"
 	"text/template"
 
 	"github.com/arduino/go-paths-helper"
@@ -134,12 +133,6 @@ func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, sec
 	return prj, nil
 }
 
-// renderComposeTemplate evaluates the expressions of a compose template: a value
-// becomes what it renders to, and a list item that renders to nothing is dropped.
-func renderComposeTemplate(content []byte) ([]byte, error) {
-	return newComposeRenderer().template(content)
-}
-
 // composeRenderer evaluates the expressions of the templates of one start. Every service
 // asks the same board facts, the groups above all, each a read of /etc/group: an
 // expression is evaluated once.
@@ -151,23 +144,8 @@ func newComposeRenderer() *composeRenderer {
 	return &composeRenderer{rendered: map[string]string{}}
 }
 
-// parsedExpressions keeps the parsed template of each expression for the life of the process:
-// parsing is what a render costs on a board, while the facts are read again at every one.
-var parsedExpressions sync.Map
-
-func parseExpression(expression string) (*template.Template, error) {
-	if parsed, ok := parsedExpressions.Load(expression); ok {
-		return parsed.(*template.Template), nil
-	}
-	// An unknown function is an error here, before anything is started.
-	parsed, err := template.New("compose").Funcs(hostFuncs).Parse(expression)
-	if err != nil {
-		return nil, err
-	}
-	parsedExpressions.Store(expression, parsed)
-	return parsed, nil
-}
-
+// template evaluates the expressions of a compose template: a value becomes what it
+// renders to, and a list item that renders to nothing is dropped.
 func (r *composeRenderer) template(content []byte) ([]byte, error) {
 	var document any
 	if err := yaml.Unmarshal(content, &document); err != nil {
@@ -250,7 +228,8 @@ func (r *composeRenderer) value(value string) (any, error) {
 	}
 	out, done := r.rendered[expression]
 	if !done {
-		parsed, err := parseExpression(expression)
+		// An unknown function is an error here, before anything is started.
+		parsed, err := template.New("compose").Funcs(hostFuncs).Parse(expression)
 		if err != nil {
 			return nil, err
 		}

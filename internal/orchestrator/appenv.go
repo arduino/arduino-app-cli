@@ -78,7 +78,6 @@ var hostVariables = map[string]func(hostFacts) string{
 	},
 }
 
-// hostFacts is what the answers above are allowed to look at, besides the board.
 // carriersFact answers CONFIGURED_CARRIERS once per process: the enabled carriers are a fact of the
 // boot, and arduino-linux-config is a subprocess worth tens of milliseconds on a board.
 type carriersFact struct {
@@ -104,6 +103,7 @@ func (c *carriersFact) get(ctx context.Context) string {
 	return c.value
 }
 
+// hostFacts is what the answers above are allowed to look at, besides the board.
 type hostFacts struct {
 	ctx     context.Context
 	appPath *paths.Path

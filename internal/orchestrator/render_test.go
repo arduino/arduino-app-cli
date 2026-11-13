@@ -23,7 +23,7 @@ import (
 func render(t *testing.T, template string) map[string]any {
 	t.Helper()
 
-	rendered, err := renderComposeTemplate([]byte(template))
+	rendered, err := newComposeRenderer().template([]byte(template))
 	require.NoError(t, err)
 
 	var document map[string]any
@@ -150,9 +150,29 @@ services:
 	})
 
 	t.Run("an unknown function is an error", func(t *testing.T) {
-		_, err := renderComposeTemplate([]byte("services:\n  main:\n    image: '" + exprPrefix + "{{ notAFunction \"x\" }}'\n"))
+		_, err := newComposeRenderer().template([]byte("services:\n  main:\n    image: '" + exprPrefix + "{{ notAFunction \"x\" }}'\n"))
 		require.ErrorContains(t, err, `function "notAFunction" not defined`)
 	})
+}
+
+func TestComposeRendererEvaluatesAnExpressionOncePerRender(t *testing.T) {
+	appeared := paths.New(t.TempDir()).Join("appeared")
+	template := []byte("services:\n  main:\n    working_dir: '" + exprPrefix + `{{ if pathExists "` + appeared.String() + `" }}/here{{ end }}` + "'\n")
+
+	workingDir := func(renderer *composeRenderer) any {
+		rendered, err := renderer.template(template)
+		require.NoError(t, err)
+		var document map[string]any
+		require.NoError(t, yaml.Unmarshal(rendered, &document))
+		return document["services"].(map[string]any)["main"].(map[string]any)["working_dir"]
+	}
+
+	renderer := newComposeRenderer()
+	require.Nil(t, workingDir(renderer))
+
+	require.NoError(t, appeared.Mkdir())
+	require.Nil(t, workingDir(renderer), "the templates of one render get the same answer")
+	require.Equal(t, "/here", workingDir(newComposeRenderer()), "the next render asks the board again")
 }
 
 func TestServicesOverrides(t *testing.T) {
