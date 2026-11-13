@@ -16,7 +16,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/releasebuild"
@@ -37,7 +36,7 @@ func NewHTTPRouter(
 	provisioner *orchestrator.Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
-	bricksSource remotebricksindex.Source,
+	bricksSource bricksindex.Source,
 	servicesIndex *servicesindex.ServicesIndex,
 	brickService *bricks.Service,
 	idProvider *appid.Provider,

@@ -20,13 +20,11 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
 	yaml "github.com/goccy/go-yaml"
-	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/pkg/release"
 )
@@ -296,7 +294,7 @@ func (a *ArduinoApp) GetRelease() (Release, bool) {
 // is the index this cli ships, and a release answers with the one a build froze. It
 // returns an error when a third-party brick cannot be loaded, but the returned index
 // still holds every other brick: the caller decides whether to fail.
-func (a *ArduinoApp) Bricks(board *bricksindex.BricksIndex, src remotebricksindex.Source) (*bricksindex.BricksIndex, error) {
+func (a *ArduinoApp) Bricks(board *bricksindex.BricksIndex, src bricksindex.Source) (*bricksindex.BricksIndex, error) {
 	if a.IsRelease() {
 		frozen, err := a.ReleaseBricks()
 		if err != nil {
@@ -312,27 +310,27 @@ func (a *ArduinoApp) Bricks(board *bricksindex.BricksIndex, src remotebricksinde
 // ResolveBricks adds to board the bricks local to the app and the third-party bricks it
 // uses, without switching to the index of a release. Like Bricks, the returned index
 // holds every other brick on error.
-func (a *ArduinoApp) ResolveBricks(board *bricksindex.BricksIndex, src remotebricksindex.Source) (*bricksindex.BricksIndex, error) {
+func (a *ArduinoApp) ResolveBricks(board *bricksindex.BricksIndex, src bricksindex.Source) (*bricksindex.BricksIndex, error) {
 	thirdParty, err := src.Load(a.BrickReferences())
 	return board.ForApp(a.LocalBricks, thirdParty), err
 }
 
 // BrickReferences returns the bricks the app uses, apart from the ones local to it.
-func (a *ArduinoApp) BrickReferences() []remotebricksindex.Reference {
-	refs := make([]remotebricksindex.Reference, 0, len(a.Descriptor.Bricks))
+func (a *ArduinoApp) BrickReferences() []bricksindex.Reference {
+	refs := make([]bricksindex.Reference, 0, len(a.Descriptor.Bricks))
 	for _, brick := range a.Descriptor.Bricks {
 		if slices.ContainsFunc(a.LocalBricks, func(local bricksindex.Brick) bool { return local.ID == brick.ID }) {
 			continue
 		}
-		refs = append(refs, remotebricksindex.Reference{ID: brick.ID, Version: brick.Version})
+		refs = append(refs, bricksindex.Reference{ID: brick.ID, Version: brick.Version})
 	}
 	return refs
 }
 
 // LookupBrick parses a brick about to be added to an app, given as ID[@VERSION], and returns
 // it with its definition. The brick's variables cannot be checked until it is installed (definition is nil).
-func LookupBrick(index *bricksindex.BricksIndex, src remotebricksindex.Source, ref string) (Brick, *bricksindex.Brick, error) {
-	if !remotebricksindex.IsThirdParty(ref) {
+func LookupBrick(index *bricksindex.BricksIndex, src bricksindex.Source, ref string) (Brick, *bricksindex.Brick, error) {
+	if !bricksindex.IsThirdParty(ref) {
 		if strings.Contains(ref, "@") {
 			return Brick{}, nil, fmt.Errorf("brick %q cannot be pinned to a version: only third-party bricks can", ref)
 		}
@@ -343,20 +341,19 @@ func LookupBrick(index *bricksindex.BricksIndex, src remotebricksindex.Source, r
 		return Brick{ID: ref}, definition, nil
 	}
 
-	id, version, err := remotebricksindex.ParseBrickReference(ref)
+	id, version, err := bricksindex.ParseBrickReference(ref)
 	if err != nil {
 		return Brick{}, nil, err
 	}
-	if version != "" {
-		if _, err := semver.Parse(version); err != nil {
-			return Brick{}, nil, fmt.Errorf("invalid version %q for brick %q", version, id)
-		}
+	brick := Brick{ID: id}
+	if version != nil {
+		brick.Version = version.String()
 	}
-	definition, err := src.Lookup(remotebricksindex.Reference{ID: id, Version: version})
+	definition, err := src.Lookup(bricksindex.Reference{ID: brick.ID, Version: brick.Version})
 	if err != nil {
 		return Brick{}, nil, err
 	}
-	return Brick{ID: id, Version: version}, definition, nil
+	return brick, definition, nil
 }
 
 // ReleaseBricks is the brick definitions a release ships in its .cache, which are the

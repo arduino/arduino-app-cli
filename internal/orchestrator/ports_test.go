@@ -13,7 +13,6 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 )
 
 func TestAppPorts(t *testing.T) {
@@ -92,7 +91,7 @@ func TestAppPorts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			a := app.ArduinoApp{Descriptor: app.AppDescriptor{Ports: tc.appPorts, Bricks: tc.bricks}}
 
-			got, err := AppPorts(a, bIndex, remotebricksindex.Source{}, servicesIndex)
+			got, err := AppPorts(a, bIndex, bricksindex.Source{}, servicesIndex)
 
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
@@ -102,7 +101,7 @@ func TestAppPorts(t *testing.T) {
 	t.Run("a brick missing from the index is an error", func(t *testing.T) {
 		a := app.ArduinoApp{Descriptor: app.AppDescriptor{Bricks: []app.Brick{{ID: "arduino:unknown-brick"}}}}
 
-		_, err := AppPorts(a, bIndex, remotebricksindex.Source{}, servicesIndex)
+		_, err := AppPorts(a, bIndex, bricksindex.Source{}, servicesIndex)
 
 		assert.ErrorContains(t, err, `brick "arduino:unknown-brick" not found in the index`)
 	})

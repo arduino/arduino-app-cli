@@ -10,13 +10,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"net/url"
 	"slices"
 
 	"github.com/arduino/go-paths-helper"
+	"go.bug.st/downloader/v3"
+	semver "go.bug.st/relaxed-semver"
 
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -36,27 +36,27 @@ type Reference struct {
 
 type ResolvedBrick struct {
 	ID      string
-	Version string
+	Version *semver.Version
 	// Path is where the version is installed, or will be.
 	Path      *paths.Path
 	Installed bool
 	// IndexBrick and Release are the entries of the saved index. They are nil when the
 	// version is installed and there is no saved index.
-	IndexBrick *Brick
-	Release    *Release
+	IndexBrick *RemoteBrick
+	Release    *RemoteRelease
 }
 
 // IsThirdParty reports whether the brick is not built-in.
 func IsThirdParty(id string) bool {
-	namespace, _, err := bricksindex.ParseBrickID(id)
+	namespace, _, err := ParseBrickID(id)
 	return err == nil && namespace != "" && namespace != BuiltInNamespace
 }
 
 // Resolve returns the version each third-party reference resolves to, without accessing the network:
 //   - a pinned reference resolves to its version;
 //   - an unpinned reference resolves to the latest installed version or, if none is
-//     installed, to the latest version of the saved index.
-func Resolve(index *Index, bricksDir *paths.Path, refs []Reference) ([]ResolvedBrick, error) {
+//     installed, to the latest version of the saved index that supports the board of plat.
+func Resolve(index *RemoteIndex, bricksDir *paths.Path, plat platform.Platform, refs []Reference) ([]ResolvedBrick, error) {
 	var res []ResolvedBrick
 	for _, ref := range refs {
 		if !IsThirdParty(ref.ID) {
@@ -65,7 +65,7 @@ func Resolve(index *Index, bricksDir *paths.Path, refs []Reference) ([]ResolvedB
 			}
 			continue
 		}
-		resolved, err := resolve(index, bricksDir, ref)
+		resolved, err := resolve(index, bricksDir, plat, ref)
 		if err != nil {
 			return nil, err
 		}
@@ -76,16 +76,18 @@ func Resolve(index *Index, bricksDir *paths.Path, refs []Reference) ([]ResolvedB
 
 // LoadResolved loads the definitions of the resolved bricks for the platform. Every brick
 // must be installed and support the board's platform.
-func LoadResolved(plat platform.Platform, resolved []ResolvedBrick) ([]bricksindex.Brick, error) {
-	bricks := make([]bricksindex.Brick, 0, len(resolved))
+func LoadResolved(plat platform.Platform, resolved []ResolvedBrick) ([]Brick, error) {
+	bricks := make([]Brick, 0, len(resolved))
 	for _, r := range resolved {
 		if !r.Installed {
 			return nil, fmt.Errorf("%w: %s@%s, install it with 'arduino-app-cli brick install %s@%s'", ErrNotInstalled, r.ID, r.Version, r.ID, r.Version)
 		}
-		brick, err := loadInstalledBrick(plat, r.Path, r.ID)
+		namespace, name, _ := ParseBrickID(r.ID) // resolve checks the id
+		brick, err := loadInstalledBrick(plat, r.Path, namespace, name)
 		if err != nil {
 			return nil, fmt.Errorf("loading brick %s@%s: %w", r.ID, r.Version, err)
 		}
+		brick.Version = r.Version.String()
 		if !brick.SupportsBoard(plat) {
 			return nil, fmt.Errorf("brick %s@%s does not support the board %s", r.ID, r.Version, plat.BoardName)
 		}
@@ -117,20 +119,19 @@ func NewStrictSource(cfg config.Configuration, plat platform.Platform) Source {
 	return src
 }
 
-// Install installs the third-party bricks the references resolve to that are not installed
-// yet, calling progress before each one. The index is updated when there is none on the
+// Install installs, with install, the third-party bricks the references resolve to that are not
+// installed yet, calling progress before each one. The index is updated when there is none on the
 // board, even if every brick is installed, and when it does not list a brick or its version.
-func (s Source) Install(ctx context.Context, client *http.Client, userAgent string, refs []Reference, progress func(string)) error {
+func (s Source) Install(ctx context.Context, config downloader.Config, refs []Reference, install func(*RemoteBrick, *RemoteRelease) error, progress func(string)) error {
 	if !slices.ContainsFunc(refs, func(r Reference) bool { return IsThirdParty(r.ID) }) {
 		return nil
 	}
-	update := func() (*Index, error) {
+	update := func() (*RemoteIndex, error) {
 		progress("updating the bricks index")
-		res, err := Update(ctx, client, s.IndexURL, s.IndexDir, userAgent)
-		return res.Index, err
+		return UpdateRemoteIndex(ctx, config, s.IndexURL, s.IndexDir)
 	}
 
-	index, err := Load(s.IndexDir)
+	index, err := LoadRemoteIndex(s.IndexDir)
 	updated := err != nil
 	if updated {
 		// A broken index is replaced, like a missing one.
@@ -139,13 +140,13 @@ func (s Source) Install(ctx context.Context, client *http.Client, userAgent stri
 			return err
 		}
 	}
-	resolved, err := Resolve(index, s.BricksDir, refs)
+	resolved, err := Resolve(index, s.BricksDir, s.Platform, refs)
 	if !updated && (errors.Is(err, ErrBrickNotFound) || errors.Is(err, ErrReleaseNotFound)) {
 		updatedIndex, updateErr := update()
 		if updateErr != nil {
 			return errors.Join(err, updateErr)
 		}
-		resolved, err = Resolve(updatedIndex, s.BricksDir, refs)
+		resolved, err = Resolve(updatedIndex, s.BricksDir, s.Platform, refs)
 	}
 	if err != nil {
 		return err
@@ -156,7 +157,7 @@ func (s Source) Install(ctx context.Context, client *http.Client, userAgent stri
 			continue
 		}
 		progress(fmt.Sprintf("installing the brick %s@%s", r.ID, r.Version))
-		if _, err := Install(ctx, client, s.BricksDir, r.IndexBrick, r.Release, userAgent); err != nil {
+		if err := install(r.IndexBrick, r.Release); err != nil {
 			return err
 		}
 	}
@@ -165,12 +166,12 @@ func (s Source) Install(ctx context.Context, client *http.Client, userAgent stri
 
 // Lookup resolves a third-party reference. It returns the definition of the brick when the version it resolves to is
 // installed, and nil when the saved index lists it but it is not installed yet.
-func (s Source) Lookup(ref Reference) (*bricksindex.Brick, error) {
-	index, err := Load(s.IndexDir)
+func (s Source) Lookup(ref Reference) (*Brick, error) {
+	index, err := LoadRemoteIndex(s.IndexDir)
 	if err != nil && (s.RequireIndex || !errors.Is(err, ErrIndexNotFound)) {
 		return nil, err
 	}
-	resolved, err := Resolve(index, s.BricksDir, []Reference{ref})
+	resolved, err := Resolve(index, s.BricksDir, s.Platform, []Reference{ref})
 	if err != nil {
 		return nil, err
 	}
@@ -188,16 +189,16 @@ func (s Source) Lookup(ref Reference) (*bricksindex.Brick, error) {
 // they resolve to, skipping the references that are not third-party. Each brick is
 // resolved on its own, so one that fails does not hide the others: on error, the bricks
 // that could be loaded are still returned.
-func (s Source) Load(refs []Reference) ([]bricksindex.Brick, error) {
+func (s Source) Load(refs []Reference) ([]Brick, error) {
 	if !slices.ContainsFunc(refs, func(r Reference) bool { return IsThirdParty(r.ID) || r.Version != "" }) {
 		return nil, nil
 	}
-	index, err := Load(s.IndexDir)
+	index, err := LoadRemoteIndex(s.IndexDir)
 	if err != nil && (s.RequireIndex || !errors.Is(err, ErrIndexNotFound)) {
 		return nil, err
 	}
 
-	var bricks []bricksindex.Brick
+	var bricks []Brick
 	var errs []error
 	for _, ref := range refs {
 		loaded, err := loadReference(index, s.BricksDir, s.Platform, ref)
@@ -213,30 +214,36 @@ func (s Source) Load(refs []Reference) ([]bricksindex.Brick, error) {
 	return bricks, errors.Join(errs...)
 }
 
-func loadReference(index *Index, bricksDir *paths.Path, plat platform.Platform, ref Reference) ([]bricksindex.Brick, error) {
-	resolved, err := Resolve(index, bricksDir, []Reference{ref})
+func loadReference(index *RemoteIndex, bricksDir *paths.Path, plat platform.Platform, ref Reference) ([]Brick, error) {
+	resolved, err := Resolve(index, bricksDir, plat, []Reference{ref})
 	if err != nil {
 		return nil, err
 	}
 	return LoadResolved(plat, resolved)
 }
 
-func resolve(index *Index, bricksDir *paths.Path, ref Reference) (ResolvedBrick, error) {
-	version := ref.Version
-	if version == "" {
-		// An unpinned brick sticks to the latest installed version, which changes only when a newer one is installed.
-		latest, err := latestInstalled(bricksDir, ref.ID)
-		if err != nil {
-			return ResolvedBrick{}, err
-		}
-		version = latest
+func resolve(index *RemoteIndex, bricksDir *paths.Path, plat platform.Platform, ref Reference) (ResolvedBrick, error) {
+	namespace, name, err := splitBrickID(ref.ID)
+	if err != nil {
+		return ResolvedBrick{}, err
 	}
-	if version != "" {
-		path, err := InstallPath(bricksDir, ref.ID, version)
+	var version *semver.Version
+	if ref.Version != "" {
+		if version, err = semver.Parse(ref.Version); err != nil {
+			return ResolvedBrick{}, fmt.Errorf("invalid version %q for brick %q: %w", ref.Version, ref.ID, err)
+		}
+	} else {
+		// An unpinned brick sticks to the latest installed version, which changes only when a newer one is installed.
+		versions, err := installedVersions(bricksDir.Join(namespace, name))
 		if err != nil {
 			return ResolvedBrick{}, err
 		}
-		if path.IsDir() {
+		if len(versions) > 0 {
+			version = versions[len(versions)-1]
+		}
+	}
+	if version != nil {
+		if path := installPath(bricksDir, ref.ID, version); path.IsDir() {
 			return resolveInstalled(index, ref, version, path)
 		}
 	}
@@ -244,18 +251,18 @@ func resolve(index *Index, bricksDir *paths.Path, ref Reference) (ResolvedBrick,
 	if index == nil {
 		return ResolvedBrick{}, ErrIndexNotFound
 	}
-	indexBrick, release, err := index.FindRelease(ref.ID, version)
+	indexBrick, err := index.FindBrick(ref.ID)
 	if err != nil {
 		return ResolvedBrick{}, err
 	}
-	path, err := InstallPath(bricksDir, ref.ID, release.Version)
+	release, err := indexBrick.FindRelease(version, plat)
 	if err != nil {
 		return ResolvedBrick{}, err
 	}
 	return ResolvedBrick{
 		ID:         ref.ID,
 		Version:    release.Version,
-		Path:       path,
+		Path:       installPath(bricksDir, ref.ID, release.Version),
 		IndexBrick: indexBrick,
 		Release:    release,
 	}, nil
@@ -264,33 +271,25 @@ func resolve(index *Index, bricksDir *paths.Path, ref Reference) (ResolvedBrick,
 // resolveInstalled checks an installed version against the index, when there is one: a
 // version the index no longer lists may have been removed because it is broken or unsafe.
 // Without an index, the installed version is trusted.
-func resolveInstalled(index *Index, ref Reference, version string, path *paths.Path) (ResolvedBrick, error) {
+func resolveInstalled(index *RemoteIndex, ref Reference, version *semver.Version, path *paths.Path) (ResolvedBrick, error) {
 	res := ResolvedBrick{ID: ref.ID, Version: version, Path: path, Installed: true}
 	// TODO: should the index always be installed?
 	if index == nil {
 		return res, nil
 	}
-	indexBrick, release, err := index.FindRelease(ref.ID, version)
+	hint := ""
+	if ref.Version != "" {
+		hint = " and pin a version available in the index"
+	}
+	indexBrick, err := index.FindBrick(ref.ID)
 	if err != nil {
-		hint := ""
-		if ref.Version != "" {
-			hint = " and pin a version available in the index"
-		}
+		return ResolvedBrick{}, fmt.Errorf("%w: uninstall it with 'arduino-app-cli brick uninstall %s@%s'%s", err, ref.ID, version, hint)
+	}
+	// The board is checked when the brick is loaded, so any board is accepted here.
+	release, err := indexBrick.FindRelease(version, platform.Platform{})
+	if err != nil {
 		return ResolvedBrick{}, fmt.Errorf("%w: uninstall it with 'arduino-app-cli brick uninstall %s@%s'%s", err, ref.ID, version, hint)
 	}
 	res.IndexBrick, res.Release = indexBrick, release
 	return res, nil
-}
-
-// latestInstalled returns the latest installed version of the brick, or an empty string if none is.
-func latestInstalled(bricksDir *paths.Path, id string) (string, error) {
-	namespace, name, err := splitBrickID(id)
-	if err != nil {
-		return "", err
-	}
-	versions, err := installedVersions(bricksDir.Join(namespace), name)
-	if err != nil || len(versions) == 0 {
-		return "", err
-	}
-	return versions[len(versions)-1], nil
 }

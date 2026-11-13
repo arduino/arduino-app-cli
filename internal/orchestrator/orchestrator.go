@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
 	"os"
 	"slices"
 	"strings"
@@ -40,7 +39,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -113,9 +111,15 @@ func StartApp(
 		cb = func(StreamMessage) {}
 	}
 
-	bricksSource := remotebricksindex.NewStrictSource(cfg, platform)
+	bricksSource := bricksindex.NewStrictSource(cfg, platform)
 	if prepare && !appToStart.IsRelease() {
-		if err := bricksSource.Install(ctx, http.DefaultClient, bricksUserAgent, appToStart.BrickReferences(), func(msg string) {
+		downloadConfig := bricksindex.DownloadConfig(bricksUserAgent)
+		install := func(brick *bricksindex.RemoteBrick, release *bricksindex.RemoteRelease) error {
+			_, err := InstallBrick(ctx, docker, downloadConfig, cfg.BricksDir(), servicesIndex, brick, release, platform,
+				nil, nil, func(line string) { cb(StreamMessage{data: line}) }, nil)
+			return err
+		}
+		if err := bricksSource.Install(ctx, downloadConfig, appToStart.BrickReferences(), install, func(msg string) {
 			cb(StreamMessage{data: msg})
 		}); err != nil {
 			return fmt.Errorf("failed to install the bricks of the app: %w", err)
@@ -123,7 +127,7 @@ func StartApp(
 	}
 
 	bricksIndex, err := appToStart.Bricks(bricksIndex, bricksSource)
-	if errors.Is(err, remotebricksindex.ErrNotInstalled) || errors.Is(err, remotebricksindex.ErrIndexNotFound) {
+	if errors.Is(err, bricksindex.ErrNotInstalled) || errors.Is(err, bricksindex.ErrIndexNotFound) {
 		return fmt.Errorf("%w: %w", ErrNotPrepared, err)
 	}
 	if err != nil {
@@ -473,7 +477,7 @@ func StartDefaultApp(
 		return nil
 	}
 
-	status, err := AppDetails(ctx, docker, *app, bricksIndex, remotebricksindex.NewSource(cfg, platform), idProvider, cfg)
+	status, err := AppDetails(ctx, docker, *app, bricksIndex, bricksindex.NewSource(cfg, platform), idProvider, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to get app details: %w", err)
 	}
@@ -724,7 +728,7 @@ func AppDetails(
 	docker command.Cli,
 	userApp app.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
-	bricksSource remotebricksindex.Source,
+	bricksSource bricksindex.Source,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (AppDetailedInfo, error) {
@@ -812,7 +816,7 @@ type CreateAppResponse struct {
 func CreateApp(
 	req CreateAppRequest,
 	bricksIndex *bricksindex.BricksIndex,
-	bricksSource remotebricksindex.Source,
+	bricksSource bricksindex.Source,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (CreateAppResponse, error) {

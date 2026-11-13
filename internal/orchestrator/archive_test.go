@@ -24,7 +24,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/remotebricksindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -132,7 +131,7 @@ func TestExportAppZip(t *testing.T) {
 				Name:     tc.appName,
 				FullPath: paths.New(appPath),
 			}
-			zipData, filename, err := ExportAppZip(bricksIndex, remotebricksindex.Source{}, app, tc.includeData)
+			zipData, filename, err := ExportAppZip(bricksIndex, bricksindex.Source{}, app, tc.includeData)
 
 			if tc.wantErr {
 				require.Error(t, err)
