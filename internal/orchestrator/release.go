@@ -519,7 +519,7 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 		}
 		// The staged copy is built once: its build leaves the cache of arduino-cli with it.
 		if result.GetBuildPath() != "" {
-			defer paths.New(result.GetBuildPath()).RemoveAll()
+			defer func() { _ = paths.New(result.GetBuildPath()).RemoveAll() }()
 		}
 
 		// Upload to file
