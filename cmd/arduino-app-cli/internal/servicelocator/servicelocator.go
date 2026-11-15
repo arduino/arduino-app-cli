@@ -32,11 +32,9 @@ func Init(cfg config.Configuration) {
 
 var (
 	GetBricksIndex = sync.OnceValue(func() *bricksindex.BricksIndex {
-		return f.Must(bricksindex.Load(GetPlatform(), globalConfig.AssetDir())).WithInstalledBricks(globalConfig.BricksDir())
-	})
-
-	GetBricksSource = sync.OnceValue(func() bricksindex.Source {
-		return bricksindex.NewSource(globalConfig, GetPlatform())
+		return f.Must(bricksindex.Load(GetPlatform(), globalConfig.AssetDir())).
+			WithInstalledBricks(globalConfig.BricksDir()).
+			WithRemoteIndex(globalConfig.BricksIndexDir())
 	})
 
 	GetModelsIndex = sync.OnceValue(func() *modelsindex.ModelsIndex {
@@ -72,7 +70,6 @@ var (
 		return bricks.NewService(
 			GetModelsIndex(),
 			GetBricksIndex(),
-			GetBricksSource(),
 		)
 	})
 

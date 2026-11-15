@@ -73,7 +73,7 @@ func brickConfigHandler(ctx context.Context, appRef, brickID string, variableArg
 	}
 
 	// A third-party brick that cannot be loaded matters only if it is the one to configure.
-	appBricks, err := arduinoApp.Bricks(servicelocator.GetBricksIndex(), servicelocator.GetBricksSource())
+	appBricks, err := arduinoApp.Bricks(servicelocator.GetBricksIndex())
 	brick, ok := appBricks.FindBrickByID(brickID)
 	if !ok {
 		if err != nil {

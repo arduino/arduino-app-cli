@@ -29,7 +29,6 @@ type port struct {
 
 func HandleAppPorts(
 	bricksIndex *bricksindex.BricksIndex,
-	bricksSource bricksindex.Source,
 	servicesIndex *servicesindex.ServicesIndex,
 	idProvider *appid.Provider,
 ) http.HandlerFunc {
@@ -47,7 +46,7 @@ func HandleAppPorts(
 			return
 		}
 
-		ports, err := orchestrator.AppPorts(app, bricksIndex, bricksSource, servicesIndex)
+		ports, err := orchestrator.AppPorts(app, bricksIndex, servicesIndex)
 		if err != nil {
 			slog.Error("Unable to find the app ports", slog.String("error", err.Error()), slog.String("path", id.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "Unable to find bricks ports"})

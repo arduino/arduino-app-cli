@@ -24,7 +24,6 @@ import (
 func HandleAppExport(
 	idProvider *appid.Provider,
 	bricksIndex *bricksindex.BricksIndex,
-	bricksSource bricksindex.Source,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
@@ -55,7 +54,7 @@ func HandleAppExport(
 			}
 		}
 
-		zipBytes, fileName, err := orchestrator.ExportAppZip(bricksIndex, bricksSource, appToExport, includeData)
+		zipBytes, fileName, err := orchestrator.ExportAppZip(bricksIndex, appToExport, includeData)
 		if err != nil {
 			slog.Error("failed to export app", "app_id", id.String(), "error", err)
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{

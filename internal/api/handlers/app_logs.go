@@ -34,7 +34,6 @@ func HandleAppLogs(
 	dockerClient command.Cli,
 	idProvider *appid.Provider,
 	bricksIndex *bricksindex.BricksIndex,
-	bricksSource bricksindex.Source,
 	servicesIndex *servicesindex.ServicesIndex,
 	cfg config.Configuration,
 ) http.HandlerFunc {
@@ -93,7 +92,7 @@ func HandleAppLogs(
 		}
 		defer sseStream.Close()
 
-		messagesIter, err := orchestrator.AppLogs(r.Context(), app, appLogsRequest, dockerClient, bricksIndex, bricksSource, servicesIndex, cfg)
+		messagesIter, err := orchestrator.AppLogs(r.Context(), app, appLogsRequest, dockerClient, bricksIndex, servicesIndex, cfg)
 		if err != nil {
 			sseStream.SendError(render.SSEErrorData{
 				Code:    render.InternalServiceErr,

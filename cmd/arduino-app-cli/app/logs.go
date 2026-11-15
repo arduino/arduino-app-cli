@@ -68,7 +68,6 @@ func logsHandler(ctx context.Context, app app.ArduinoApp, cfg config.Configurati
 		req,
 		servicelocator.GetDockerClient(),
 		servicelocator.GetBricksIndex(),
-		servicelocator.GetBricksSource(),
 		servicelocator.GetServicesIndex(),
 		cfg,
 	)

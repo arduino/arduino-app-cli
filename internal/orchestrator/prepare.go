@@ -178,7 +178,10 @@ func renderRelease(
 	if err != nil {
 		return nil, fmt.Errorf("cannot read the bricks the release ships: %w", err)
 	}
-	bricksIndex = bricksIndex.ForApp(arduinoApp.LocalBricks, nil)
+	bricksIndex, err = bricksIndex.WithApp(arduinoApp.LocalBricks, nil)
+	if err != nil {
+		return nil, err
+	}
 	modelsIndex, err := arduinoApp.ReleaseModels(docker, cfg, plat)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read the models the release ships: %w", err)

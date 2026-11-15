@@ -27,10 +27,9 @@ type PortInfo struct {
 func AppPorts(
 	a app.ArduinoApp,
 	index *bricksindex.BricksIndex,
-	bricksSource bricksindex.Source,
 	servicesIndex *servicesindex.ServicesIndex,
 ) ([]PortInfo, error) {
-	index, err := a.ResolveBricks(index, bricksSource)
+	index, err := a.ResolveBricks(index)
 	if err != nil {
 		slog.Warn("cannot load the third-party bricks of the app", slog.String("app", a.Name), slog.String("error", err.Error()))
 	}
