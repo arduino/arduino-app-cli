@@ -26,7 +26,6 @@ import (
 func HandleAppDetails(
 	dockerClient command.Cli,
 	bricksIndex *bricksindex.BricksIndex,
-	bricksSource bricksindex.Source,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) http.HandlerFunc {
@@ -44,7 +43,7 @@ func HandleAppDetails(
 			return
 		}
 
-		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app, bricksIndex, bricksSource, idProvider, cfg)
+		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app, bricksIndex, idProvider, cfg)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
@@ -64,7 +63,6 @@ type EditRequest struct {
 func HandleAppDetailsEdits(
 	dockerClient command.Cli,
 	bricksIndex *bricksindex.BricksIndex,
-	bricksSource bricksindex.Source,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) http.HandlerFunc {
@@ -134,7 +132,7 @@ func HandleAppDetailsEdits(
 			return
 		}
 
-		res, err := orchestrator.AppDetails(r.Context(), dockerClient, appToEdit, bricksIndex, bricksSource, idProvider, cfg)
+		res, err := orchestrator.AppDetails(r.Context(), dockerClient, appToEdit, bricksIndex, idProvider, cfg)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})

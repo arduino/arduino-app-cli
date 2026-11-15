@@ -294,25 +294,24 @@ func (a *ArduinoApp) GetRelease() (Release, bool) {
 // is the index this cli ships, and a release answers with the one a build froze. It
 // returns an error when a third-party brick cannot be loaded, but the returned index
 // still holds every other brick: the caller decides whether to fail.
-func (a *ArduinoApp) Bricks(board *bricksindex.BricksIndex, src bricksindex.Source) (*bricksindex.BricksIndex, error) {
+func (a *ArduinoApp) Bricks(board *bricksindex.BricksIndex) (*bricksindex.BricksIndex, error) {
 	if a.IsRelease() {
 		frozen, err := a.ReleaseBricks()
 		if err != nil {
 			slog.Warn("cannot read the bricks the release ships", slog.String("app", a.Name), slog.String("error", err.Error()))
 		} else {
 			// TODO: a release does not ship its third-party bricks yet.
-			return frozen.ForApp(a.LocalBricks, nil), nil
+			return frozen.WithApp(a.LocalBricks, nil)
 		}
 	}
-	return a.ResolveBricks(board, src)
+	return a.ResolveBricks(board)
 }
 
 // ResolveBricks adds to board the bricks local to the app and the third-party bricks it
 // uses, without switching to the index of a release. Like Bricks, the returned index
 // holds every other brick on error.
-func (a *ArduinoApp) ResolveBricks(board *bricksindex.BricksIndex, src bricksindex.Source) (*bricksindex.BricksIndex, error) {
-	thirdParty, err := src.Load(a.BrickReferences())
-	return board.ForApp(a.LocalBricks, thirdParty), err
+func (a *ArduinoApp) ResolveBricks(board *bricksindex.BricksIndex) (*bricksindex.BricksIndex, error) {
+	return board.WithApp(a.LocalBricks, a.BrickReferences())
 }
 
 // BrickReferences returns the bricks the app uses, apart from the ones local to it.
@@ -329,7 +328,7 @@ func (a *ArduinoApp) BrickReferences() []bricksindex.Reference {
 
 // LookupBrick parses a brick about to be added to an app, given as ID[@VERSION], and returns
 // it with its definition. The brick's variables cannot be checked until it is installed (definition is nil).
-func LookupBrick(index *bricksindex.BricksIndex, src bricksindex.Source, ref string) (Brick, *bricksindex.Brick, error) {
+func LookupBrick(index *bricksindex.BricksIndex, ref string) (Brick, *bricksindex.Brick, error) {
 	if !bricksindex.IsThirdParty(ref) {
 		if strings.Contains(ref, "@") {
 			return Brick{}, nil, fmt.Errorf("brick %q cannot be pinned to a version: only third-party bricks can", ref)
@@ -349,7 +348,7 @@ func LookupBrick(index *bricksindex.BricksIndex, src bricksindex.Source, ref str
 	if version != nil {
 		brick.Version = version.String()
 	}
-	definition, err := src.Lookup(bricksindex.Reference{ID: brick.ID, Version: brick.Version})
+	definition, err := index.LookupReference(bricksindex.Reference{ID: brick.ID, Version: brick.Version})
 	if err != nil {
 		return Brick{}, nil, err
 	}

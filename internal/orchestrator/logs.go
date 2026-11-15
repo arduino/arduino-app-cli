@@ -56,7 +56,6 @@ func AppLogs(
 	req AppLogsRequest,
 	dockerCli command.Cli,
 	bricksIndex *bricksindex.BricksIndex,
-	bricksSource bricksindex.Source,
 	servicesIndex *servicesindex.ServicesIndex,
 	cfg config.Configuration,
 ) (iter.Seq[LogMessage], error) {
@@ -75,7 +74,7 @@ func AppLogs(
 
 	projectName := composeProjectName(app.FullPath, cfg.AppsDir())
 
-	bricksIndex, err = app.ResolveBricks(bricksIndex, bricksSource)
+	bricksIndex, err = app.ResolveBricks(bricksIndex)
 	if err != nil {
 		slog.Warn("cannot load the third-party bricks of the app", slog.String("app", app.Name), slog.String("error", err.Error()))
 	}

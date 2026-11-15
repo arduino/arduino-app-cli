@@ -30,11 +30,10 @@ import (
 
 func ExportAppZip(
 	bricksIndex *bricksindex.BricksIndex,
-	bricksSource bricksindex.Source,
 	appTarget app.ArduinoApp,
 	includeData bool,
 ) ([]byte, string, error) {
-	bricksIndex, err := appTarget.ResolveBricks(bricksIndex, bricksSource)
+	bricksIndex, err := appTarget.ResolveBricks(bricksIndex)
 	if err != nil {
 		return nil, "", err
 	}

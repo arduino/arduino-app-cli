@@ -92,7 +92,7 @@ func createHandler(
 			Description: description,
 			Bricks:      bricks,
 			SkipSketch:  noSketch,
-		}, servicelocator.GetBricksIndex(), servicelocator.GetBricksSource(), servicelocator.GetAppIDProvider(), cfg)
+		}, servicelocator.GetBricksIndex(), servicelocator.GetAppIDProvider(), cfg)
 		if err != nil {
 			feedback.Fatal(err.Error(), feedback.ErrGeneric)
 			return nil

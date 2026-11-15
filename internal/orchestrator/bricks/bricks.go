@@ -37,27 +37,24 @@ var (
 )
 
 type Service struct {
-	modelsIndex  *modelsindex.ModelsIndex
-	bricksIndex  *bricksindex.BricksIndex
-	bricksSource bricksindex.Source
+	modelsIndex *modelsindex.ModelsIndex
+	bricksIndex *bricksindex.BricksIndex
 }
 
 func NewService(
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
-	bricksSource bricksindex.Source,
 ) *Service {
 	return &Service{
-		modelsIndex:  modelsIndex,
-		bricksIndex:  bricksIndex,
-		bricksSource: bricksSource,
+		modelsIndex: modelsIndex,
+		bricksIndex: bricksIndex,
 	}
 }
 
 // appBricks is the index of the app. A third-party brick that cannot be loaded is left
 // out, so the app can still be inspected and fixed.
 func (s *Service) appBricks(a *app.ArduinoApp) *bricksindex.BricksIndex {
-	index, err := a.Bricks(s.bricksIndex, s.bricksSource)
+	index, err := a.Bricks(s.bricksIndex)
 	if err != nil {
 		slog.Warn("cannot load the third-party bricks of the app", slog.String("app", a.Name), slog.String("error", err.Error()))
 	}
@@ -363,7 +360,11 @@ func (s *Service) BrickCreate(
 	id, _, _ := strings.Cut(req.ID, "@")
 	brickIndex := slices.IndexFunc(appCurrent.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == id })
 
-	newBrick, brick, err := app.LookupBrick(s.bricksIndex.ForApp(appCurrent.App().LocalBricks, nil), s.bricksSource, req.ID)
+	appIndex, err := s.bricksIndex.WithApp(appCurrent.App().LocalBricks, nil)
+	if err != nil {
+		return err
+	}
+	newBrick, brick, err := app.LookupBrick(appIndex, req.ID)
 	if err != nil {
 		return err
 	}
@@ -542,7 +543,11 @@ func (s *Service) LocalBrickRename(appCurrent app.Editable, oldID, newID, newNam
 		return LocalBrickRenameResult{}, ErrBrickNotFound
 	}
 
-	if _, exist := s.bricksIndex.ForApp(appCurrent.LocalBricks, nil).FindBrickByID(newID); exist {
+	appIndex, err := s.bricksIndex.WithApp(appCurrent.LocalBricks, nil)
+	if err != nil {
+		return LocalBrickRenameResult{}, err
+	}
+	if _, exist := appIndex.FindBrickByID(newID); exist {
 		return LocalBrickRenameResult{}, ErrBrickIDConflict
 	}
 

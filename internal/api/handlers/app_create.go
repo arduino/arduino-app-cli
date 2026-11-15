@@ -29,7 +29,6 @@ type CreateAppRequest struct {
 
 func HandleAppCreate(
 	bricksIndex *bricksindex.BricksIndex,
-	bricksSource bricksindex.Source,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) http.HandlerFunc {
@@ -56,7 +55,6 @@ func HandleAppCreate(
 				SkipSketch:  skipSketch,
 			},
 			bricksIndex,
-			bricksSource,
 			idProvider,
 			cfg,
 		)

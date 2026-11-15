@@ -44,7 +44,6 @@ func detailsHandler(ctx context.Context, cfg config.Configuration, arduinoApp ap
 		servicelocator.GetDockerClient(),
 		arduinoApp,
 		servicelocator.GetBricksIndex(),
-		servicelocator.GetBricksSource(),
 		servicelocator.GetAppIDProvider(),
 		cfg,
 	)
@@ -52,7 +51,7 @@ func detailsHandler(ctx context.Context, cfg config.Configuration, arduinoApp ap
 		return err
 	}
 
-	index, err := arduinoApp.Bricks(servicelocator.GetBricksIndex(), servicelocator.GetBricksSource())
+	index, err := arduinoApp.Bricks(servicelocator.GetBricksIndex())
 	if err != nil {
 		feedback.Warnf("%v", err)
 	}

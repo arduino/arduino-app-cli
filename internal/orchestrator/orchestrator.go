@@ -112,22 +112,21 @@ func StartApp(
 		cb = func(StreamMessage) {}
 	}
 
-	bricksSource := bricksindex.NewStrictSource(cfg, platform)
 	if prepare && !appToStart.IsRelease() {
 		downloadConfig := bricksindex.DownloadConfig(bricksUserAgent)
 		install := func(brick *bricksindex.RemoteBrick, release *bricksindex.RemoteRelease) error {
 			_, err := InstallBrick(ctx, docker, downloadConfig, cfg.BricksDir(), servicesIndex, brick, release, platform,
-				nil, nil, func(line string) { cb(StreamMessage{data: line}) }, nil)
+				nil, func(line string) { cb(StreamMessage{data: line}) }, nil)
 			return err
 		}
-		if err := bricksSource.Install(ctx, downloadConfig, appToStart.BrickReferences(), install, func(msg string) {
+		if err := bricksIndex.InstallReferences(ctx, downloadConfig, cfg.BricksIndexURL, appToStart.BrickReferences(), install, func(msg string) {
 			cb(StreamMessage{data: msg})
 		}); err != nil {
 			return fmt.Errorf("failed to install the bricks of the app: %w", err)
 		}
 	}
 
-	bricksIndex, err := appToStart.Bricks(bricksIndex, bricksSource)
+	bricksIndex, err := appToStart.Bricks(bricksIndex)
 	if errors.Is(err, bricksindex.ErrNotInstalled) || errors.Is(err, bricksindex.ErrIndexNotFound) {
 		return fmt.Errorf("%w: %w", ErrNotPrepared, err)
 	}
@@ -482,7 +481,7 @@ func StartDefaultApp(
 		return nil
 	}
 
-	status, err := AppDetails(ctx, docker, *app, bricksIndex, bricksindex.NewSource(cfg, platform), idProvider, cfg)
+	status, err := AppDetails(ctx, docker, *app, bricksIndex, idProvider, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to get app details: %w", err)
 	}
@@ -733,11 +732,10 @@ func AppDetails(
 	docker command.Cli,
 	userApp app.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
-	bricksSource bricksindex.Source,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (AppDetailedInfo, error) {
-	bricksIndex, err := userApp.ResolveBricks(bricksIndex, bricksSource)
+	bricksIndex, err := userApp.ResolveBricks(bricksIndex)
 	if err != nil {
 		slog.Warn("cannot load the third-party bricks of the app", slog.String("app", userApp.Name), slog.String("error", err.Error()))
 	}
@@ -821,7 +819,6 @@ type CreateAppResponse struct {
 func CreateApp(
 	req CreateAppRequest,
 	bricksIndex *bricksindex.BricksIndex,
-	bricksSource bricksindex.Source,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (CreateAppResponse, error) {
@@ -831,7 +828,7 @@ func CreateApp(
 
 	appBricks := make([]app.Brick, 0, len(req.Bricks))
 	for _, ref := range req.Bricks {
-		brick, _, err := app.LookupBrick(bricksIndex, bricksSource, ref)
+		brick, _, err := app.LookupBrick(bricksIndex, ref)
 		if err != nil {
 			return CreateAppResponse{}, fmt.Errorf("%w: %w", ErrBadRequest, err)
 		}
