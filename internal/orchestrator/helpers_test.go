@@ -86,3 +86,34 @@ func TestParseAppStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestParseAppStatusServiceExit(t *testing.T) {
+	const path = "path1"
+	for _, tt := range []struct {
+		name, service, status string
+		want                  Status
+	}{
+		{"clean sidecar shutdown", "llamacpp-models-runner", "Exited (0) 5 seconds ago", StatusStopped},
+		{"sidecar failure", "llamacpp-models-runner", "Exited (1) 5 seconds ago", StatusFailed},
+		{"main returned normally", "main", "Exited (0) 5 seconds ago", StatusFailed},
+		{"unknown service returned normally", "", "Exited (0) 5 seconds ago", StatusFailed},
+		{"sidecar interrupted by signal", "llamacpp-models-runner", "Exited (143) 5 seconds ago", StatusStopped},
+		{"unrecognized sidecar exit", "llamacpp-models-runner", "Exited", StatusFailed},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			containers := []container.Summary{
+				{
+					Labels: map[string]string{DockerAppPathLabel: path, "com.docker.compose.service": "main"},
+					State:  container.StateExited, Status: "Exited (143) 5 seconds ago",
+				},
+				{
+					Labels: map[string]string{DockerAppPathLabel: path, "com.docker.compose.service": tt.service},
+					State:  container.StateExited, Status: tt.status,
+				},
+			}
+			res := parseAppStatus(containers)
+			require.Len(t, res, 1)
+			require.Equal(t, tt.want, res[0].Status)
+		})
+	}
+}
