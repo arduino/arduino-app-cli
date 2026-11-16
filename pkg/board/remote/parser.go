@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"strconv"
 	"strings"
 )
 
@@ -106,8 +107,12 @@ func ParseLsOutput(out io.Reader) ([]FileInfo, error) {
 		if !ok {
 			continue
 		}
-		name, _, ok := strings.Cut(after, `"`)
-		if !ok {
+		quotedName, err := strconv.QuotedPrefix(`"` + after)
+		if err != nil {
+			continue
+		}
+		name, err := strconv.Unquote(quotedName)
+		if err != nil {
 			continue
 		}
 		if name == "." || name == ".." {
