@@ -56,9 +56,6 @@ func HandleAppStart(
 			return
 		}
 
-		// The whole body is read before the SSE stream opens: net/http may close the
-		// connection when a handler writes its response before it has read the request.
-		// A bare "prebuilt_sketch" means true, as for "verbose".
 		usePrebuiltSketch := r.URL.Query().Has("prebuilt_sketch")
 		if v := r.URL.Query().Get("prebuilt_sketch"); v != "" {
 			usePrebuiltSketch, err = strconv.ParseBool(v)
