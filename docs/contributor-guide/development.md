@@ -13,6 +13,7 @@ The following development tools must be available in your local environment:
 
 - [Go](https://go.dev/dl/)
 - [Docker](https://docs.docker.com/engine/install/)
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) (used to install REUSE during setup)
 - [adb client](https://developer.android.com/tools/adb) [optionally]
 
 ## Building the Project
