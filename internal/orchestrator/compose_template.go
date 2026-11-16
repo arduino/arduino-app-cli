@@ -8,6 +8,8 @@ package orchestrator
 import (
 	"bytes"
 	"cmp"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -67,12 +69,22 @@ func generateComposeTemplate(
 
 	brickServices := make(map[string]servicesindex.Service)
 	var composeFiles paths.PathList
+	var brickMounts []volume
 	services := make([]serviceInfo, 0, len(arduinoApp.Descriptor.Bricks))
 	for _, brick := range arduinoApp.Descriptor.Bricks {
 		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
 		slog.Debug("Processing brick", slog.String("brick_id", brick.ID), slog.Bool("found", found))
 		if !found {
 			continue
+		}
+
+		// Only the bricks installed from the bricks index have a version.
+		if idxBrick.Version != "" {
+			mount, err := thirdPartyBrickMount(idxBrick)
+			if err != nil {
+				return err
+			}
+			brickMounts = append(brickMounts, mount)
 		}
 
 		// 1. Retrieve ports that we have to expose defined in the brick
@@ -177,6 +189,9 @@ func generateComposeTemplate(
 			Source: "/dev",
 			Target: "/dev",
 		},
+	}
+	for _, mount := range brickMounts {
+		volumes = append(volumes, mount)
 	}
 
 	labels := map[string]string{
@@ -515,6 +530,25 @@ func templateEnvironment(appEnv types.Mapping) types.Mapping {
 		env["VIDEO_DEVICE"] = fmt.Sprintf("${VIDEO_DEVICE:-%s}", brickValue)
 	}
 	return env
+}
+
+const thirdPartyBricksDir = "/opt/third-party-bricks"
+
+// thirdPartyBrickMount binds the Python package of an installed third-party brick into the app
+// container, in a folder of its own. The brick is imported by its name.
+func thirdPartyBrickMount(brick *bricksindex.Brick) (volume, error) {
+	namespace, name, err := bricksindex.ParseBrickID(brick.ID)
+	if err != nil {
+		return volume{}, fmt.Errorf("brick %s: %w", brick.ID, err)
+	}
+	hash := sha256.Sum256([]byte(namespace + "/" + name))
+	return volume{
+		Type:   "bind",
+		Source: brick.FullPath.String(),
+		Target: thirdPartyBricksDir + "/" + hex.EncodeToString(hash[:4]) + "/" + name,
+		// The brick must have been installed: a missing folder is an error, not an empty brick.
+		Bind: &bindOptions{CreateHostPath: false},
+	}, nil
 }
 
 // mountExpr binds a path where it is, `<host>:<container>` at another path in the
