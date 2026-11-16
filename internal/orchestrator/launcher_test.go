@@ -6,8 +6,12 @@
 package orchestrator
 
 import (
+	"context"
+	"errors"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/types"
@@ -48,7 +52,6 @@ func TestTheLauncherDecidesTheStatusOfTheAppItDrives(t *testing.T) {
 		expected Status
 	}{
 		{"an app the launcher runs", StatusRunning, StatusRunning},
-		{"a container whose launcher ran no app yet, its sidecars up", StatusStopped, StatusStopped},
 		{"an app that crashed in a container that stays up", StatusFailed, StatusFailed},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -69,16 +72,146 @@ func TestAnAppThatEndedInAContainerStillUpHasFailed(t *testing.T) {
 	code, sigkill := 0, 9
 	for _, tc := range []struct {
 		name     string
-		reported launcher.StatusResponse
+		reported launcher.AppState
 		expected Status
 	}{
-		{"an app that runs", launcher.StatusResponse{Child: &launcher.Child{}}, StatusRunning},
-		{"a launcher that ran no app yet", launcher.StatusResponse{}, StatusStopped},
-		{"an app that exited", launcher.StatusResponse{Last: &launcher.Ended{ExitCode: &code}}, StatusFailed},
-		{"an app killed by a signal", launcher.StatusResponse{Last: &launcher.Ended{Signal: &sigkill}}, StatusFailed},
+		{"an app that runs", launcher.AppState{Child: &launcher.Child{}}, StatusRunning},
+		{"an app that exited", launcher.AppState{Last: &launcher.Ended{ExitCode: &code}}, StatusFailed},
+		{"an app killed by a signal", launcher.AppState{Last: &launcher.Ended{Signal: &sigkill}}, StatusFailed},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, statusOfLaunchedApp(tc.reported))
+			status, known := statusOfLaunchedApp(tc.reported)
+			assert.True(t, known)
+			assert.Equal(t, tc.expected, status)
 		})
 	}
+
+	t.Run("a launcher that ran no app yet leaves the container state to stand", func(t *testing.T) {
+		_, known := statusOfLaunchedApp(launcher.AppState{})
+		assert.False(t, known)
+	})
+}
+
+// fakeLaunchers stands in for the launchers of the containers: each call of the events of a
+// container plays the next of its scripted connections, then holds until it is dropped.
+type fakeLaunchers struct {
+	mu          sync.Mutex
+	connections map[string][]func(onState func(launcher.AppState)) error
+	asked       map[string]int
+	dropped     chan string
+}
+
+func newFakeLaunchers() *fakeLaunchers {
+	return &fakeLaunchers{connections: map[string][]func(func(launcher.AppState)) error{}, asked: map[string]int{}, dropped: make(chan string, 8)}
+}
+
+func (f *fakeLaunchers) events(ctx context.Context, c container.Summary, onState func(launcher.AppState)) error {
+	f.mu.Lock()
+	n := f.asked[c.ID]
+	f.asked[c.ID]++
+	connections := f.connections[c.ID]
+	f.mu.Unlock()
+	if n < len(connections) {
+		if err := connections[n](onState); err != nil {
+			return err
+		}
+	}
+	<-ctx.Done()
+	f.dropped <- c.ID
+	return ctx.Err()
+}
+
+func (f *fakeLaunchers) timesAsked(id string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.asked[id]
+}
+
+func (f *fakeLaunchers) watch() *launcherWatch {
+	return &launcherWatch{events: f.events, retry: time.Millisecond, updates: make(chan launcherUpdate), followed: map[string]*followedLauncher{}}
+}
+
+func launcherContainer(id string) container.Summary {
+	return container.Summary{ID: id, State: container.StateRunning, Labels: map[string]string{
+		DockerAppPathLabel: "/apps/" + id, DockerAppMainLabel: "true", DockerAppLauncherLabel: "true",
+	}}
+}
+
+func nextUpdate(t *testing.T, watch *launcherWatch) launcherUpdate {
+	t.Helper()
+	select {
+	case update := <-watch.updates:
+		return update
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "the launcher told nothing")
+		return launcherUpdate{}
+	}
+}
+
+func TestTheLauncherOfARunningContainerTellsWhenItsAppStartsOrEnds(t *testing.T) {
+	code := 1
+	fake := newFakeLaunchers()
+	fake.connections["one"] = []func(func(launcher.AppState)) error{func(onState func(launcher.AppState)) error {
+		onState(launcher.AppState{})
+		onState(launcher.AppState{Child: &launcher.Child{}})
+		onState(launcher.AppState{Last: &launcher.Ended{ExitCode: &code}})
+		return nil
+	}}
+	watch := fake.watch()
+	classic := container.Summary{ID: "classic", State: container.StateRunning, Labels: map[string]string{DockerAppMainLabel: "true"}}
+	watch.sync(t.Context(), []container.Summary{launcherContainer("one"), classic})
+	assert.Empty(t, watch.statuses(), "until the launcher tells, the container state stands")
+
+	require.True(t, watch.apply(nextUpdate(t, watch)))
+	assert.Empty(t, watch.statuses(), "a launcher that ran no app yet has nothing to tell")
+	require.True(t, watch.apply(nextUpdate(t, watch)))
+	assert.Equal(t, map[string]Status{"one": StatusRunning}, watch.statuses())
+	require.True(t, watch.apply(nextUpdate(t, watch)))
+	assert.Equal(t, map[string]Status{"one": StatusFailed}, watch.statuses())
+	assert.Zero(t, fake.timesAsked("classic"), "a container without a launcher is not followed")
+}
+
+func TestAContainerThatStoppedIsNoLongerFollowed(t *testing.T) {
+	fake := newFakeLaunchers()
+	fake.connections["one"] = []func(func(launcher.AppState)) error{func(onState func(launcher.AppState)) error {
+		onState(launcher.AppState{Child: &launcher.Child{}})
+		return nil
+	}}
+	watch := fake.watch()
+	watch.sync(t.Context(), []container.Summary{launcherContainer("one")})
+	update := nextUpdate(t, watch)
+	require.True(t, watch.apply(update))
+
+	stopped := launcherContainer("one")
+	stopped.State = container.StateExited
+	watch.sync(t.Context(), []container.Summary{stopped})
+	assert.Equal(t, "one", <-fake.dropped)
+	assert.Empty(t, watch.statuses(), "the state of the stopped container stands")
+	assert.False(t, watch.apply(update), "what its launcher told before is ignored")
+
+	// The container runs again: its new launcher is followed anew
+	watch.sync(t.Context(), []container.Summary{launcherContainer("one")})
+	assert.Eventually(t, func() bool { return fake.timesAsked("one") == 2 }, 5*time.Second, time.Millisecond)
+	assert.False(t, watch.apply(update), "nor is it taken for a word of the new one")
+}
+
+func TestALauncherIsAskedAgainUntilItGivesItsEvents(t *testing.T) {
+	notUp := func(func(launcher.AppState)) error { return errors.New("cannot reach the app launcher") }
+	fake := newFakeLaunchers()
+	fake.connections["fresh"] = []func(func(launcher.AppState)) error{notUp, notUp, func(onState func(launcher.AppState)) error {
+		onState(launcher.AppState{Child: &launcher.Child{}})
+		return errors.New("connection closed")
+	}}
+	fake.connections["old"] = []func(func(launcher.AppState)) error{func(func(launcher.AppState)) error {
+		return &launcher.Error{Code: launcher.CodeBadRequest, Message: "unknown cmd: 'events'"}
+	}}
+	watch := fake.watch()
+	watch.sync(t.Context(), []container.Summary{launcherContainer("fresh"), launcherContainer("old")})
+
+	require.True(t, watch.apply(nextUpdate(t, watch)))
+	assert.Equal(t, map[string]Status{"fresh": StatusRunning}, watch.statuses())
+	// The launcher went: it is asked again, and what it told stands until its container tells otherwise
+	assert.Eventually(t, func() bool { return fake.timesAsked("fresh") == 4 }, 5*time.Second, time.Millisecond)
+	assert.Equal(t, map[string]Status{"fresh": StatusRunning}, watch.statuses())
+	assert.Equal(t, 1, fake.timesAsked("old"), "a launcher without events is not asked again")
 }

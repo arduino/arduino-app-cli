@@ -35,7 +35,8 @@ import (
 // app. A launcher that refuses the start
 // as stale, the dependencies changed, has its container restarted. An answer is accepted only
 // from the init of the container, or its direct child under docker-init: the app shares the
-// socket folder with its launcher.
+// socket folder with its launcher. The launcher tells when its app starts or ends on a
+// connection the status events keep open, so nothing is polled while an app runs.
 const (
 	// launcherSocketDir is where an app container sees the runtime folder of its app.
 	launcherSocketDir = "/run/arduino-app-cli"
@@ -53,6 +54,10 @@ const (
 	// app dependencies first, which may download packages.
 	launcherReadyTimeout = 10 * time.Minute
 	launcherReadyPoll    = 100 * time.Millisecond
+	// launcherEventsRetry is the first wait before asking again a launcher that gave no events,
+	// as the one of a fresh container until it is up, and launcherEventsMaxRetry the longest.
+	launcherEventsRetry    = 100 * time.Millisecond
+	launcherEventsMaxRetry = time.Second
 
 	// maxRuntimeKeyLength keeps the socket path within the Unix limit.
 	maxRuntimeKeyLength = 56
@@ -290,20 +295,22 @@ func launcherStatus(ctx context.Context, docker dockerClient.APIClient, c contai
 		slog.Debug("the app launcher does not answer, the container state stands", slog.String("app", c.Labels[DockerAppPathLabel]), slog.String("error", err.Error()))
 		return "", false
 	}
-	return statusOfLaunchedApp(resp), true
+	return statusOfLaunchedApp(resp.AppState)
 }
 
-// statusOfLaunchedApp reads the status of the app from what its launcher reports. The daemon
+// statusOfLaunchedApp reads the status of the app from what its launcher reports, false when
+// the launcher has nothing to tell: it ran no app yet, which the daemon asks as soon as the
+// container is up, so the container state stands as while the launcher comes up. The daemon
 // stops an app by stopping its container, so an app that ended in a container still up ended
 // on its own, whatever the way: a failure, as for a container.
-func statusOfLaunchedApp(resp launcher.StatusResponse) Status {
+func statusOfLaunchedApp(state launcher.AppState) (Status, bool) {
 	switch {
-	case resp.Child != nil:
-		return StatusRunning
-	case resp.Last == nil:
-		return StatusStopped
+	case state.Child != nil:
+		return StatusRunning, true
+	case state.Last != nil:
+		return StatusFailed, true
 	default:
-		return StatusFailed
+		return "", false
 	}
 }
 
@@ -316,6 +323,117 @@ func launcherStatuses(ctx context.Context, docker dockerClient.APIClient, contai
 		}
 		if status, ok := launcherStatus(ctx, docker, c); ok {
 			statuses[c.ID] = status
+		}
+	}
+	return statuses
+}
+
+// launcherEvents follows the app of a container: it calls onState with the state of the app
+// as it is now, then at each change, until the launcher goes or the context is done.
+type launcherEvents func(ctx context.Context, c container.Summary, onState func(launcher.AppState)) error
+
+// launcherWatch keeps the events of the launcher of every running main container driven
+// through one, and what each launcher last told about its app. One loop owns it: the
+// followers reach it through updates only.
+type launcherWatch struct {
+	events  launcherEvents
+	retry   time.Duration
+	updates chan launcherUpdate
+	// followed is by container ID.
+	followed map[string]*followedLauncher
+}
+
+type followedLauncher struct {
+	stop context.CancelFunc
+	// status is what the launcher last told, when known.
+	status Status
+	known  bool
+}
+
+// launcherUpdate is the state of its app a followed launcher just told.
+type launcherUpdate struct {
+	containerID string
+	from        *followedLauncher
+	state       launcher.AppState
+}
+
+func newLauncherWatch(docker dockerClient.APIClient) *launcherWatch {
+	events := func(ctx context.Context, c container.Summary, onState func(launcher.AppState)) error {
+		return launcherClient(ctx, docker, c).Events(ctx, onState)
+	}
+	return &launcherWatch{events: events, retry: launcherEventsRetry, updates: make(chan launcherUpdate), followed: map[string]*followedLauncher{}}
+}
+
+// sync follows the launchers of the containers that run and drops the others: a container
+// that stopped or restarted has nothing more to tell, its state does.
+func (w *launcherWatch) sync(ctx context.Context, containers []container.Summary) {
+	running := map[string]bool{}
+	for _, c := range containers {
+		if !isLauncherContainer(c) {
+			continue
+		}
+		running[c.ID] = true
+		if _, ok := w.followed[c.ID]; !ok {
+			followCtx, stop := context.WithCancel(ctx)
+			followed := &followedLauncher{stop: stop}
+			w.followed[c.ID] = followed
+			go w.follow(followCtx, c, followed)
+		}
+	}
+	for id, followed := range w.followed {
+		if !running[id] {
+			followed.stop()
+			delete(w.followed, id)
+		}
+	}
+}
+
+// follow sends each state the launcher tells, asking again after a wait when it gives none:
+// the launcher of a fresh container answers once its dependencies are installed. What it
+// last told stands when it goes, until the docker event of its container.
+func (w *launcherWatch) follow(ctx context.Context, c container.Summary, from *followedLauncher) {
+	wait := w.retry
+	for {
+		err := w.events(ctx, c, func(state launcher.AppState) {
+			wait = w.retry
+			select {
+			case w.updates <- launcherUpdate{containerID: c.ID, from: from, state: state}:
+			case <-ctx.Done():
+			}
+		})
+		if ctx.Err() != nil {
+			return
+		}
+		if launcher.IsCode(err, launcher.CodeBadRequest) {
+			slog.Warn("the app launcher has no events, the status of its app follows the container only",
+				slog.String("app", c.Labels[DockerAppPathLabel]), slog.String("error", err.Error()))
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+		}
+		wait = min(2*wait, launcherEventsMaxRetry)
+	}
+}
+
+// apply records what a launcher told. It reports false for a launcher no longer followed.
+func (w *launcherWatch) apply(update launcherUpdate) bool {
+	followed, ok := w.followed[update.containerID]
+	if !ok || followed != update.from {
+		return false
+	}
+	followed.status, followed.known = statusOfLaunchedApp(update.state)
+	return true
+}
+
+// statuses is the status of the app each followed launcher told, by container ID.
+func (w *launcherWatch) statuses() map[string]Status {
+	statuses := map[string]Status{}
+	for id, followed := range w.followed {
+		if followed.known {
+			statuses[id] = followed.status
 		}
 	}
 	return statuses

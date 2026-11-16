@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
-	"slices"
-	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
@@ -23,22 +21,26 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-// launcherPollInterval is how often the launchers are asked about their app while one of their
-// containers runs: an app that stops or crashes in a container that stays up raises no docker event.
-const launcherPollInterval = time.Second
-
 // AppStatusEvents yields the status of an app each time one of its containers changes, as the
-// docker events tell, and each time the launcher of a running main container reports its app
-// started, stopped or failed.
+// docker events tell, and each time the launcher of a running main container tells its app
+// started or ended: an app that ends in a container that stays up raises no docker event.
 func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker command.Cli, idProvider *appid.Provider) iter.Seq2[AppInfo, error] {
 	chanMsg, chanError := dockerhelper.ContainerEvents(ctx, docker.Client(), DockerAppLabel+"=true",
 		"create", "start", "stop", "die", "restart", "destroy", "delete")
 
 	return func(yield func(AppInfo, error) bool) {
-		var containers []container.Summary
-		var last map[string]Status
-		ticker := time.NewTicker(launcherPollInterval)
-		defer ticker.Stop()
+		// The launchers are followed as long as the events are read
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		launchers := newLauncherWatch(docker.Client())
+
+		// The apps that run now are followed from the start, not from their next docker event
+		containers, err := dockerhelper.Containers(ctx, docker.Client(), DockerAppLabel+"=true")
+		if err != nil {
+			slog.Warn("Unable to get apps status", slog.String("error", err.Error()))
+		}
+		launchers.sync(ctx, containers)
+		last := statusByPath(containers, launchers.statuses())
 
 		for {
 			var changed []AppStatusInfo
@@ -62,7 +64,8 @@ func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker comma
 					continue
 				}
 				containers = listed
-				current := statusByPath(containers, launcherStatuses(ctx, docker.Client(), containers))
+				launchers.sync(ctx, containers)
+				current := statusByPath(containers, launchers.statuses())
 				// The app of the event is reported whatever its status, as every event was
 				if pathLabel, ok := event.Actor.Attributes[DockerAppPathLabel]; ok {
 					status, known := current[pathLabel]
@@ -72,11 +75,11 @@ func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker comma
 					changed = append(changed, AppStatusInfo{AppPath: paths.New(pathLabel), Status: status})
 				}
 				last = current
-			case <-ticker.C:
-				if !slices.ContainsFunc(containers, isLauncherContainer) {
+			case update := <-launchers.updates:
+				if !launchers.apply(update) {
 					continue
 				}
-				current := statusByPath(containers, launcherStatuses(ctx, docker.Client(), containers))
+				current := statusByPath(containers, launchers.statuses())
 				for appPath, status := range current {
 					if last[appPath] != status {
 						changed = append(changed, AppStatusInfo{AppPath: paths.New(appPath), Status: status})

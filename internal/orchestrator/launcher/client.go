@@ -4,7 +4,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Package launcher is the client of the control socket of the app launcher that `run.sh serve`
-// runs in an app container: one JSON request per connection, answered by one JSON line.
+// runs in an app container: one JSON request per connection, answered by one JSON line or,
+// for the events, by one line each time the app starts or ends.
 package launcher
 
 import (
@@ -75,11 +76,16 @@ type Child struct {
 	Stopping  bool      `json:"stopping"`
 }
 
-type StatusResponse struct {
+// AppState is the app of a launcher: the one it runs and how the previous one ended.
+type AppState struct {
 	// Child is the app the launcher runs, nil when none.
 	Child *Child `json:"child"`
 	// Last is how the previous app process ended, nil when none ran.
-	Last    *Ended         `json:"last"`
+	Last *Ended `json:"last"`
+}
+
+type StatusResponse struct {
+	AppState
 	Preload map[string]any `json:"preload"`
 	Version string         `json:"version"`
 	UptimeS float64        `json:"uptime_s"`
@@ -124,6 +130,7 @@ const (
 	cmdStart  = "start"
 	cmdStop   = "stop"
 	cmdStatus = "status"
+	cmdEvents = "events"
 )
 
 type request struct {
@@ -153,46 +160,113 @@ func (c *Client) Status(ctx context.Context) (StatusResponse, error) {
 	return resp, err
 }
 
+// Events calls onState with the state of the app as it is now, then each time the app starts
+// or ends, on one connection kept open. It returns when the launcher refuses the request or
+// goes, or with the error of the context once it is done. The timeout bounds the exchange up
+// to the first state only.
+func (c *Client) Events(ctx context.Context, onState func(AppState)) error {
+	openCtx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	conn, err := c.send(openCtx, request{Cmd: cmdEvents})
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	// A done context closes the connection, which ends the read
+	defer context.AfterFunc(ctx, func() { _ = conn.Close() })()
+
+	answers := newAnswers(conn)
+	for first := true; ; first = false {
+		var state AppState
+		if err := answers.read(cmdEvents, &state); err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			return err
+		}
+		if first {
+			// The next states come when the app changes, whenever that is
+			if err := conn.SetDeadline(time.Time{}); err != nil {
+				return err
+			}
+		}
+		onState(state)
+	}
+}
+
 func (c *Client) do(ctx context.Context, req request, resp any) error {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
+	conn, err := c.send(ctx, req)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	return newAnswers(conn).read(req.Cmd, resp)
+}
 
+// send opens a connection to the launcher, checks who answers and sends the request, all
+// within the deadline of the context, which the connection keeps for its answers.
+func (c *Client) send(ctx context.Context, req request) (_ net.Conn, err error) {
 	var dialer net.Dialer
 	conn, err := dialer.DialContext(ctx, "unix", c.socket)
 	if err != nil {
-		return fmt.Errorf("cannot reach the app launcher: %w", err)
+		return nil, fmt.Errorf("cannot reach the app launcher: %w", err)
 	}
-	defer conn.Close()
+	defer func() {
+		if err != nil {
+			_ = conn.Close()
+		}
+	}()
 	if c.peer != nil {
 		pid, err := peerPID(conn)
 		if err != nil {
-			return fmt.Errorf("cannot tell who answers the app launcher socket: %w", err)
+			return nil, fmt.Errorf("cannot tell who answers the app launcher socket: %w", err)
 		}
 		// An unknown pid is a platform without peer credentials, development only
 		if pid != 0 {
 			if err := c.peer(pid); err != nil {
-				return fmt.Errorf("%w: %v", ErrPeer, err)
+				return nil, fmt.Errorf("%w: %v", ErrPeer, err)
 			}
 		}
 	}
 	if deadline, ok := ctx.Deadline(); ok {
 		if err := conn.SetDeadline(deadline); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	line, err := json.Marshal(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if _, err := conn.Write(append(line, '\n')); err != nil {
-		return fmt.Errorf("cannot send %s to the app launcher: %w", req.Cmd, err)
+		return nil, fmt.Errorf("cannot send %s to the app launcher: %w", req.Cmd, err)
 	}
+	return conn, nil
+}
 
-	reply, err := readLine(conn)
-	if err != nil {
-		return fmt.Errorf("no answer from the app launcher to %s: %w", req.Cmd, err)
+// answers reads the lines the launcher answers on one connection.
+type answers struct {
+	lines *bufio.Scanner
+}
+
+func newAnswers(conn net.Conn) answers {
+	lines := bufio.NewScanner(conn)
+	lines.Buffer(make([]byte, 0, 4096), maxResponseBytes)
+	return answers{lines: lines}
+}
+
+// read decodes the next answer to cmd into resp, or returns the refusal it carries.
+func (a answers) read(cmd string, resp any) error {
+	if !a.lines.Scan() {
+		err := a.lines.Err()
+		if err == nil {
+			err = errors.New("connection closed")
+		}
+		return fmt.Errorf("no answer from the app launcher to %s: %w", cmd, err)
 	}
+	reply := a.lines.Bytes()
 	var envelope struct {
 		OK    bool   `json:"ok"`
 		Error *Error `json:"error"`
@@ -217,18 +291,6 @@ func (c *Client) do(ctx context.Context, req request, resp any) error {
 
 // peerPID gives the pid of the process on the other end of a connected unix socket, 0 when the platform cannot tell.
 var peerPID = socketPeerPID
-
-func readLine(conn net.Conn) ([]byte, error) {
-	scanner := bufio.NewScanner(conn)
-	scanner.Buffer(make([]byte, 0, 4096), maxResponseBytes)
-	if scanner.Scan() {
-		return scanner.Bytes(), nil
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-	return nil, errors.New("connection closed")
-}
 
 // IsCode tells whether err is a launcher error with that code.
 func IsCode(err error, code string) bool {
