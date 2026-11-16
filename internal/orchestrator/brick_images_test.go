@@ -9,7 +9,9 @@ import (
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/moby/moby/api/types/container"
 	"github.com/stretchr/testify/require"
+	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
@@ -37,4 +39,29 @@ func TestBrickImages(t *testing.T) {
 	images, err = BrickImages(bricksindex.Brick{ID: "acme:empty"}, services)
 	require.NoError(t, err)
 	require.Empty(t, images)
+}
+
+func TestCheckBrickNotInUse(t *testing.T) {
+	bricksDir := paths.New(t.TempDir())
+	appContainer := func(state container.ContainerState, source *paths.Path) container.Summary {
+		return container.Summary{
+			Labels: map[string]string{DockerAppPathLabel: "/apps/demo"},
+			State:  state,
+			Mounts: []container.MountPoint{{Source: "/dev"}, {Source: source.String()}},
+		}
+	}
+	camera := bricksDir.Join("acme", "camera", "1.0.0", "src", "camera")
+	check := func(containers []container.Summary, id string, version *semver.Version) error {
+		return checkBrickNotInUse(t.Context(), &fakeContainerClient{containers: containers}, bricksDir, id, version)
+	}
+
+	running := []container.Summary{appContainer(container.StateRunning, camera)}
+	require.ErrorContains(t, check(running, "acme:camera", nil), "acme:camera@1.0.0 is used by the app at /apps/demo")
+	require.ErrorContains(t, check(running, "acme:camera", semver.MustParse("1.0.0")), "acme:camera@1.0.0 is used")
+	require.NoError(t, check(running, "acme:camera", semver.MustParse("1.1.0")))
+	require.NoError(t, check(running, "acme:cam", nil), "a brick whose name is a prefix of another")
+	require.NoError(t, check(running, "other:camera", nil))
+
+	stopped := []container.Summary{appContainer(container.StateExited, camera), appContainer(container.StateCreated, camera)}
+	require.NoError(t, check(stopped, "acme:camera", nil))
 }
