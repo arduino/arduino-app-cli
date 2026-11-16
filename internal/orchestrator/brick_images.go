@@ -88,7 +88,6 @@ func InstallBrick(
 	release *bricksindex.RemoteRelease,
 	platform platform.Platform,
 	onDownload func(downloaded, total int64),
-	onWait func(),
 	onPullLine func(string),
 	onPullProgress func(label string, curr, total int64),
 ) (bricksindex.InstallResult, error) {
@@ -99,7 +98,7 @@ func InstallBrick(
 		}
 		return dockerhelper.PullImages(ctx, docker.Client(), images, onPullLine, onPullProgress)
 	}
-	return bricksindex.Install(ctx, downloadConfig, bricksDir, brick, release, platform, onDownload, onWait, pull)
+	return bricksindex.Install(ctx, downloadConfig, bricksDir, brick, release, platform, onDownload, pull)
 }
 
 // UninstallBrick uninstalls the brick as bricksindex.Uninstall does, then removes the images of the
@@ -114,7 +113,6 @@ func UninstallBrick(
 	modelsIndex *modelsindex.ModelsIndex,
 	id string,
 	version *semver.Version,
-	onWait func(),
 	warn func(string),
 ) (bricksindex.UninstallResult, error) {
 	// Read before the files are removed. The images of the required services are ours, and
@@ -132,7 +130,7 @@ func UninstallBrick(
 		imagesByVersion[brick.Version] = images
 	}
 
-	res, err := bricksindex.Uninstall(ctx, cfg.BricksDir(), id, version, onWait)
+	res, err := bricksindex.Uninstall(cfg.BricksDir(), id, version)
 	var images []string
 	for _, v := range res.Versions {
 		images = append(images, imagesByVersion[v]...)

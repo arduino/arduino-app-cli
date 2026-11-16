@@ -160,7 +160,7 @@ func TestInstall(t *testing.T) {
 				prepared = append(prepared, b.ID+"@"+b.Version)
 				return nil
 			}
-			res, err := Install(t.Context(), DownloadConfig("test"), bricksDir, cameraBrick, release, platform.Platform{}, progress, nil, prepare)
+			res, err := Install(t.Context(), DownloadConfig("test"), bricksDir, cameraBrick, release, platform.Platform{}, progress, prepare)
 			require.NoError(t, err)
 			require.False(t, res.AlreadyInstalled)
 			require.Equal(t, []string{"acme:camera@1.0.0"}, prepared)
@@ -171,7 +171,7 @@ func TestInstall(t *testing.T) {
 				require.FileExists(t, res.Path.Join(name).String())
 			}
 
-			res, err = Install(t.Context(), DownloadConfig("test"), bricksDir, cameraBrick, release, platform.Platform{}, nil, nil, nil)
+			res, err = Install(t.Context(), DownloadConfig("test"), bricksDir, cameraBrick, release, platform.Platform{}, nil, nil)
 			require.NoError(t, err)
 			require.True(t, res.AlreadyInstalled)
 
@@ -181,6 +181,21 @@ func TestInstall(t *testing.T) {
 			require.Len(t, entries, 1)
 		})
 	}
+}
+
+func TestInstallConcurrent(t *testing.T) {
+	bricksDir := paths.New(t.TempDir())
+	release := archiveRelease(t, makeZip(t, map[string]string{"src/camera/brick_config.yaml": "id: acme:camera\n"}))
+	brickPath := bricksDir.Join("acme", "camera", "1.0.0")
+	// Another install of the same release finishes while this one is preparing.
+	prepare := func(Brick) error {
+		require.NoError(t, brickPath.Join("src").MkdirAll())
+		return nil
+	}
+	res, err := Install(t.Context(), DownloadConfig("test"), bricksDir, cameraBrick, release, platform.Platform{}, nil, prepare)
+	require.NoError(t, err)
+	require.True(t, res.AlreadyInstalled)
+	require.Equal(t, brickPath.String(), res.Path.String())
 }
 
 func TestInstallFailures(t *testing.T) {
@@ -270,7 +285,7 @@ func TestInstallFailures(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			bricksDir := paths.New(t.TempDir())
-			_, err := Install(t.Context(), DownloadConfig("test"), bricksDir, cameraBrick, tc.release(t), platform.Platform{BoardName: "unoq"}, nil, nil, tc.prepare)
+			_, err := Install(t.Context(), DownloadConfig("test"), bricksDir, cameraBrick, tc.release(t), platform.Platform{BoardName: "unoq"}, nil, tc.prepare)
 			require.ErrorContains(t, err, tc.wantErr)
 
 			// Nothing is installed and no temporary folders are left behind.

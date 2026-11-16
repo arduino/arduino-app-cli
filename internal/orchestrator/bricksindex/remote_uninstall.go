@@ -6,8 +6,9 @@
 package bricksindex
 
 import (
-	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"slices"
@@ -25,8 +26,7 @@ type UninstallResult struct {
 
 // Uninstall removes the given version of the brick from bricksDir or, if version is nil,
 // all of its installed versions. On error, the result contains the versions removed so far.
-// onWait, if not nil, is called when the uninstall has to wait for another install or uninstall.
-func Uninstall(ctx context.Context, bricksDir *paths.Path, id string, version *semver.Version, onWait func()) (UninstallResult, error) {
+func Uninstall(bricksDir *paths.Path, id string, version *semver.Version) (UninstallResult, error) {
 	namespace, name, err := splitBrickID(id)
 	if err != nil {
 		return UninstallResult{}, err
@@ -34,12 +34,6 @@ func Uninstall(ctx context.Context, bricksDir *paths.Path, id string, version *s
 	if bricksDir.NotExist() {
 		return UninstallResult{}, nil
 	}
-
-	unlock, err := lockBricksDir(ctx, bricksDir, onWait)
-	if err != nil {
-		return UninstallResult{}, err
-	}
-	defer unlock()
 
 	namespaceDir := bricksDir.Join(namespace)
 	nameDir := namespaceDir.Join(name)
@@ -72,6 +66,10 @@ func Uninstall(ctx context.Context, bricksDir *paths.Path, id string, version *s
 	var res UninstallResult
 	for _, v := range versions {
 		if err := nameDir.Join(v.String()).Rename(tempDir.Join(v.String())); err != nil {
+			// Another uninstall removed it first.
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
 			return res, fmt.Errorf("uninstalling brick %s@%s: %w", id, v, err)
 		}
 		res.Versions = append(res.Versions, v.String())

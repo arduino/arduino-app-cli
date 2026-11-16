@@ -65,7 +65,7 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 		brick, release := r.brick, r.release
 		progress := downloadProgress(out, brick.ID+"@"+release.Version.String())
 		installed, err := orchestrator.InstallBrick(ctx, servicelocator.GetDockerClient(), bricksindex.DownloadConfig(userAgent(version)), cfg.BricksDir(),
-			servicelocator.GetServicesIndex(), brick, release, platform, progress, printWaiting,
+			servicelocator.GetServicesIndex(), brick, release, platform, progress,
 			func(line string) { fmt.Fprintln(out, line) }, pullProgress(out))
 		if err != nil {
 			if len(res.Bricks) > 0 {

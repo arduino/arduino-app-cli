@@ -38,9 +38,3 @@ func failIfRoot(action string) {
 		feedback.Fatal(fmt.Sprintf("cannot %s as root. Try `su - arduino` before this command.", action), feedback.ErrGeneric)
 	}
 }
-
-// printWaiting tells the user that the command is waiting for another brick operation to finish.
-func printWaiting() {
-	out, _, _ := feedback.OutputStreams()
-	fmt.Fprintln(out, "Waiting for another brick operation to finish...")
-}

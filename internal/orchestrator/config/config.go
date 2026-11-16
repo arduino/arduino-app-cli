@@ -204,9 +204,6 @@ func (c *Configuration) EnsureFolders() error {
 	if err := c.ReleasesDir().MkdirAll(); err != nil {
 		return err
 	}
-	if err := c.BricksIndexDir().MkdirAll(); err != nil {
-		return err
-	}
 	if err := c.BricksDir().MkdirAll(); err != nil {
 		return err
 	}
@@ -230,7 +227,7 @@ func (c *Configuration) ReleasesDir() *paths.Path {
 
 // BricksIndexDir holds the bricks index, as downloaded from BricksIndexURL.
 func (c *Configuration) BricksIndexDir() *paths.Path {
-	return c.dataDir.Join("bricks-index")
+	return c.dataDir
 }
 
 // BricksDir holds the bricks installed from the bricks index, one folder per version.

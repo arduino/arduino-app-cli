@@ -37,7 +37,7 @@ func uninstallHandler(ctx context.Context, args []string, cfg config.Configurati
 	for _, ref := range parseBrickReferences(args) {
 		uninstalled, err := orchestrator.UninstallBrick(ctx, servicelocator.GetDockerClient(), cfg,
 			servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetModelsIndex(),
-			ref.id, ref.version, printWaiting, func(msg string) { feedback.Warnf("%s", msg) })
+			ref.id, ref.version, func(msg string) { feedback.Warnf("%s", msg) })
 		if err == nil || len(uninstalled.Versions) > 0 {
 			versions := uninstalled.Versions
 			if versions == nil {

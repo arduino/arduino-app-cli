@@ -14,15 +14,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/arduino/go-paths-helper"
-	"github.com/gofrs/flock"
 	"github.com/shirou/gopsutil/v4/disk"
 	"go.bug.st/downloader/v3"
 	semver "go.bug.st/relaxed-semver"
@@ -33,7 +30,6 @@ import (
 
 const (
 	brickConfigFileName = "brick_config.yaml"
-	installLockFileName = ".lock"
 	// Temporary folders start with a dot, which no namespace can, so they never clash with a brick.
 	installTempPrefix   = ".install-"
 	uninstallTempPrefix = ".uninstall-"
@@ -140,46 +136,6 @@ func installPath(bricksDir *paths.Path, id string, version *semver.Version) *pat
 	return bricksDir.Join(namespace, name, version.String())
 }
 
-// lockBricksDir prevents installs and uninstalls from running at the same time. If another
-// operation holds the lock, onWait is called. Once locked, it removes the temporary folders
-// left by interrupted operations.
-func lockBricksDir(ctx context.Context, bricksDir *paths.Path, onWait func()) (unlock func(), err error) {
-	lock := flock.New(bricksDir.Join(installLockFileName).String())
-	locked, err := lock.TryLock()
-	if err != nil {
-		return nil, fmt.Errorf("locking bricks directory: %w", err)
-	}
-	if !locked {
-		if onWait != nil {
-			onWait()
-		}
-		if _, err := lock.TryLockContext(ctx, 100*time.Millisecond); err != nil {
-			return nil, fmt.Errorf("locking bricks directory: %w", err)
-		}
-	}
-	removeTempDirs(bricksDir)
-	return func() { _ = lock.Unlock() }, nil
-}
-
-// removeTempDirs removes the temporary folders of installs and uninstalls. It must be called while
-// holding the lock, so that no operation using them is running.
-func removeTempDirs(bricksDir *paths.Path) {
-	entries, err := bricksDir.ReadDir()
-	if err != nil {
-		slog.Warn("cannot read bricks directory", "path", bricksDir, "error", err)
-		return
-	}
-	for _, entry := range entries {
-		name := entry.Base()
-		if !strings.HasPrefix(name, installTempPrefix) && !strings.HasPrefix(name, uninstallTempPrefix) {
-			continue
-		}
-		if err := entry.RemoveAll(); err != nil {
-			slog.Warn("cannot remove temporary folder", "path", entry, "error", err)
-		}
-	}
-}
-
 type InstallResult struct {
 	Path *paths.Path
 	// AlreadyInstalled is true when the release was found installed and nothing was done.
@@ -188,7 +144,7 @@ type InstallResult struct {
 
 // Install downloads the release of the brick and installs it in bricksDir. If prepare is not nil,
 // required containers are installed. The brick and the release must come from a validated index.
-func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Path, brick *RemoteBrick, release *RemoteRelease, platform platform.Platform, progress func(downloaded, total int64), onWait func(), prepare func(Brick) error) (InstallResult, error) {
+func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Path, brick *RemoteBrick, release *RemoteRelease, platform platform.Platform, progress func(downloaded, total int64), prepare func(Brick) error) (InstallResult, error) {
 	ref := brick.ID + "@" + release.Version.String()
 	expectedHash, err := hex.DecodeString(release.Hash)
 	if err != nil {
@@ -198,12 +154,6 @@ func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Pat
 	if err := bricksDir.MkdirAll(); err != nil {
 		return InstallResult{}, fmt.Errorf("creating bricks directory: %w", err)
 	}
-	unlock, err := lockBricksDir(ctx, bricksDir, onWait)
-	if err != nil {
-		return InstallResult{}, err
-	}
-	defer unlock()
-
 	if brickPath.Exist() {
 		return InstallResult{Path: brickPath, AlreadyInstalled: true}, nil
 	}
@@ -255,6 +205,10 @@ func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Pat
 	}
 	fatomic.Sync()
 	if err := brickDir.Rename(brickPath); err != nil {
+		// Another install of the same release finished first.
+		if brickPath.Exist() {
+			return InstallResult{Path: brickPath, AlreadyInstalled: true}, nil
+		}
 		return InstallResult{}, fmt.Errorf("installing brick %s: %w", ref, err)
 	}
 	fatomic.Sync()

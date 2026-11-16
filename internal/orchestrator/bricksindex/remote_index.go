@@ -25,7 +25,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
-const RemoteIndexFileName = "brick-index.json"
+const RemoteIndexFileName = "brick-index-contrib.json"
 
 var ErrIndexNotFound = errors.New("bricks index not found, run 'arduino-app-cli brick update-index' to download it")
 
