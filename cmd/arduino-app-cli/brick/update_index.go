@@ -8,7 +8,6 @@ package brick
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -33,7 +32,6 @@ func newUpdateIndexCmd(cfg config.Configuration, version string) *cobra.Command 
 const remoteIndexMaxAge = 24 * time.Hour
 
 func updateIndexHandler(ctx context.Context, cfg config.Configuration, version string) {
-	failIfRoot("update the bricks index")
 	_, err := bricksindex.UpdateRemoteIndex(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksIndexURL, cfg.BricksIndexDir())
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
@@ -42,15 +40,14 @@ func updateIndexHandler(ctx context.Context, cfg config.Configuration, version s
 }
 
 // loadRemoteIndex returns the bricks index, updating it first if it is older than remoteIndexMaxAge.
-// If the update fails, the saved index is used. As root, the index is never updated.
+// If the update fails, the saved index is used.
 func loadRemoteIndex(ctx context.Context, cfg config.Configuration, version string) *bricksindex.RemoteIndex {
 	dir := cfg.BricksIndexDir()
-	if bricksindex.RemoteIndexIsRecent(dir, remoteIndexMaxAge) || os.Geteuid() == 0 {
+	if bricksindex.RemoteIndexIsRecent(dir, remoteIndexMaxAge) {
 		if index, err := bricksindex.LoadRemoteIndex(dir); err == nil {
 			return index
 		}
 	}
-	failIfRoot("download the bricks index")
 	out, _, _ := feedback.OutputStreams()
 	fmt.Fprintln(out, "Updating the bricks index...")
 	index, err := bricksindex.UpdateRemoteIndex(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksIndexURL, dir)

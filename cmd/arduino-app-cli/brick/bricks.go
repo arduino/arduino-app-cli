@@ -6,12 +6,8 @@
 package brick
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/spf13/cobra"
 
-	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -29,12 +25,4 @@ func NewBrickCmd(cfg config.Configuration, version string) *cobra.Command {
 	appCmd.AddCommand(newUninstallCmd(cfg))
 
 	return appCmd
-}
-
-// failIfRoot exits when running as root: the files it would create could not be modified by the
-// arduino user.
-func failIfRoot(action string) {
-	if os.Geteuid() == 0 {
-		feedback.Fatal(fmt.Sprintf("cannot %s as root. Try `su - arduino` before this command.", action), feedback.ErrGeneric)
-	}
 }

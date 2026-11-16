@@ -32,7 +32,6 @@ func newUninstallCmd(cfg config.Configuration) *cobra.Command {
 }
 
 func uninstallHandler(ctx context.Context, args []string, cfg config.Configuration) {
-	failIfRoot("uninstall bricks")
 	var res uninstallResult
 	for _, ref := range parseBrickReferences(args) {
 		uninstalled, err := orchestrator.UninstallBrick(ctx, servicelocator.GetDockerClient(), cfg,

@@ -36,7 +36,6 @@ func newInstallCmd(cfg config.Configuration, version string) *cobra.Command {
 }
 
 func installHandler(ctx context.Context, args []string, cfg config.Configuration, version string) {
-	failIfRoot("install bricks")
 	refs := parseBrickReferences(args)
 	index := loadRemoteIndex(ctx, cfg, version)
 
