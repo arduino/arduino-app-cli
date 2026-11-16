@@ -207,8 +207,8 @@ func (cli *ArduinoAppCLI) convertEnvForExecutils(env map[string]string) []string
 
 	// The daemon runs handler containers, so it needs the same docker endpoint the
 	// caller uses. A development machine reaches it through DOCKER_HOST; CI has the
-	// default socket.
-	for _, name := range []string{"DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG"} {
+	// default socket. The image the apps run on follows the caller as well.
+	for _, name := range []string{"DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG", "DOCKER_REGISTRY_BASE", "DOCKER_PYTHON_BASE_IMAGE"} {
 		if value := os.Getenv(name); value != "" {
 			envVars = append(envVars, name+"="+value)
 		}

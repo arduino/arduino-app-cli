@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 	"testing"
@@ -118,7 +119,27 @@ func startApp(t *testing.T, httpClient *client.ClientWithResponses, appID string
 		if errData.Code == sseCodeServerClosed {
 			continue
 		}
+		logAppContainers(t)
 		t.Fatalf("app failed to start: code=%s message=%s", errData.Code, errData.Message)
+	}
+}
+
+// logAppContainers prints the state and the last log lines of every app container, the
+// evidence a failed start leaves behind on a runner nobody can log into.
+func logAppContainers(t *testing.T) {
+	t.Helper()
+	out, err := exec.Command("docker", "ps", "-a", "--filter", "label=cc.arduino.app=true", "--format", "{{.Names}} {{.Status}}").Output()
+	if err != nil {
+		t.Logf("docker ps: %v", err)
+		return
+	}
+	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
+		if line == "" {
+			continue
+		}
+		name := strings.Fields(line)[0]
+		logs, _ := exec.Command("docker", "logs", "--tail", "60", name).CombinedOutput()
+		t.Logf("container %s\n%s", line, logs)
 	}
 }
 
