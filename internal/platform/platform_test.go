@@ -138,3 +138,10 @@ func TestPackageAndArchitecture(t *testing.T) {
 		})
 	}
 }
+
+func TestSketchBuildUsesEveryCoreOnlyWithEnoughMemory(t *testing.T) {
+	const everyCore = 0
+	assert.EqualValues(t, 2, compileJobs(2<<30), "a 2 GB board")
+	assert.EqualValues(t, everyCore, compileJobs(4<<30), "a 4 GB board")
+	assert.EqualValues(t, 2, compileJobs(0), "a board whose memory is unknown")
+}
