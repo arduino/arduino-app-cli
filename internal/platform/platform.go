@@ -27,7 +27,9 @@ type Platform struct {
 	BoardName  string `json:"board_name"`
 	FQBN       string `json:"fqbn"`
 	PlatformID string `json:"-"`
-	Linux      struct {
+	// CompileJobs is the number of parallel jobs a sketch build runs on this board: 0 is every core.
+	CompileJobs int32 `json:"-"`
+	Linux       struct {
 		BoardLeds paths.PathList
 	} `json:"-"`
 	Micro struct {
@@ -116,6 +118,8 @@ func GetPlatform(dir *paths.Path) Platform {
 		}
 	}
 
+	platform.CompileJobs = compileJobs(totalMemory())
+
 	slog.Info("using platform config", "platform", platform)
 	return platform
 }
@@ -158,21 +162,21 @@ func (p Platform) PackageAndArchitecture() (string, string, error) {
 	return pkg, architecture, nil
 }
 
-// CompileJobs is the number of parallel jobs a sketch build runs: every core, two on a board
-// whose memory does not hold a compiler per core.
-func (p Platform) CompileJobs() int32 {
+// totalMemory is the memory of the board in bytes, 0 when it cannot be read.
+func totalMemory() uint64 {
 	memory, err := mem.VirtualMemory()
 	if err != nil {
 		slog.Warn("unable to read the memory of the board", slog.String("error", err.Error()))
-		return compileJobs(0)
+		return 0
 	}
-	return compileJobs(memory.Total)
+	return memory.Total
 }
 
 // minMemoryForEveryCore is the memory a board needs to run a compiler on every core.
 const minMemoryForEveryCore = 3 << 30
 
-// compileJobs is the job count for a board with totalMemory bytes of memory: 0 is every core.
+// compileJobs is the job count for a board with totalMemory bytes of memory: every core, two
+// on a board whose memory does not hold a compiler per core.
 func compileJobs(totalMemory uint64) int32 {
 	if totalMemory < minMemoryForEveryCore {
 		return 2
