@@ -6,13 +6,70 @@
 package orchestrator
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
+
+func TestComposeTemplateMountsThirdPartyBricks(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	indexDir := paths.New(t.TempDir())
+	index := `{"bricks": [{"id": "acme:camera", "namespace": "acme", "releases": [{"version": "1.0.0", "url": "https://example.com/1.0.0.zip", "hash": "0000000000000000000000000000000000000000000000000000000000000000", "size": 1}]}]}`
+	require.NoError(t, indexDir.Join(bricksindex.RemoteIndexFileName).WriteFile([]byte(index)))
+	bricksDir := paths.New(t.TempDir())
+	brickDir := bricksDir.Join("acme", "camera", "1.0.0", "src", "camera")
+	require.NoError(t, brickDir.MkdirAll())
+	require.NoError(t, brickDir.Join("brick_config.yaml").WriteFile([]byte("id: acme:camera\nname: Camera\n")))
+
+	testApp := app.ArduinoApp{
+		Name:       "TestApp",
+		Descriptor: app.AppDescriptor{Bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "acme:camera"}}},
+		FullPath:   paths.New(t.TempDir()),
+	}
+	require.NoError(t, testApp.ProvisioningStateDir().MkdirAll())
+	bricksIndex, err := (&bricksindex.BricksIndex{BuiltInBricks: []bricksindex.Brick{{ID: "arduino:web_ui"}}}).
+		WithInstalledBricks(bricksDir).
+		WithRemoteIndex(indexDir).
+		WithApp(nil, []bricksindex.Reference{{ID: "arduino:web_ui"}, {ID: "acme:camera"}})
+	require.NoError(t, err)
+
+	require.NoError(t, generateComposeTemplate(&testApp, testApp.ProvisioningStateDir(), bricksIndex, &servicesindex.ServicesIndex{}, "python-apps-base", cfg, types.Mapping{}, platform.Platform{}))
+
+	data, err := testApp.AppComposeTemplateFilePath().ReadFile()
+	require.NoError(t, err)
+	var compose struct {
+		Services struct {
+			Main struct {
+				Volumes []any `yaml:"volumes"`
+			} `yaml:"main"`
+		} `yaml:"services"`
+	}
+	require.NoError(t, yaml.Unmarshal(data, &compose))
+	var brickMounts []any
+	for _, v := range compose.Services.Main.Volumes {
+		if m, ok := v.(map[string]any); ok && strings.HasPrefix(fmt.Sprint(m["target"]), thirdPartyBricksDir) {
+			brickMounts = append(brickMounts, m)
+		}
+	}
+	// Only the third-party brick is mounted, read/write, at a folder named after a hash of acme/camera.
+	require.Equal(t, []any{map[string]any{
+		"type":   "bind",
+		"source": brickDir.String(),
+		"target": "/opt/third-party-bricks/bfdeb4ac/camera",
+		"bind":   map[string]any{"create_host_path": false},
+	}}, brickMounts)
+}
 
 func TestFrozenLookup(t *testing.T) {
 	// The registry is read when the configuration is built, so what the environment says
