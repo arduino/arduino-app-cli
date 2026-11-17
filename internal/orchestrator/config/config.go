@@ -17,7 +17,6 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	semver "go.bug.st/relaxed-semver"
-	"golang.org/x/sys/unix"
 
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -29,7 +28,6 @@ type Configuration struct {
 	appsDir                          *paths.Path
 	dataDir                          *paths.Path
 	releasesDir                      *paths.Path
-	runtimeDir                       *paths.Path
 	requiredRuntimes                 []RequiredRuntime
 	customModelsDir                  *paths.Path
 	modelsDir                        *paths.Path
@@ -157,7 +155,6 @@ func NewFromEnv() (Configuration, error) {
 		appsDir:                          appsDir,
 		dataDir:                          dataDir,
 		releasesDir:                      releasesDir,
-		runtimeDir:                       resolveRuntimeDir(paths.New("/run/arduino-app-cli"), dataDir.Join("run")),
 		requiredRuntimes:                 requiredRuntimes,
 		customModelsDir:                  customModelsDir,
 		modelsDir:                        modelsDir,
@@ -215,18 +212,9 @@ func (c *Configuration) ReleasesDir() *paths.Path {
 }
 
 // RuntimeDir holds what the daemon shares with the app containers at run time: the control
-// socket of each app, in a folder of its own.
+// socket of each app, in a folder of its own. It is in the data dir, the same on every system.
 func (c *Configuration) RuntimeDir() *paths.Path {
-	return c.runtimeDir
-}
-
-// resolveRuntimeDir prefers the directory systemd creates for the daemon, when the current
-// user can write it: development runs fall back to a folder of the data dir.
-func resolveRuntimeDir(preferred, fallback *paths.Path) *paths.Path {
-	if isDir, _ := preferred.IsDirCheck(); isDir && unix.Access(preferred.String(), unix.W_OK) == nil {
-		return preferred
-	}
-	return fallback
+	return c.dataDir.Join("run")
 }
 
 func (c *Configuration) ExamplesBaseDir() *paths.Path {

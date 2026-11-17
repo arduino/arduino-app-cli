@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Package launcher is the client of the control socket of the app launcher that `run.sh serve`
+// Package launcher is the client of the control socket of the app launcher that `run.sh launch`
 // runs in an app container: one JSON request per connection, answered by one JSON line.
 package launcher
 

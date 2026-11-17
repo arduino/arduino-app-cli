@@ -24,31 +24,37 @@ import (
 const (
 	// launcherSocketDir is where an app container sees the runtime folder of its app.
 	launcherSocketDir = "/run/arduino-app-cli"
-
-	// maxRuntimeKeyLength keeps the socket path within the Unix limit.
-	maxRuntimeKeyLength = 56
+	// launcherSocketFile is the socket the launcher binds in that folder.
+	launcherSocketFile = "app-launcher.sock"
+	// maxSocketPathLength is the longest path a Unix socket can be reached by.
+	maxSocketPathLength = 107
 )
 
-const mainServiceName = "main"
-
 // appRuntimeDir is the folder of the app on this board the container sees at launcherSocketDir.
+// It is named after the project, cut where needed to keep the socket in it within reach.
 func appRuntimeDir(cfg config.Configuration, appPath *paths.Path) *paths.Path {
-	return cfg.RuntimeDir().Join("apps", runtimeKey(composeProjectName(appPath, cfg.AppsDir())))
+	dir := cfg.RuntimeDir()
+	room := maxSocketPathLength - len(dir.Join(launcherSocketFile).String()) - len("/")
+	return dir.Join(runtimeKey(composeProjectName(appPath, cfg.AppsDir()), room))
 }
 
-// runtimeKey is the project name, cut and told apart by a hash when too long for a socket path.
-func runtimeKey(project string) string {
-	if len(project) <= maxRuntimeKeyLength {
+// runtimeKey is the project name, cut to the limit and told apart by a hash when longer. A
+// limit too short for a name leaves the hash alone.
+func runtimeKey(project string, limit int) string {
+	if len(project) <= limit {
 		return project
 	}
 	sum := sha256.Sum256([]byte(project))
 	suffix := hex.EncodeToString(sum[:6])
-	return strings.TrimRight(project[:maxRuntimeKeyLength-len(suffix)-1], "-") + "-" + suffix
+	if limit <= len(suffix)+1 {
+		return suffix
+	}
+	return strings.TrimRight(project[:limit-len(suffix)-1], "-") + "-" + suffix
 }
 
 // launcherServed tells whether the project runs its main service through the app launcher:
 // a release frozen before the launcher runs its app the classic way.
 func launcherServed(prj *types.Project) bool {
-	main, ok := prj.Services[mainServiceName]
+	main, ok := prj.Services["main"]
 	return ok && main.Labels[DockerAppLauncherLabel] == "true"
 }

@@ -696,7 +696,7 @@ func TestTheMainServiceRunsTheAppUnderTheLauncher(t *testing.T) {
 		} `yaml:"services"`
 	}
 	require.NoError(t, yaml.Unmarshal(composed, &content))
-	main := content.Services[mainServiceName]
+	main := content.Services["main"]
 	require.Equal(t, "/run.sh", main.Entrypoint)
 	require.Equal(t, []string{"launch"}, main.Command, "an image without the launcher takes it as a plain start")
 	require.Equal(t, "true", main.Labels[DockerAppLauncherLabel])
