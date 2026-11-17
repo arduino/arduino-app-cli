@@ -84,9 +84,9 @@ func TestClientRequests(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("start with the app environment", func(t *testing.T) {
-		resp, err := client.Start(ctx, testApp, map[string]string{"FOO": "bar"})
+		resp, err := client.Start(ctx, map[string]string{"FOO": "bar"})
 		require.NoError(t, err)
-		assert.Equal(t, request{Cmd: cmdStart, App: testApp, Env: map[string]string{"FOO": "bar"}}, <-fake.requests)
+		assert.Equal(t, request{Cmd: cmdStart, Env: map[string]string{"FOO": "bar"}}, <-fake.requests)
 		assert.Equal(t, 42, resp.PID)
 		assert.Equal(t, "python", resp.Runner)
 		assert.Equal(t, Timings{StopMs: 12.5, ForkMs: 3}, resp.Timings)
@@ -94,9 +94,9 @@ func TestClientRequests(t *testing.T) {
 	})
 
 	t.Run("start without environment sends none", func(t *testing.T) {
-		_, err := client.Start(ctx, testApp, nil)
+		_, err := client.Start(ctx, nil)
 		require.NoError(t, err)
-		assert.Equal(t, request{Cmd: cmdStart, App: testApp}, <-fake.requests)
+		assert.Equal(t, request{Cmd: cmdStart}, <-fake.requests)
 	})
 
 	t.Run("status", func(t *testing.T) {
@@ -127,7 +127,7 @@ func TestClientErrors(t *testing.T) {
 		fake := newFakeLauncher(t, func(string) string {
 			return `{"ok":false,"error":{"code":"busy","message":"the launcher is shutting down"}}`
 		})
-		_, err := New(fake.socket, time.Second).Start(context.Background(), testApp, nil)
+		_, err := New(fake.socket, time.Second).Start(context.Background(), nil)
 		var launcherErr *Error
 		require.ErrorAs(t, err, &launcherErr)
 		assert.Equal(t, CodeBusy, launcherErr.Code)
@@ -139,7 +139,7 @@ func TestClientErrors(t *testing.T) {
 		fake := newFakeLauncher(t, func(string) string {
 			return `{"ok":false,"error":{"code":"stale","message":"the dependencies of /app changed"}}`
 		})
-		_, err := New(fake.socket, time.Second).Start(context.Background(), testApp, nil)
+		_, err := New(fake.socket, time.Second).Start(context.Background(), nil)
 		assert.True(t, IsCode(err, CodeStale))
 	})
 

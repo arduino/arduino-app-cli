@@ -123,15 +123,14 @@ const (
 
 type request struct {
 	Cmd string `json:"cmd"`
-	App string `json:"app,omitempty"`
 	// Env is the app environment, which the child runs with over the container one.
 	Env map[string]string `json:"env,omitempty"`
 }
 
-// Start runs the app with its environment in place of the running one.
-func (c *Client) Start(ctx context.Context, app string, env map[string]string) (StartResponse, error) {
+// Start runs the app of the launcher again, with its environment, in place of the running one.
+func (c *Client) Start(ctx context.Context, env map[string]string) (StartResponse, error) {
 	var resp StartResponse
-	err := c.do(ctx, request{Cmd: cmdStart, App: app, Env: env}, &resp)
+	err := c.do(ctx, request{Cmd: cmdStart, Env: env}, &resp)
 	return resp, err
 }
 
