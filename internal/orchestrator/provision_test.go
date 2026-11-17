@@ -110,7 +110,7 @@ bricks:
 		"FOO": "bar",
 	}
 
-	err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform)
+	err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, true)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
@@ -375,7 +375,7 @@ services:
 		require.NoError(t, err)
 
 		// Run the provision function to generate the main compose file
-		err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform)
+		err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, true)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := app.AppComposeTemplateFilePath()
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -429,7 +429,7 @@ services:
 		require.NoError(t, err)
 
 		// Run the provision function to generate the main compose file
-		err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform)
+		err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, true)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := app.AppComposeTemplateFilePath()
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -546,7 +546,7 @@ services:
 		require.NoError(t, err)
 
 		// Run the provision function to generate the main compose file
-		err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform)
+		err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, true)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := app.AppComposeTemplateFilePath()
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -653,7 +653,7 @@ bricks:
 		"FOO": "bar",
 	}
 
-	err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform)
+	err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, true)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
@@ -682,7 +682,7 @@ func TestTheMainServiceRunsTheAppUnderTheLauncher(t *testing.T) {
 	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 	require.NoError(t, err)
 
-	err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, &servicesindex.ServicesIndex{}, "app-bricks:python-apps-base:dev-latest", cfg, types.Mapping{}, unkownPlatform)
+	err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, &servicesindex.ServicesIndex{}, "app-bricks:python-apps-base:dev-latest", cfg, types.Mapping{}, unkownPlatform, true)
 	require.NoError(t, err)
 
 	composed, err := app.AppComposeTemplateFilePath().ReadFile()
@@ -701,4 +701,32 @@ func TestTheMainServiceRunsTheAppUnderTheLauncher(t *testing.T) {
 	require.Equal(t, []string{"launch"}, main.Command, "an image without the launcher takes it as a plain start")
 	require.Equal(t, "true", main.Labels[DockerAppLauncherLabel])
 	require.Contains(t, main.Volumes, map[string]any{"type": "bind", "source": appRuntimeDirRef, "target": launcherSocketDir}, "where the launcher binds its socket")
+}
+
+func TestAReleaseRunsItsAppWithoutTheLauncher(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	staged := app.ArduinoApp{Name: "TestApp", FullPath: paths.New(t.TempDir())}
+	prebuildDir := paths.New(t.TempDir())
+	require.NoError(t, cfg.AssetDir().Join("bricks-list.yaml").WriteFile([]byte("bricks: []\n")))
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
+	require.NoError(t, err)
+
+	provisioner := &Provision{pythonImage: "app-bricks:python-apps-base:dev-latest"}
+	require.NoError(t, provisioner.ResolveRelease(&staged, prebuildDir, bricksIndex, &servicesindex.ServicesIndex{}, cfg, types.Mapping{}, unkownPlatform))
+
+	frozen, err := prebuildDir.Join(staged.AppComposeTemplateFilePath().Base()).ReadFile()
+	require.NoError(t, err)
+	var content struct {
+		Services map[string]struct {
+			Entrypoint string            `yaml:"entrypoint"`
+			Command    []string          `yaml:"command"`
+			Labels     map[string]string `yaml:"labels"`
+		} `yaml:"services"`
+	}
+	require.NoError(t, yaml.Unmarshal(frozen, &content))
+	main := content.Services["main"]
+	require.Equal(t, "/run.sh", main.Entrypoint)
+	require.Empty(t, main.Command, "run.sh runs the app as the first process of the container")
+	require.NotContains(t, main.Labels, DockerAppLauncherLabel)
+	require.NotContains(t, string(frozen), appRuntimeDirRef, "nothing an older daemon cannot answer")
 }

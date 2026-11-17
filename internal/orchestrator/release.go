@@ -202,7 +202,7 @@ func BuildRelease(
 	// fails, so it does not make anyone wait for the venv to find it out.
 	cb(StreamMessage{data: "freezing the compose files", progress: &Progress{Name: "compose files", Progress: 10.0}})
 	appEnv := appEnvironment(ctx, stagedApp, bricksIndex, modelsIndex, plat)
-	if err := provisioner.Resolve(&stagedApp, prebuildDir, bricksIndex, servicesIndex, cfg, appEnv, plat); err != nil {
+	if err := provisioner.ResolveRelease(&stagedApp, prebuildDir, bricksIndex, servicesIndex, cfg, appEnv, plat); err != nil {
 		return BuildReleaseResult{}, nil, fmt.Errorf("failed to freeze the compose files: %w", err)
 	}
 

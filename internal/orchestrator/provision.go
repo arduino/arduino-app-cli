@@ -102,7 +102,8 @@ func NewProvision(
 }
 
 // Resolve turns the app bricks and services into the compose templates it is started
-// from, deriving them from the app and the target board and never from this host.
+// from, deriving them from the app and the target board and never from this host. The
+// app runs under the app launcher, which can replace it in the same container.
 func (p *Provision) Resolve(
 	arduinoApp *app.ArduinoApp,
 	genPath *paths.Path,
@@ -111,6 +112,34 @@ func (p *Provision) Resolve(
 	cfg config.Configuration,
 	appEnv types.Mapping,
 	platform platform.Platform,
+) error {
+	return p.resolve(arduinoApp, genPath, bricksIndex, servicesIndex, cfg, appEnv, platform, true)
+}
+
+// ResolveRelease is Resolve for the templates a release freezes. Its app runs without the
+// launcher: a release is never edited, so there is nothing to replace, and what it runs
+// depends on no launcher version.
+func (p *Provision) ResolveRelease(
+	arduinoApp *app.ArduinoApp,
+	genPath *paths.Path,
+	bricksIndex *bricksindex.BricksIndex,
+	servicesIndex *servicesindex.ServicesIndex,
+	cfg config.Configuration,
+	appEnv types.Mapping,
+	platform platform.Platform,
+) error {
+	return p.resolve(arduinoApp, genPath, bricksIndex, servicesIndex, cfg, appEnv, platform, false)
+}
+
+func (p *Provision) resolve(
+	arduinoApp *app.ArduinoApp,
+	genPath *paths.Path,
+	bricksIndex *bricksindex.BricksIndex,
+	servicesIndex *servicesindex.ServicesIndex,
+	cfg config.Configuration,
+	appEnv types.Mapping,
+	platform platform.Platform,
+	launcher bool,
 ) error {
 	if arduinoApp == nil {
 		return fmt.Errorf("provisioning failed: arduinoApp is nil")
@@ -125,7 +154,7 @@ func (p *Provision) Resolve(
 
 	bricksIndex = bricksIndex.WithAppBricks(arduinoApp.LocalBricks)
 
-	return generateComposeTemplate(arduinoApp, genPath, bricksIndex, servicesIndex, p.pythonImage, cfg, appEnv, platform)
+	return generateComposeTemplate(arduinoApp, genPath, bricksIndex, servicesIndex, p.pythonImage, cfg, appEnv, platform, launcher)
 }
 
 // Render evaluates the templates against the board the app is being started on and

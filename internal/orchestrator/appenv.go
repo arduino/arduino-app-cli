@@ -27,7 +27,8 @@ import (
 )
 
 const appHomeRef = "${APP_HOME}"
-const appRuntimeDirRef = "${APP_RUNTIME_DIR}"
+const appRuntimeDirVar = "APP_RUNTIME_DIR"
+const appRuntimeDirRef = "${" + appRuntimeDirVar + "}"
 
 // An app runs as uid 1000, the same the cli itself requires (cmd/arduino-app-cli),
 // in the arduino group, which is required to exist but not to have a known id.
@@ -38,7 +39,7 @@ const appUserExpr = exprPrefix + `{{ with groupID "arduino" }}1000:{{ . }}{{ els
 var hostVariables = map[string]func(hostFacts) string{
 	"APP_HOME": func(facts hostFacts) string { return facts.appPath.String() },
 	// The folder of the app on this board holding the control socket of its launcher
-	"APP_RUNTIME_DIR": func(facts hostFacts) string { return appRuntimeDir(facts.cfg, facts.appPath).String() },
+	appRuntimeDirVar:  func(facts hostFacts) string { return appRuntimeDir(facts.cfg, facts.appPath).String() },
 	"XDG_RUNTIME_DIR": func(hostFacts) string { return "/run/user/1000" },
 	// Directory where AI models are installed, shared with the containerized runners.
 	"MODELS_PATH": func(facts hostFacts) string { return facts.cfg.ModelsDir().String() },

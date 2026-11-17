@@ -53,7 +53,7 @@ func runtimeKey(project string, limit int) string {
 }
 
 // launcherServed tells whether the project runs its main service through the app launcher:
-// a release frozen before the launcher runs its app the classic way.
+// a release runs its app the classic way.
 func launcherServed(prj *types.Project) bool {
 	main, ok := prj.Services["main"]
 	return ok && main.Labels[DockerAppLauncherLabel] == "true"
