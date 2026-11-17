@@ -172,11 +172,8 @@ const (
 	DockerAppLabel     = "cc.arduino.app"
 	DockerAppMainLabel = "cc.arduino.app.main"
 	DockerAppPathLabel = "cc.arduino.app.path"
-	// DockerAppLauncherLabel marks a main container run by the app launcher, which the daemon
-	// starts and stops the app through, the container staying up.
+	// DockerAppLauncherLabel marks a main container whose app is run by the app launcher.
 	DockerAppLauncherLabel = "cc.arduino.app.launcher"
-	// DockerAppRuntimeDirLabel is the folder of the board the daemon reaches the launcher socket in.
-	DockerAppRuntimeDirLabel = "cc.arduino.app.runtime"
 )
 
 type serviceInfo struct {

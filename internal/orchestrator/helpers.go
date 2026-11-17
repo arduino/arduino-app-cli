@@ -29,30 +29,26 @@ type AppStatusInfo struct {
 	Status  Status
 }
 
-// parseAppStatus derives the status of each app from its containers, grouped by their app
-// path label. A main container run through the launcher has the status its launcher reports
-// in launcherStatus, by container ID, since the container stays up when the app ends; the
-// other containers have the status of their docker state. An app is running when all of its
-// containers run, stopped when all are stopped, otherwise failed, stopping or starting, in this
-// order, and an app whose launcher reports it not running has that status whatever its
-// sidecars do.
-func parseAppStatus(containers []container.Summary, launcherStatus map[string]Status) []AppStatusInfo {
+// parseAppStatus takes all the containers that matches the DockerAppLabel,
+// and construct a map of the state of an app and all its dependencies state.
+// For app that have at least 1 dependency, we calculate the overall state
+// as follow:
+//
+//	running: all running
+//	stopped: all stopped
+//	failed: at least one failed
+//	stopping: at least one stopping
+//	starting: at least one starting
+func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 	apps := make([]AppStatusInfo, 0, len(containers))
 	appsStatusMap := make(map[string][]Status)
-	decided := make(map[string]Status)
 	for _, c := range containers {
 		appPath, ok := c.Labels[DockerAppPathLabel]
 		if !ok {
 			continue
 		}
-		if status, ok := launcherStatus[c.ID]; ok {
-			if status != StatusRunning {
-				decided[appPath] = status
-			}
-			appsStatusMap[appPath] = append(appsStatusMap[appPath], status)
-			continue
-		}
 		appsStatusMap[appPath] = append(appsStatusMap[appPath], StatusFromDockerState(c.State, c.Status))
+
 	}
 
 	appendResult := func(appPath *paths.Path, status Status) {
@@ -64,11 +60,6 @@ func parseAppStatus(containers []container.Summary, launcherStatus map[string]St
 
 	for appPath, s := range appsStatusMap {
 		f.Assert(len(s) != 0, "status slice is zero")
-
-		if status, ok := decided[appPath]; ok {
-			appendResult(paths.New(appPath), status)
-			continue
-		}
 
 		appPath := paths.New(appPath)
 
@@ -113,7 +104,7 @@ func getAppsStatus(
 	if len(containers) == 0 {
 		return nil, nil
 	}
-	return parseAppStatus(containers, launcherStatuses(ctx, docker, containers)), nil
+	return parseAppStatus(containers), nil
 }
 
 func getAppStatus(
@@ -133,7 +124,7 @@ func getAppStatus(
 		}, nil
 	}
 
-	appInfo := parseAppStatus(containers, launcherStatuses(ctx, docker, containers))
+	appInfo := parseAppStatus(containers)
 	if len(appInfo) == 0 {
 		return AppStatusInfo{}, fmt.Errorf("no app status found for app at path %s", app.FullPath)
 	}

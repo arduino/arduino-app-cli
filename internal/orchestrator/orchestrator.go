@@ -271,8 +271,7 @@ func StartApp(
 
 		// The folder the launcher binds its socket in, created by the daemon so that the
 		// app user owns it: docker would create a missing bind source as root.
-		served := launcherServed(prj)
-		if served {
+		if launcherServed(prj) {
 			if err := appRuntimeDir(cfg, appToStart.FullPath).MkdirAll(); err != nil {
 				return fmt.Errorf("failed to create the app runtime folder: %w", err)
 			}
@@ -309,21 +308,6 @@ func StartApp(
 		}
 		if err != nil {
 			return err
-		}
-
-		// Compose brought the main container up, or left it running after the app ended:
-		// the launcher in it starts the app.
-		if served {
-			cb(StreamMessage{data: "python starting"})
-			launch := func(ctx context.Context) error {
-				return startThroughLauncher(ctx, docker.Client(), appToStart.FullPath, cb)
-			}
-			stop := func(ctx context.Context) error {
-				return dockerhelper.ComposeStop(ctx, docker, prj.Name, line)
-			}
-			if err := launchOrStop(ctx, launch, stop); err != nil {
-				return err
-			}
 		}
 	}
 	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})

@@ -673,3 +673,32 @@ bricks:
 	require.NotNil(t, content.Services["ei-video-obj-detection-runner"], "Override for ei-video-obj-detection-runner should exist")
 	require.Equal(t, "bar", content.Services["ei-video-obj-detection-runner"]["environment"].(map[string]any)["FOO"])
 }
+
+func TestTheMainServiceRunsTheAppUnderTheLauncher(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	app := app.ArduinoApp{Name: "TestApp", FullPath: paths.New(t.TempDir())}
+	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
+	require.NoError(t, cfg.AssetDir().Join("bricks-list.yaml").WriteFile([]byte("bricks: []\n")))
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
+	require.NoError(t, err)
+
+	err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, &servicesindex.ServicesIndex{}, "app-bricks:python-apps-base:dev-latest", cfg, types.Mapping{}, unkownPlatform)
+	require.NoError(t, err)
+
+	composed, err := app.AppComposeTemplateFilePath().ReadFile()
+	require.NoError(t, err)
+	var content struct {
+		Services map[string]struct {
+			Entrypoint string            `yaml:"entrypoint"`
+			Command    []string          `yaml:"command"`
+			Labels     map[string]string `yaml:"labels"`
+			Volumes    []any             `yaml:"volumes"`
+		} `yaml:"services"`
+	}
+	require.NoError(t, yaml.Unmarshal(composed, &content))
+	main := content.Services[mainServiceName]
+	require.Equal(t, "/run.sh", main.Entrypoint)
+	require.Equal(t, []string{"launch"}, main.Command, "an image without the launcher takes it as a plain start")
+	require.Equal(t, "true", main.Labels[DockerAppLauncherLabel])
+	require.Contains(t, main.Volumes, map[string]any{"type": "bind", "source": appRuntimeDirRef, "target": launcherSocketDir}, "where the launcher binds its socket")
+}
