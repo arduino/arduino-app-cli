@@ -215,3 +215,32 @@ func TestALauncherIsAskedAgainUntilItGivesItsEvents(t *testing.T) {
 	assert.Equal(t, map[string]Status{"fresh": StatusRunning}, watch.statuses())
 	assert.Equal(t, 1, fake.timesAsked("old"), "a launcher without events is not asked again")
 }
+
+func TestTheLauncherPartOfAStartOutlivesItsCaller(t *testing.T) {
+	ctx, leave := context.WithCancel(t.Context())
+	leave()
+
+	stopped := false
+	err := launchOrStop(ctx,
+		func(ctx context.Context) error { return ctx.Err() },
+		func(context.Context) error { stopped = true; return nil })
+
+	require.NoError(t, err)
+	require.False(t, stopped, "an app its launcher started is left running")
+}
+
+func TestAnAppItsLauncherDidNotStartIsStopped(t *testing.T) {
+	ctx, leave := context.WithCancel(t.Context())
+	leave()
+	refused := errors.New("refused")
+
+	var stopErr error
+	stopped := false
+	err := launchOrStop(ctx,
+		func(context.Context) error { return refused },
+		func(ctx context.Context) error { stopped, stopErr = true, ctx.Err(); return nil })
+
+	require.ErrorIs(t, err, refused)
+	require.True(t, stopped)
+	require.NoError(t, stopErr, "the stop does not depend on the caller either")
+}

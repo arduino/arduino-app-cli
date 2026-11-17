@@ -315,7 +315,13 @@ func StartApp(
 		// the launcher in it starts the app.
 		if served {
 			cb(StreamMessage{data: "python starting"})
-			if err := startThroughLauncher(ctx, docker.Client(), appToStart.FullPath, cb); err != nil {
+			launch := func(ctx context.Context) error {
+				return startThroughLauncher(ctx, docker.Client(), appToStart.FullPath, cb)
+			}
+			stop := func(ctx context.Context) error {
+				return dockerhelper.ComposeStop(ctx, docker, prj.Name, line)
+			}
+			if err := launchOrStop(ctx, launch, stop); err != nil {
 				return err
 			}
 		}

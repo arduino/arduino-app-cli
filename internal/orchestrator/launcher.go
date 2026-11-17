@@ -58,6 +58,8 @@ const (
 	// as the one of a fresh container until it is up, and launcherEventsMaxRetry the longest.
 	launcherEventsRetry    = 100 * time.Millisecond
 	launcherEventsMaxRetry = time.Second
+	// launcherAbortTimeout bounds the stop of the containers of an app its launcher did not start.
+	launcherAbortTimeout = time.Minute
 
 	// maxRuntimeKeyLength keeps the socket path within the Unix limit.
 	maxRuntimeKeyLength = 56
@@ -197,6 +199,23 @@ func parentPID(pid int) (int, error) {
 	return 0, fmt.Errorf("no parent in the status of the process %d", pid)
 }
 
+// launchOrStop runs the part of a start that follows the compose up to its end, whatever its
+// caller does: as a container without a launcher, which starts its app once it is up. When that
+// part fails the containers of the app are stopped, so no launcher stays up without its app.
+func launchOrStop(ctx context.Context, launch, stop func(context.Context) error) error {
+	ctx = context.WithoutCancel(ctx)
+	err := launch(ctx)
+	if err == nil {
+		return nil
+	}
+	stopCtx, cancel := context.WithTimeout(ctx, launcherAbortTimeout)
+	defer cancel()
+	if stopErr := stop(stopCtx); stopErr != nil {
+		slog.Warn("failed to stop the app its launcher did not start", slog.String("error", stopErr.Error()))
+	}
+	return err
+}
+
 // startThroughLauncher starts the app in its main container, which compose brought up, through
 // the launcher: a fork when the container is warm. A container whose launcher refuses the app as
 // stale, its dependencies changed since it prepared them, is restarted once and asked again.
@@ -299,10 +318,11 @@ func launcherStatus(ctx context.Context, docker dockerClient.APIClient, c contai
 }
 
 // statusOfLaunchedApp reads the status of the app from what its launcher reports, false when
-// the launcher has nothing to tell: it ran no app yet, which the daemon asks as soon as the
-// container is up, so the container state stands as while the launcher comes up. The daemon
-// stops an app by stopping its container, so an app that ended in a container still up ended
-// on its own, whatever the way: a failure, as for a container.
+// the launcher has nothing to tell: it ran no app yet. Such a launcher is met only while a
+// start is in progress, since a start that fails stops the container, so the container state
+// stands as while the launcher comes up. The daemon stops an app by stopping its container,
+// so an app that ended in a container still up ended on its own, whatever the way: a failure,
+// as for a container.
 func statusOfLaunchedApp(state launcher.AppState) (Status, bool) {
 	switch {
 	case state.Child != nil:
