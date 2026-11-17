@@ -68,6 +68,11 @@ Examples of the `assets` and the builtin `examples` stored under the `ARDUINO_AP
 │       ├── models-list.yaml  # Available models
 │       └── ...
 ├── bootloader_burned.flag
+├── brick-index-contrib.json  # Bricks index, from `brick update-index`
+├── bricks
+│   └── <namespace>
+│       └── <name>
+│           └── <version>     # Brick installed with `brick install`, removed with `brick uninstall`
 ├── default.app               # Default App
 ├── pipewire_linger.timestamp # PipeWire linger record
 ├── properties.msgpack        # Variable values

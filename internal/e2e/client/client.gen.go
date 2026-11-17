@@ -343,6 +343,7 @@ type BrickListItem struct {
 	Name         *string `json:"name,omitempty"`
 	RequireModel *bool   `json:"require_model,omitempty"`
 	Status       *string `json:"status,omitempty"`
+	Version      *string `json:"version,omitempty"`
 }
 
 // BrickListResult defines model for BrickListResult.

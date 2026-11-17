@@ -51,8 +51,9 @@ func NewService(
 }
 
 func (s *Service) List() BrickListResult {
-	res := BrickListResult{Bricks: make([]BrickListItem, len(s.bricksIndex.ListBricks()))}
-	for i, brick := range s.bricksIndex.ListBricks() {
+	bricks := s.bricksIndex.ListBricks()
+	res := BrickListResult{Bricks: make([]BrickListItem, len(bricks))}
+	for i, brick := range bricks {
 		res.Bricks[i] = BrickListItem{
 			ID:           brick.ID,
 			Name:         brick.Name,
@@ -61,6 +62,7 @@ func (s *Service) List() BrickListResult {
 			Category:     brick.Category,
 			Status:       "installed",
 			RequireModel: brick.RequireModel,
+			Version:      brick.Version,
 		}
 	}
 	return res
