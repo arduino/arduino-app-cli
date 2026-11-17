@@ -205,16 +205,16 @@ func (c *Configuration) DataDir() *paths.Path {
 	return c.dataDir
 }
 
-// ReleasesDir holds the releases as they are installed, frozen: the app a release is
-// run as is a copy of it, in the apps dir.
-func (c *Configuration) ReleasesDir() *paths.Path {
-	return c.releasesDir
-}
-
 // RuntimeDir holds what the daemon shares with the app containers at run time: the control
 // socket of each app, in a folder of its own. It is in the data dir, the same on every system.
 func (c *Configuration) RuntimeDir() *paths.Path {
 	return c.dataDir.Join("run")
+}
+
+// ReleasesDir holds the releases as they are installed, frozen: the app a release is
+// run as is a copy of it, in the apps dir.
+func (c *Configuration) ReleasesDir() *paths.Path {
+	return c.releasesDir
 }
 
 func (c *Configuration) ExamplesBaseDir() *paths.Path {
