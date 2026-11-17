@@ -63,10 +63,6 @@ type Ended struct {
 	Signal   *int   `json:"signal"`
 }
 
-type StopResponse struct {
-	Stopped []Ended `json:"stopped"`
-}
-
 type Child struct {
 	App       string    `json:"app"`
 	PID       int       `json:"pid"`
@@ -122,7 +118,6 @@ func (c *Client) Socket() string {
 // Commands of the launcher protocol.
 const (
 	cmdStart  = "start"
-	cmdStop   = "stop"
 	cmdStatus = "status"
 )
 
@@ -137,13 +132,6 @@ type request struct {
 func (c *Client) Start(ctx context.Context, app string, env map[string]string) (StartResponse, error) {
 	var resp StartResponse
 	err := c.do(ctx, request{Cmd: cmdStart, App: app, Env: env}, &resp)
-	return resp, err
-}
-
-// Stop stops the running app. No running app is not an error.
-func (c *Client) Stop(ctx context.Context) (StopResponse, error) {
-	var resp StopResponse
-	err := c.do(ctx, request{Cmd: cmdStop}, &resp)
 	return resp, err
 }
 

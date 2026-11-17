@@ -72,8 +72,6 @@ func TestClientRequests(t *testing.T) {
 		switch cmd {
 		case cmdStart:
 			return `{"ok":true,"pid":42,"started_at":"2026-10-13T10:00:00.5+00:00","runner":"python","timings":{"stop_ms":12.5,"fork_ms":3}}`
-		case cmdStop:
-			return `{"ok":true,"stopped":[{"app":"/app","pid":42,"exit_code":null,"signal":15}]}`
 		case cmdStatus:
 			return `{"ok":true,"child":{"app":"/app","pid":42,"started_at":"2026-10-13T10:00:00+00:00","runner":"python","stopping":false},` +
 				`"last":{"app":"/app","pid":41,"exit_code":1,"signal":null,"ended_at":"2026-10-13T09:59:00+00:00"},"stale":false,` +
@@ -99,15 +97,6 @@ func TestClientRequests(t *testing.T) {
 		_, err := client.Start(ctx, testApp, nil)
 		require.NoError(t, err)
 		assert.Equal(t, request{Cmd: cmdStart, App: testApp}, <-fake.requests)
-	})
-
-	t.Run("stop", func(t *testing.T) {
-		resp, err := client.Stop(ctx)
-		require.NoError(t, err)
-		assert.Equal(t, request{Cmd: cmdStop}, <-fake.requests)
-		require.Len(t, resp.Stopped, 1)
-		assert.Nil(t, resp.Stopped[0].ExitCode)
-		assert.Equal(t, 15, *resp.Stopped[0].Signal)
 	})
 
 	t.Run("status", func(t *testing.T) {
