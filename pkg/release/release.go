@@ -49,6 +49,8 @@ type ReleaseBrick struct {
 	ID       string `yaml:"id"`
 	Name     string `yaml:"name,omitempty"`
 	Category string `yaml:"category,omitempty"`
+	// Version is the version of a third-party brick, which the board installs on prepare.
+	Version string `yaml:"version,omitempty"`
 }
 
 type ReleaseModel struct {
