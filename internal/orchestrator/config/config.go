@@ -22,7 +22,7 @@ import (
 )
 
 // runnerVersion do not edit, this is generate with `task bump:runner-version`
-var RunnerVersion = "0.13.2"
+var RunnerVersion = "0.14.0rc2"
 
 type Configuration struct {
 	appsDir                          *paths.Path
