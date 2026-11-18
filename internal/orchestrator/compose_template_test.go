@@ -27,7 +27,7 @@ func TestComposeTemplateMountsThirdPartyBricks(t *testing.T) {
 	indexDir := paths.New(t.TempDir())
 	index := `{"bricks": [{"id": "acme:camera", "namespace": "acme", "releases": [{"version": "1.0.0", "url": "https://example.com/1.0.0.zip", "hash": "0000000000000000000000000000000000000000000000000000000000000000", "size": 1}]}]}`
 	require.NoError(t, indexDir.Join(bricksindex.RemoteIndexFileName).WriteFile([]byte(index)))
-	bricksDir := paths.New(t.TempDir())
+	bricksDir := cfg.BricksDir()
 	brickDir := bricksDir.Join("acme", "camera", "1.0.0", "src", "camera")
 	require.NoError(t, brickDir.MkdirAll())
 	require.NoError(t, brickDir.Join("brick_config.yaml").WriteFile([]byte("id: acme:camera\nname: Camera\n")))
@@ -63,9 +63,10 @@ func TestComposeTemplateMountsThirdPartyBricks(t *testing.T) {
 		}
 	}
 	// Only the third-party brick is mounted, read/write, at a folder named after a hash of acme/camera.
+	// The source is answered on the board the app runs on, as a release does not ship the brick.
 	require.Equal(t, []any{map[string]any{
 		"type":   "bind",
-		"source": brickDir.String(),
+		"source": "${THIRD_PARTY_BRICKS_PATH}/acme/camera/1.0.0/src/camera",
 		"target": "/opt/third-party-bricks/bfdeb4ac/camera",
 		"bind":   map[string]any{"create_host_path": false},
 	}}, brickMounts)
@@ -170,7 +171,7 @@ func TestFrozenComposeIncludes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []composeInclude{
 		{Path: "compose/compose/arduino/asset_brick/brick_compose.yaml"},
-		// An installed brick is copied apart from the app, and its relative paths stay in its folder.
+		// An installed brick is not shipped by a release: it is looked up where the board installs bricks.
 		{Path: "compose/third-party-bricks/acme/camera/1.0.0/src/camera/brick_compose.yaml", ProjectDirectory: "${THIRD_PARTY_BRICKS_PATH}/acme/camera/1.0.0/src/camera"},
 		{Path: "compose/bricks/local_brick/brick_compose.yaml", ProjectDirectory: "${APP_HOME}/bricks/local_brick"},
 		{Path: "compose/bricks/a/nested_brick/brick_compose.yaml", ProjectDirectory: "${APP_HOME}/bricks/a/nested_brick"},

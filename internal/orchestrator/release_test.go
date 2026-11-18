@@ -25,6 +25,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/pkg/release"
 )
 
@@ -261,16 +262,43 @@ handlers:
 	assert.True(t, found, "handlers of built-in models should be included in the frozen index")
 }
 
-func TestBuildReleaseRejectsThirdPartyBricks(t *testing.T) {
+func TestPinThirdPartyBricks(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	appToBuild := app.ArduinoApp{
-		Name:       "my-app",
-		Descriptor: app.AppDescriptor{Bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "acme:hello", Version: "1.0.0"}}},
+	require.NoError(t, cfg.DataDir().Join("platform.json").WriteFile([]byte(`{"board_name": "unoq"}`)))
+	require.NoError(t, cfg.AssetDir().Join("bricks-list.yaml").WriteFile([]byte("bricks: []\n")))
+	index := `{"bricks": [{"id": "acme:hello", "namespace": "acme", "releases": [
+		{"version": "1.0.0", "url": "https://example.com/1.0.0.zip", "hash": "` + strings.Repeat("0", 64) + `", "size": 1, "supported_boards": ["unoq", "ventunoq"]},
+		{"version": "1.2.0", "url": "https://example.com/1.2.0.zip", "hash": "` + strings.Repeat("0", 64) + `", "size": 1, "supported_boards": ["unoq"]}]}]}`
+	require.NoError(t, cfg.BricksIndexDir().Join(bricksindex.RemoteIndexFileName).WriteFile([]byte(index)))
+	for _, version := range []string{"1.0.0", "1.2.0"} {
+		dir := cfg.BricksDir().Join("acme", "hello", version, "src", "hello")
+		require.NoError(t, dir.MkdirAll())
+		require.NoError(t, dir.Join("brick_config.yaml").WriteFile([]byte("id: acme:hello\nname: Hello\n")))
 	}
+	unoQ, _ := platform.ForBoard(platform.BoardUnoQ)
+	ventunoQ, _ := platform.ForBoard(platform.BoardVentunoQ)
 
-	_, _, err := BuildRelease(context.Background(), nil, nil, appToBuild, BuildReleaseRequest{}, cfg, nil)
-	require.ErrorIs(t, err, ErrBadRequest)
-	assert.ErrorContains(t, err, `"acme:hello"`)
+	t.Run("an unpinned brick is pinned to the version the app uses on the board", func(t *testing.T) {
+		appToBuild := app.ArduinoApp{Descriptor: app.AppDescriptor{Bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "acme:hello"}}}}
+		bricks, err := pinThirdPartyBricks(context.Background(), cfg, appToBuild, unoQ, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []app.Brick{{ID: "arduino:web_ui"}, {ID: "acme:hello", Version: "1.2.0"}}, bricks)
+		assert.Empty(t, appToBuild.Descriptor.Bricks[1].Version, "the app is not modified")
+	})
+
+	t.Run("the version the app uses must support the target", func(t *testing.T) {
+		appToBuild := app.ArduinoApp{Descriptor: app.AppDescriptor{Bricks: []app.Brick{{ID: "acme:hello"}}}}
+		_, err := pinThirdPartyBricks(context.Background(), cfg, appToBuild, ventunoQ, nil)
+		require.ErrorIs(t, err, ErrBadRequest)
+		assert.ErrorContains(t, err, "acme:hello@1.2.0, used by the app on unoq, has no release for ventunoq")
+	})
+
+	t.Run("a pinned version that supports the target is kept", func(t *testing.T) {
+		appToBuild := app.ArduinoApp{Descriptor: app.AppDescriptor{Bricks: []app.Brick{{ID: "acme:hello", Version: "1.0.0"}}}}
+		bricks, err := pinThirdPartyBricks(context.Background(), cfg, appToBuild, ventunoQ, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []app.Brick{{ID: "acme:hello", Version: "1.0.0"}}, bricks)
+	})
 }
 
 func TestBuildSketch(t *testing.T) {

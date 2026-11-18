@@ -81,7 +81,7 @@ func generateComposeTemplate(
 
 		// Only the bricks installed from the bricks index have a version.
 		if idxBrick.Version != "" {
-			mount, err := thirdPartyBrickMount(idxBrick)
+			mount, err := thirdPartyBrickMount(idxBrick, cfg.BricksDir())
 			if err != nil {
 				return err
 			}
@@ -548,20 +548,35 @@ const thirdPartyBricksDir = "/opt/third-party-bricks"
 const thirdPartyBricksRef = "${THIRD_PARTY_BRICKS_PATH}"
 
 // thirdPartyBrickMount binds the Python package of an installed third-party brick into the app
-// container, in a folder of its own. The brick is imported by its name.
-func thirdPartyBrickMount(brick *bricksindex.Brick) (volume, error) {
-	namespace, name, err := bricksindex.ParseBrickID(brick.ID)
+// container, in a folder of its own. The brick is imported by its name. The source is relative to
+// the folder the bricks are installed in, which the render answers on the board the app runs on.
+func thirdPartyBrickMount(brick *bricksindex.Brick, bricksDir *paths.Path) (volume, error) {
+	source, err := thirdPartyBrickRef(brick.FullPath, bricksDir)
 	if err != nil {
 		return volume{}, fmt.Errorf("brick %s: %w", brick.ID, err)
 	}
-	hash := sha256.Sum256([]byte(namespace + "/" + name))
+	target, err := thirdPartyBrickTarget(brick.ID)
+	if err != nil {
+		return volume{}, err
+	}
 	return volume{
 		Type:   "bind",
-		Source: brick.FullPath.String(),
-		Target: thirdPartyBricksDir + "/" + hex.EncodeToString(hash[:4]) + "/" + name,
+		Source: source,
+		Target: target,
 		// The brick must have been installed: a missing folder is an error, not an empty brick.
 		Bind: &bindOptions{CreateHostPath: false},
 	}, nil
+}
+
+// thirdPartyBrickTarget is where the Python package of a third-party brick is mounted in the app
+// container: a folder of its own, named after a hash of the brick id.
+func thirdPartyBrickTarget(id string) (string, error) {
+	namespace, name, err := bricksindex.ParseBrickID(id)
+	if err != nil {
+		return "", fmt.Errorf("brick %s: %w", id, err)
+	}
+	hash := sha256.Sum256([]byte(namespace + "/" + name))
+	return thirdPartyBricksDir + "/" + hex.EncodeToString(hash[:4]) + "/" + name, nil
 }
 
 // thirdPartyBrickRef is a path inside the folder the third-party bricks are installed in, as a
