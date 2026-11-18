@@ -112,10 +112,10 @@ func (b *BricksIndex) LookupReference(ref Reference) (*Brick, error) {
 	return r.installed, nil
 }
 
-// InstallReferences installs, with install, the third-party bricks the references resolve to that
+// InstallReferences installs the third-party bricks the references resolve to that
 // are not installed yet, calling progress before each one. The index is downloaded from indexURL
-// when there is none on the board, even if every brick is installed, and when it does not list a
-// brick or its version.
+// when there is none on the board, and when it is older than RemoteIndexMaxAge: if that update fails,
+// the saved index is used.
 func (b *BricksIndex) InstallReferences(ctx context.Context, config downloader.Config, indexURL *url.URL, refs []Reference, install func(*RemoteBrick, *RemoteRelease) error, progress func(string)) error {
 	refs = slices.DeleteFunc(slices.Clone(refs), func(r Reference) bool { return !IsThirdParty(r.ID) })
 	if len(refs) == 0 {
@@ -128,36 +128,28 @@ func (b *BricksIndex) InstallReferences(ctx context.Context, config downloader.C
 		progress("updating the bricks index")
 		return UpdateRemoteIndex(ctx, config, indexURL, b.remoteIndexDir)
 	}
-	resolveAll := func(index *RemoteIndex) ([]resolvedBrick, error) {
-		res := make([]resolvedBrick, 0, len(refs))
-		for _, ref := range refs {
-			r, err := b.resolve(index, ref)
-			if err != nil {
-				return nil, err
-			}
-			res = append(res, r)
-		}
-		return res, nil
-	}
 
 	index, err := b.loadRemoteIndex()
-	updated := err != nil
-	if updated {
+	if err != nil {
 		// A broken index is replaced, like a missing one.
 		if index, err = update(); err != nil {
 			return err
 		}
-	}
-	resolved, err := resolveAll(index)
-	if !updated && (errors.Is(err, ErrBrickNotFound) || errors.Is(err, ErrReleaseNotFound)) {
-		updatedIndex, updateErr := update()
-		if updateErr != nil {
-			return errors.Join(err, updateErr)
+	} else if !RemoteIndexIsRecent(b.remoteIndexDir, RemoteIndexMaxAge) {
+		if updated, err := update(); err == nil {
+			index = updated
+		} else {
+			progress(fmt.Sprintf("cannot update the bricks index, using the saved one: %v", err))
 		}
-		resolved, err = resolveAll(updatedIndex)
 	}
-	if err != nil {
-		return err
+
+	resolved := make([]resolvedBrick, 0, len(refs))
+	for _, ref := range refs {
+		r, err := b.resolve(index, ref)
+		if err != nil {
+			return err
+		}
+		resolved = append(resolved, r)
 	}
 
 	for i, r := range resolved {
@@ -214,6 +206,9 @@ func (b *BricksIndex) resolve(index *RemoteIndex, ref Reference) (resolvedBrick,
 	}
 	if err != nil {
 		if res.installed == nil {
+			if errors.Is(err, ErrBrickNotFound) || errors.Is(err, ErrReleaseNotFound) {
+				return resolvedBrick{}, fmt.Errorf("%w: if it was published recently, run 'arduino-app-cli brick update-index'", err)
+			}
 			return resolvedBrick{}, err
 		}
 		hint := ""

@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
@@ -277,10 +279,34 @@ func TestInstallReferences(t *testing.T) {
 		require.ErrorContains(t, err, "brick uninstall acme:hello@0.5.0")
 	})
 
-	t.Run("updates the index when it does not list the brick", func(t *testing.T) {
+	t.Run("does not update a recent index that does not list the brick", func(t *testing.T) {
 		index := newIndex(paths.New(t.TempDir()), saveIndex(t), "")
-		require.NoError(t, index.InstallReferences(t.Context(), config, serveIndex(t), refs, install(index.installedDir), func(string) {}))
-		require.DirExists(t, index.installedDir.Join("acme", "hello", "1.0.0").String())
+		err := index.InstallReferences(t.Context(), config, mustParseURL(t, "http://127.0.0.1:0/brick-index.json"), refs, install(index.installedDir), func(string) {})
+		require.ErrorIs(t, err, ErrBrickNotFound)
+		require.ErrorContains(t, err, "brick update-index")
+	})
+
+	stale := func(t *testing.T, indexDir *paths.Path) *paths.Path {
+		old := time.Now().Add(-RemoteIndexMaxAge - time.Minute)
+		require.NoError(t, os.Chtimes(indexDir.Join(RemoteIndexFileName).String(), old, old))
+		return indexDir
+	}
+
+	t.Run("updates an old index", func(t *testing.T) {
+		index := newIndex(paths.New(t.TempDir()), stale(t, saveIndex(t)), "")
+		var messages []string
+		require.NoError(t, index.InstallReferences(t.Context(), config, serveIndex(t), refs, install(index.installedDir), func(msg string) { messages = append(messages, msg) }))
+		require.Equal(t, []string{"updating the bricks index", "installing the brick acme:hello@1.0.0"}, messages)
+	})
+
+	t.Run("uses an old index when it cannot be updated", func(t *testing.T) {
+		indexDir := paths.New(t.TempDir())
+		require.NoError(t, indexDir.Join(RemoteIndexFileName).WriteFile(data))
+		index := newIndex(installed(t, "1.0.0"), stale(t, indexDir), "")
+		var messages []string
+		require.NoError(t, index.InstallReferences(t.Context(), config, mustParseURL(t, serveFile(t, http.StatusNotFound, nil, false)), refs, install(index.installedDir), func(msg string) { messages = append(messages, msg) }))
+		require.Len(t, messages, 2)
+		require.Contains(t, messages[1], "cannot update the bricks index, using the saved one")
 	})
 
 	t.Run("fails when the index cannot be updated", func(t *testing.T) {
