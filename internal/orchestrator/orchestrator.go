@@ -496,13 +496,9 @@ func ListApps(
 	appsStatus, err := AppsStatus(ctx, docker)
 	if err != nil {
 		slog.Error("unable to get running app", slog.String("error", err.Error()))
+		appsStatus = map[string]Status{}
 	}
-	for i, a := range res.Apps {
-		res.Apps[i].Status = StatusUninitialized
-		if status, ok := appsStatus[a.ID.ToPath().String()]; ok {
-			res.Apps[i].Status = status
-		}
-	}
+	appbook.SetStatus(res.Apps, appsStatus)
 	return res, nil
 }
 

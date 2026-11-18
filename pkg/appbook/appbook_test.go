@@ -36,7 +36,7 @@ func TestNew(t *testing.T) {
 	var created struct{ ID string }
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &created))
 
-	rec = serve("GET", "/v2/apps?filter=apps", "")
+	rec = serve("GET", "/v1/apps?filter=apps", "")
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `"name":"app1"`)
 

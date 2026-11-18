@@ -59,18 +59,37 @@ func TestRouter(t *testing.T) {
 	appPath := "/v1/apps/" + created.ID
 	app1 := tmp.Join("apps", "app1")
 
-	t.Run("the catalog has no status, the details have the hook status", func(t *testing.T) {
+	t.Run("the list and the details have the hook status", func(t *testing.T) {
 		hooks.AppsStatus = func(context.Context) (map[string]appbook.Status, error) {
 			return map[string]appbook.Status{app1.String(): appbook.StatusRunning}, nil
 		}
-		rec := serve("GET", "/v2/apps?filter=apps", "")
+		rec := serve("GET", "/v1/apps?filter=apps", "")
 		require.Equal(t, http.StatusOK, rec.Code)
 		require.Contains(t, rec.Body.String(), `"name":"app1"`)
-		require.NotContains(t, rec.Body.String(), `"status"`)
+		require.Contains(t, rec.Body.String(), `"status":"running"`)
+
+		rec = serve("GET", "/v1/apps?filter=apps&status=stopped", "")
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.NotContains(t, rec.Body.String(), `"name":"app1"`)
 
 		rec = serve("GET", appPath, "")
 		require.Equal(t, http.StatusOK, rec.Code)
 		require.Contains(t, rec.Body.String(), `"status":"running"`)
+	})
+
+	t.Run("an app missing from the hook status never ran", func(t *testing.T) {
+		hooks.AppsStatus = func(context.Context) (map[string]appbook.Status, error) {
+			return map[string]appbook.Status{}, nil
+		}
+		rec := serve("GET", "/v1/apps?filter=apps", "")
+		require.Contains(t, rec.Body.String(), `"status":"uninitialized"`)
+	})
+
+	t.Run("an unknown status is omitted", func(t *testing.T) {
+		hooks.AppsStatus = NoHooks.AppsStatus
+		rec := serve("GET", "/v1/apps?filter=apps", "")
+		require.Contains(t, rec.Body.String(), `"name":"app1"`)
+		require.NotContains(t, rec.Body.String(), `"status"`)
 	})
 
 	t.Run("a hook error stops the edit", func(t *testing.T) {

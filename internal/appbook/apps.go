@@ -177,6 +177,20 @@ type AppDetailedBrick struct {
 }
 
 // AppDetails shows an app on disk. appsStatus maps an app path to its status, and returns nil when the status is unknown.
+// SetStatus sets the status of each app from statusByPath: an app missing from it never ran.
+// A nil statusByPath means the status is unknown, and leaves it empty.
+func SetStatus(apps []AppInfo, statusByPath map[string]Status) {
+	if statusByPath == nil {
+		return
+	}
+	for i, a := range apps {
+		apps[i].Status = StatusUninitialized
+		if s, ok := statusByPath[a.ID.ToPath().String()]; ok {
+			apps[i].Status = s
+		}
+	}
+}
+
 func AppDetails(
 	ctx context.Context,
 	userApp app.ArduinoApp,

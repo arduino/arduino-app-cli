@@ -56,13 +56,33 @@ func HandleAppList(
 	bricksIndex *bricksindex.BricksIndex,
 	cfg config.Configuration,
 	platform platform.Platform,
+	appsStatus func(context.Context) (map[string]appbook.Status, error),
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var statusFilter appbook.Status
+		if status := r.URL.Query().Get("status"); status != "" {
+			status, err := appbook.ParseStatus(status)
+			if err != nil {
+				render.EncodeResponse(w, http.StatusBadRequest, render.ErrorResponse{Details: "invalid status filter"})
+				return
+			}
+			statusFilter = status
+		}
+
 		res, err := appbook.ListApps(ListAppRequest(r), idProvider, bricksIndex, cfg, platform)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, render.ErrorResponse{Details: "unable to find the app"})
 			return
+		}
+
+		statusByPath, err := appsStatus(r.Context())
+		if err != nil {
+			slog.Error("unable to get running app", slog.String("error", err.Error()))
+		}
+		appbook.SetStatus(res.Apps, statusByPath)
+		if statusFilter != "" {
+			res.Apps = slices.DeleteFunc(res.Apps, func(a appbook.AppInfo) bool { return a.Status != statusFilter })
 		}
 		render.EncodeResponse(w, http.StatusOK, AppListResponse{Apps: res.Apps, BrokenApps: res.BrokenApps})
 	}

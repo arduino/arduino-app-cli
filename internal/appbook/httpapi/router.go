@@ -30,6 +30,7 @@ func NewRouter(
 	mux.Handle("GET /v1/bricks", HandleBrickList(brickService))
 	mux.Handle("GET /v1/bricks/{brickID}", HandleBrickDetails(brickService, idProvider, cfg, platform))
 
+	mux.Handle("GET /v1/apps", HandleAppList(idProvider, bricksIndex, cfg, platform, hooks.AppsStatus))
 	mux.Handle("POST /v1/apps", HandleAppCreate(bricksIndex, idProvider, cfg))
 	mux.Handle("GET /v1/apps/{appID}", HandleAppDetails(bricksIndex, idProvider, cfg, hooks.AppsStatus))
 	mux.Handle("PATCH /v1/apps/{appID}", HandleAppDetailsEdits(bricksIndex, idProvider, cfg, hooks))
@@ -42,7 +43,5 @@ func NewRouter(
 	mux.Handle("PUT /v1/apps/{appID}/bricks/{brickID}", HandleBrickCreate(brickService, idProvider))
 	mux.Handle("PATCH /v1/apps/{appID}/bricks/{brickID}", HandleBrickUpdates(brickService, idProvider))
 	mux.Handle("DELETE /v1/apps/{appID}/bricks/{brickID}", HandleBrickDelete(brickService, idProvider))
-
-	mux.Handle("GET /v2/apps", HandleAppList(idProvider, bricksIndex, cfg, platform))
 	return mux
 }
