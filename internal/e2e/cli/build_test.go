@@ -167,8 +167,10 @@ func TestAppBuild(t *testing.T) {
 					ships := func(prefix string) bool {
 						return slices.ContainsFunc(names, func(name string) bool { return strings.HasPrefix(name, prefix) })
 					}
-					// The venv is what the build is for: the board installs nothing.
-					assert.True(t, ships(releaseName+"/prebuild/.venv/"), "the release ships no python environment")
+					// The venv holds what the app adds to the image: an app that adds nothing
+					// runs on the system interpreter.
+					assert.Equal(t, test.requirements != "", ships(releaseName+"/prebuild/.venv/"),
+						"the venv does not match the requirements of the app")
 
 					// The firmware is built out of the sketch that ships, and an app with
 					// no sketch has none.
