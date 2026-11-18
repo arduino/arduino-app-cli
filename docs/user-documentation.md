@@ -30,7 +30,7 @@ An App can use third-party Bricks from the bricks index, as described in the [Ap
 - `app start --no-prepare` never accesses the network: it fails if the bricks index or a Brick is missing.
 - The Python code of the App imports a third-party Brick by its name, e.g. `import weather`: `app start` mounts the Python package of each Brick in the App container.
 - `brick uninstall` refuses to remove a Brick version that a running App uses: stop the App first.
-- Releases do not support third-party Bricks yet: building a release of an App that uses them fails.
+- Releases do not ship third-party Bricks: building a release installs the Bricks the App uses on the board running the build, and pins each unpinned one, in the `app.yaml` of the release, to the version the App uses there. That version must also support the target board, otherwise the build fails: pin a version that supports both. Preparing the release on the board (`app install`, `app start`, or the prepare endpoint of the API) installs the pinned versions, and a release starts only when they are installed and still listed in the saved bricks index.
 
 ## Environment Variables
 
