@@ -8,7 +8,6 @@ package brick
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -28,9 +27,6 @@ func newUpdateIndexCmd(cfg config.Configuration, version string) *cobra.Command 
 	}
 }
 
-// remoteIndexMaxAge is how old the bricks index can be before search and install update it.
-const remoteIndexMaxAge = 24 * time.Hour
-
 func updateIndexHandler(ctx context.Context, cfg config.Configuration, version string) {
 	_, err := bricksindex.UpdateRemoteIndex(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksIndexURL, cfg.BricksIndexDir())
 	if err != nil {
@@ -39,11 +35,11 @@ func updateIndexHandler(ctx context.Context, cfg config.Configuration, version s
 	feedback.PrintResult(updateIndexResult{})
 }
 
-// loadRemoteIndex returns the bricks index, updating it first if it is older than remoteIndexMaxAge.
+// loadRemoteIndex returns the bricks index, updating it first if it is older than bricksindex.RemoteIndexMaxAge.
 // If the update fails, the saved index is used.
 func loadRemoteIndex(ctx context.Context, cfg config.Configuration, version string) *bricksindex.RemoteIndex {
 	dir := cfg.BricksIndexDir()
-	if bricksindex.RemoteIndexIsRecent(dir, remoteIndexMaxAge) {
+	if bricksindex.RemoteIndexIsRecent(dir, bricksindex.RemoteIndexMaxAge) {
 		if index, err := bricksindex.LoadRemoteIndex(dir); err == nil {
 			return index
 		}
