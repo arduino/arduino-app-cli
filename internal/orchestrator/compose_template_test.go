@@ -145,6 +145,10 @@ func TestFrozenComposeIncludes(t *testing.T) {
 	require.NoError(t, assetCompose.Parent().MkdirAll())
 	require.NoError(t, assetCompose.WriteFile(compose))
 
+	thirdPartyCompose := cfg.BricksDir().Join("acme", "camera", "1.0.0", "src", "camera", "brick_compose.yaml")
+	require.NoError(t, thirdPartyCompose.Parent().MkdirAll())
+	require.NoError(t, thirdPartyCompose.WriteFile(compose))
+
 	// A brick the app brings along is outside the asset dir, at a different depth.
 	appDir := paths.New(t.TempDir()).Join("home", "arduino", "ArduinoApps", "my-app")
 	localCompose := appDir.Join("bricks", "local_brick", "brick_compose.yaml")
@@ -160,12 +164,14 @@ func TestFrozenComposeIncludes(t *testing.T) {
 	require.NoError(t, genPath.MkdirAll())
 
 	includes, err := frozenComposeIncludes(
-		paths.NewPathList(assetCompose.String(), localCompose.String(), nestedComposeA.String(), nestedComposeB.String()),
+		paths.NewPathList(assetCompose.String(), thirdPartyCompose.String(), localCompose.String(), nestedComposeA.String(), nestedComposeB.String()),
 		appDir, genPath, cfg, types.Mapping{},
 	)
 	require.NoError(t, err)
 	assert.Equal(t, []composeInclude{
 		{Path: "compose/compose/arduino/asset_brick/brick_compose.yaml"},
+		// An installed brick is copied apart from the app, and its relative paths stay in its folder.
+		{Path: "compose/third-party-bricks/acme/camera/1.0.0/src/camera/brick_compose.yaml", ProjectDirectory: "${THIRD_PARTY_BRICKS_PATH}/acme/camera/1.0.0/src/camera"},
 		{Path: "compose/bricks/local_brick/brick_compose.yaml", ProjectDirectory: "${APP_HOME}/bricks/local_brick"},
 		{Path: "compose/bricks/a/nested_brick/brick_compose.yaml", ProjectDirectory: "${APP_HOME}/bricks/a/nested_brick"},
 		{Path: "compose/bricks/b/nested_brick/brick_compose.yaml", ProjectDirectory: "${APP_HOME}/bricks/b/nested_brick"},
