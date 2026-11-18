@@ -300,8 +300,14 @@ func (a *ArduinoApp) Bricks(board *bricksindex.BricksIndex) (*bricksindex.Bricks
 		if err != nil {
 			slog.Warn("cannot read the bricks the release ships", slog.String("app", a.Name), slog.String("error", err.Error()))
 		} else {
-			// TODO: a release does not ship its third-party bricks yet.
-			return frozen.WithApp(a.LocalBricks, nil)
+			frozen, err := frozen.WithApp(a.LocalBricks, nil)
+			// The release runs the third-party bricks it is pinned to from the board, which must
+			// have them installed, and the saved index must still list them.
+			if refs := slices.DeleteFunc(a.BrickReferences(), func(ref bricksindex.Reference) bool { return !bricksindex.IsThirdParty(ref.ID) }); len(refs) > 0 {
+				_, thirdPartyErr := board.WithApp(nil, refs)
+				err = errors.Join(err, thirdPartyErr)
+			}
+			return frozen, err
 		}
 	}
 	return a.ResolveBricks(board)
