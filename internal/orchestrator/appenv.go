@@ -43,6 +43,8 @@ var hostVariables = map[string]func(hostFacts) string{
 	"XDG_RUNTIME_DIR": func(hostFacts) string { return "/run/user/1000" },
 	// Directory where AI models are installed, shared with the containerized runners.
 	"MODELS_PATH": func(facts hostFacts) string { return facts.cfg.ModelsDir().String() },
+	// Directory where the third-party bricks are installed.
+	"THIRD_PARTY_BRICKS_PATH": func(facts hostFacts) string { return facts.cfg.BricksDir().String() },
 
 	// Some video devices in /dev are for HW acceleration and are not real cameras, so
 	// the first one in /dev/v4l/by-id is picked. A brick can override it.

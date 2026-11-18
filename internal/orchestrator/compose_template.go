@@ -16,6 +16,7 @@ import (
 	"maps"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -343,11 +344,21 @@ func frozenComposeIncludes(composeFiles paths.PathList, appDir *paths.Path, genP
 
 	includes := make([]composeInclude, 0, len(composeFiles))
 	for _, composeFile := range composeFiles {
-		// The copy keeps the layout of the asset dir, or of the app for a local brick. For a
-		// local brick, RelFrom answers a ../ chain and not an error.
+		// The copy keeps the layout of the asset dir, of the installed bricks, or of the app for a
+		// local brick. For a local brick, RelFrom answers a ../ chain and not an error.
 		var projectDir string
 		relPath, err := composeFile.RelFrom(cfg.AssetDir())
-		if inside, _ := composeFile.IsInsideDir(cfg.AssetDir()); err != nil || !inside {
+		if inside, _ := composeFile.IsInsideDir(cfg.BricksDir()); inside {
+			brickDir, err := composeFile.Parent().RelFrom(cfg.BricksDir())
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve the folder of %s: %w", composeFile, err)
+			}
+			relPath = paths.New("third-party-bricks").JoinPath(brickDir).Join(composeFile.Base())
+			// The relative paths of a third-party brick stay in its folder, wherever it is installed.
+			if projectDir, err = thirdPartyBrickRef(composeFile.Parent(), cfg.BricksDir()); err != nil {
+				return nil, err
+			}
+		} else if inside, _ := composeFile.IsInsideDir(cfg.AssetDir()); err != nil || !inside {
 			brickDir, err := composeFile.Parent().RelFrom(appDir)
 			if err != nil {
 				return nil, fmt.Errorf("failed to resolve the folder of %s: %w", composeFile, err)
@@ -534,6 +545,8 @@ func templateEnvironment(appEnv types.Mapping) types.Mapping {
 
 const thirdPartyBricksDir = "/opt/third-party-bricks"
 
+const thirdPartyBricksRef = "${THIRD_PARTY_BRICKS_PATH}"
+
 // thirdPartyBrickMount binds the Python package of an installed third-party brick into the app
 // container, in a folder of its own. The brick is imported by its name.
 func thirdPartyBrickMount(brick *bricksindex.Brick) (volume, error) {
@@ -549,6 +562,16 @@ func thirdPartyBrickMount(brick *bricksindex.Brick) (volume, error) {
 		// The brick must have been installed: a missing folder is an error, not an empty brick.
 		Bind: &bindOptions{CreateHostPath: false},
 	}, nil
+}
+
+// thirdPartyBrickRef is a path inside the folder the third-party bricks are installed in, as a
+// reference to the host variable that answers it.
+func thirdPartyBrickRef(p, bricksDir *paths.Path) (string, error) {
+	rel, err := p.RelFrom(bricksDir)
+	if inside, _ := p.IsInsideDir(bricksDir); err != nil || !inside {
+		return "", fmt.Errorf("%s is not in the folder of the installed bricks %s", p, bricksDir)
+	}
+	return thirdPartyBricksRef + "/" + filepath.ToSlash(rel.String()), nil
 }
 
 // mountExpr binds a path where it is, `<host>:<container>` at another path in the
