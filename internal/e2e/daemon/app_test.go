@@ -17,6 +17,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -772,6 +773,11 @@ func TestAppClone(t *testing.T) {
 }
 
 func TestAppLogs(t *testing.T) {
+	// The app runs in the runner image, which cannot be pulled on amd64.
+	if runtime.GOARCH != ARM64Arch {
+		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
+	}
+
 	httpClient := GetHttpclient(t)
 
 	createResp, err := httpClient.CreateAppWithResponse(
@@ -868,6 +874,11 @@ func TestAppLogs(t *testing.T) {
 }
 
 func TestAppStartBuildsLocalBrick(t *testing.T) {
+	// The app runs in the runner image, which cannot be pulled on amd64.
+	if runtime.GOARCH != ARM64Arch {
+		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
+	}
+
 	cli := e2e.CreateEnvForDaemon(t)
 	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
 	require.NoError(t, err)
