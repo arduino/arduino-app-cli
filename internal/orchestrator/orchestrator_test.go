@@ -1203,3 +1203,39 @@ func mustEdit(t *testing.T, a *app.ArduinoApp) app.Editable {
 	require.NoError(t, err)
 	return editable
 }
+
+func TestGetOrchestratorConfigPythonRunner(t *testing.T) {
+	tests := []struct {
+		name          string
+		registryBase  string
+		pythonImage   string
+		expectedImage string
+	}{
+		{
+			name:          "default image",
+			expectedImage: "ghcr.io/arduino/app-bricks/python-apps-base:" + config.RunnerVersion,
+		},
+		{
+			name:          "registry and image overrides",
+			registryBase:  "registry.example/",
+			pythonImage:   "custom/python-apps-base:dev",
+			expectedImage: "registry.example/custom/python-apps-base:dev",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("ARDUINO_APP_CLI__APPS_DIR", t.TempDir())
+			t.Setenv("ARDUINO_APP_CLI__DATA_DIR", t.TempDir())
+			t.Setenv("DOCKER_REGISTRY_BASE", tc.registryBase)
+			t.Setenv("DOCKER_PYTHON_BASE_IMAGE", tc.pythonImage)
+			cfg, err := config.NewFromEnv()
+			require.NoError(t, err)
+
+			got := GetOrchestratorConfig(cfg)
+
+			assert.Equal(t, config.RunnerVersion, got.PythonRunner)
+			assert.Equal(t, tc.expectedImage, got.PythonRunnerResolved)
+		})
+	}
+}

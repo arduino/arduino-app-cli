@@ -1458,6 +1458,8 @@ func migrateRemoveRouterBridgeIfNeeded(ctx context.Context, platform platform.Pl
 type ConfigResponse struct {
 	Directories  ConfigDirectories `json:"directories"`
 	PythonRunner string            `json:"python_runner"`
+	// PythonRunnerResolved is the Python runner image after DOCKER_REGISTRY_BASE and DOCKER_PYTHON_BASE_IMAGE overrides.
+	PythonRunnerResolved string `json:"python_runner_resolved"`
 }
 
 type ConfigDirectories struct {
@@ -1474,6 +1476,7 @@ func GetOrchestratorConfig(cfg config.Configuration) ConfigResponse {
 			// FIXME: ExamplesDir() is not the right directory, we should return the examples by board directory.
 			// Examples: cfg.ExamplesDir().String(),
 		},
-		PythonRunner: cfg.RunnerVersion,
+		PythonRunner:         cfg.RunnerVersion,
+		PythonRunnerResolved: cfg.PythonImage,
 	}
 }
