@@ -293,6 +293,9 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 		}
 		return modelsindex.AIModel{}, err
 	}
+	if err := makeEIMsExecutable(edgeModelsDir); err != nil {
+		return modelsindex.AIModel{}, fmt.Errorf("failed to make the model executable: %w", err)
+	}
 
 	return modelsindex.AIModel{
 		ID:          aimodel.ModelDescriptor.ID,
@@ -306,6 +309,21 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 		Origin:   modelsindex.EdgeImpulseOrigin,
 		Status:   modelsindex.InstalledStatus,
 	}, nil
+}
+
+// makeEIMsExecutable gives the execute permission to the .eim files of a model folder,
+// because a runner starts an .eim as a program.
+func makeEIMsExecutable(modelDir *paths.Path) error {
+	eims, err := modelDir.ReadDir(paths.FilterSuffixes(".eim"))
+	if err != nil {
+		return err
+	}
+	for _, eim := range eims {
+		if err := eim.Chmod(0755); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *edgeimpulse.ProjectCategory, learnBlocks []edgeimpulse.ImpulseLearnBlock, postProcessingBlocks []edgeimpulse.ImpulsePostProcessingBlock, edgeModelsDir *paths.Path, blobModelsDir *paths.Path) ([]custommodel.BrickConfig, error) {

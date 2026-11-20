@@ -537,6 +537,9 @@ func TestInstallEIModel_WhenModelIsBuilt_DoNotTriggerTheBuild_and_StoreSucceeded
 	basePath := paths.New(tempDir).Join(result.ID)
 	assertModelFileContent(t, basePath.Join("model.eim").String())
 	assertAppYamlContent(t, basePath.Join("model.yaml").String())
+	modelFileInfo, err := basePath.Join("model.eim").Stat()
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0755), modelFileInfo.Mode().Perm(), "a runner starts the .eim as a program")
 
 	// assert mock calls
 	expectedCalls := []string{
