@@ -1,7 +1,7 @@
 [Unit]
 Description=Arduino App CLI daemon Service
-After=network-online.target docker.service arduino-router.service
-Wants=network-online.target docker.service arduino-router.service
+After=network-online.target docker.service arduino-router.service user@1000.service
+Wants=network-online.target docker.service arduino-router.service user@1000.service
 
 [Service]
 ExecStart=/usr/bin/arduino-app-cli daemon --port 8800 --log-level error
