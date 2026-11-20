@@ -191,29 +191,6 @@ func runUpdateCommand(ctx context.Context) error {
 	return nil
 }
 
-// checkAptLockHeld probes whether the dpkg lock is held by another process
-// by running an apt-get install for a package that does not exist.
-func checkAptLockHeld(ctx context.Context) error {
-	cmd, err := sudo.AptLockProbe.Process()
-	if err != nil {
-		return err
-	}
-
-	out, err := cmd.RunAndCaptureCombinedOutput(ctx)
-	// The probe never succeeds: apt exits 100 on the missing package. Anything
-	// else, a sudo denial included, means it never reached apt.
-	exitErr, ok := errors.AsType[*exec.ExitError](err)
-	if !ok || exitErr.ExitCode() != 100 {
-		slog.Warn("apt lock probe did not run", "error", err, "output", string(out))
-		return nil
-	}
-
-	if isAptLockHeldErr(out, err) {
-		return update.NewLockHeldError(fmt.Errorf("%w: %s", err, out))
-	}
-	return nil
-}
-
 func isAptLockHeldErr(out []byte, err error) bool {
 	exitErr, ok := errors.AsType[*exec.ExitError](err)
 	if !ok || exitErr.ExitCode() != 100 {
@@ -360,10 +337,6 @@ func cleanupDockerContainers(ctx context.Context) iter.Seq2[string, error] {
 // packages apt holds back as not installable are left out, an upgrade that needs a
 // new dependency is kept in, and nothing is ever removed.
 func listUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
-	if err := checkAptLockHeld(ctx); err != nil {
-		return nil, err
-	}
-
 	simulateUpgrade, err := paths.NewProcess(nil, "apt-get", "-s", "upgrade", "--with-new-pkgs")
 	if err != nil {
 		return nil, err
