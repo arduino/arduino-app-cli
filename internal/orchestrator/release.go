@@ -29,6 +29,7 @@ import (
 	yaml "github.com/goccy/go-yaml"
 	"github.com/gosimple/slug"
 	"go.bug.st/f"
+	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -92,18 +93,17 @@ func BuildRelease(
 		cb = func(StreamMessage) {}
 	}
 
-	// TODO: ship third-party bricks in the release
-	for _, ref := range appToBuild.BrickReferences() {
-		if bricksindex.IsThirdParty(ref.ID) {
-			return BuildReleaseResult{}, nil, fmt.Errorf("%w: the app uses the third-party brick %q: releases do not support third-party bricks yet", ErrBadRequest, ref.ID)
-		}
-	}
-
 	// Loaded per build, never by the caller: an index must be the target's own.
 	plat, bricksIndex, servicesIndex, modelsIndex, err := targetIndexes(cfg, docker, req.Target)
 	if err != nil {
 		return BuildReleaseResult{}, nil, err
 	}
+
+	bricks, err := pinThirdPartyBricks(ctx, cfg, appToBuild, plat, cb)
+	if err != nil {
+		return BuildReleaseResult{}, nil, err
+	}
+	appToBuild.Descriptor.Bricks = bricks
 
 	bricksIndex, err = appToBuild.ResolveBricks(bricksIndex)
 	if err != nil {
@@ -221,7 +221,13 @@ func BuildRelease(
 	}
 
 	cb(StreamMessage{data: "building the python environment", progress: &Progress{Name: "python environment", Progress: 20.0}})
-	if err := buildPythonEnv(ctx, docker, cfg.PythonImage, srcDir, prebuildDir, cb); err != nil {
+	var thirdPartyBricks []bricksindex.Brick
+	for _, brick := range appToBuild.Descriptor.Bricks {
+		if definition, found := bricksIndex.FindBrickByID(brick.ID); found && definition.Version != "" {
+			thirdPartyBricks = append(thirdPartyBricks, *definition)
+		}
+	}
+	if err := buildPythonEnv(ctx, docker, cfg.PythonImage, srcDir, prebuildDir, thirdPartyBricks, cb); err != nil {
 		return BuildReleaseResult{}, nil, err
 	}
 
@@ -378,6 +384,7 @@ func targetIndexes(cfg config.Configuration, docker command.Cli, target string) 
 	if err != nil {
 		return platform.Platform{}, nil, nil, nil, fmt.Errorf("failed to load the bricks index of %s: %w", plat.BoardName, err)
 	}
+	bricksIndex = bricksIndex.WithInstalledBricks(cfg.BricksDir()).WithRemoteIndex(cfg.BricksIndexDir())
 	servicesIndex, err := servicesindex.Load(plat, cfg.AssetDir().Join("services"))
 	if err != nil {
 		return platform.Platform{}, nil, nil, nil, fmt.Errorf("failed to load the services index of %s: %w", plat.BoardName, err)
@@ -387,6 +394,68 @@ func targetIndexes(cfg config.Configuration, docker command.Cli, target string) 
 		return platform.Platform{}, nil, nil, nil, fmt.Errorf("failed to load the models index of %s: %w", plat.BoardName, err)
 	}
 	return plat, bricksIndex, servicesIndex, modelsIndex, nil
+}
+
+// pinThirdPartyBricks installs the third-party bricks of the app that are missing on the board
+// running the build, and returns the bricks of the app with each third-party one pinned to the
+// version it resolves to there: the release runs the version the app was tried with. That version
+// must also support the target. The app is not modified.
+func pinThirdPartyBricks(ctx context.Context, cfg config.Configuration, appToBuild app.ArduinoApp, target platform.Platform, cb func(StreamMessage)) ([]app.Brick, error) {
+	refs := slices.DeleteFunc(appToBuild.BrickReferences(), func(ref bricksindex.Reference) bool { return !bricksindex.IsThirdParty(ref.ID) })
+	if len(refs) == 0 {
+		return appToBuild.Descriptor.Bricks, nil
+	}
+
+	buildPlat := platform.GetPlatform(cfg.DataDir())
+	board, err := bricksindex.Load(buildPlat, cfg.AssetDir())
+	if err != nil {
+		return nil, fmt.Errorf("failed to load the bricks index of %s: %w", buildPlat.BoardName, err)
+	}
+	board = board.WithInstalledBricks(cfg.BricksDir()).WithRemoteIndex(cfg.BricksIndexDir())
+
+	// The containers of the bricks are pulled by the prepare of the release, on the target.
+	downloadConfig := bricksindex.DownloadConfig(bricksUserAgent)
+	install := func(brick *bricksindex.RemoteBrick, release *bricksindex.RemoteRelease) error {
+		_, err := bricksindex.Install(ctx, downloadConfig, cfg.BricksDir(), brick, release, buildPlat, nil, nil)
+		return err
+	}
+	if err := board.InstallReferences(ctx, downloadConfig, cfg.BricksIndexURL, refs, install, func(msg string) {
+		cb(StreamMessage{data: msg})
+	}); err != nil {
+		return nil, fmt.Errorf("failed to install the bricks of the app: %w", err)
+	}
+	index, err := bricksindex.LoadRemoteIndex(cfg.BricksIndexDir())
+	if err != nil {
+		return nil, err
+	}
+
+	// Cloned: the slice is shared with the caller's app.
+	bricks := slices.Clone(appToBuild.Descriptor.Bricks)
+	for _, ref := range refs {
+		installed, err := board.LookupReference(ref)
+		if err != nil {
+			return nil, err
+		}
+		if installed == nil {
+			return nil, fmt.Errorf("%w: %s", bricksindex.ErrNotInstalled, ref.ID)
+		}
+		// Checked against the index of the board, and not resolved for the target: the hints of
+		// the resolve are about the board running the build.
+		remote, err := index.FindBrick(ref.ID)
+		if err == nil {
+			_, err = remote.FindRelease(semver.MustParse(installed.Version), target)
+		}
+		if err != nil || !installed.SupportsBoard(target) {
+			return nil, fmt.Errorf("%w: %s@%s, used by the app on %s, has no release for %s: pin a version that supports both",
+				ErrBadRequest, ref.ID, installed.Version, buildPlat.BoardName, target.BoardName)
+		}
+		for i := range bricks {
+			if bricks[i].ID == ref.ID {
+				bricks[i].Version = installed.Version
+			}
+		}
+	}
+	return bricks, nil
 }
 
 // stageReleaseSrc copies the app folder as authored: .cache is resolved anew by the
@@ -436,6 +505,12 @@ func stageReleaseSrc(appToBuild app.ArduinoApp, srcDir *paths.Path, bricksIndex 
 				return fmt.Errorf("failed to read %s: %w", relPath, err)
 			}
 			redactSecrets(bricksIndex, &desc)
+			// The versions the build pinned the third-party bricks to.
+			for i := range desc.Bricks {
+				if j := slices.IndexFunc(appToBuild.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == desc.Bricks[i].ID }); j >= 0 {
+					desc.Bricks[i].Version = appToBuild.Descriptor.Bricks[j].Version
+				}
+			}
 			data, err := yaml.Marshal(desc)
 			if err != nil {
 				return fmt.Errorf("failed to write %s: %w", relPath, err)
@@ -455,8 +530,9 @@ func stageReleaseSrc(appToBuild app.ArduinoApp, srcDir *paths.Path, bricksIndex 
 }
 
 // buildPythonEnv builds the python environment in the runner image, as run.sh would do
-// at the first start, and leaves it in the prebuild dir.
-func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string, srcDir *paths.Path, prebuildDir *paths.Path, cb func(StreamMessage)) error {
+// at the first start, and leaves it in the prebuild dir. The third-party bricks are mounted
+// as in a start, so that their requirements are installed too.
+func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string, srcDir *paths.Path, prebuildDir *paths.Path, thirdPartyBricks []bricksindex.Brick, cb func(StreamMessage)) error {
 	if err := prebuildDir.MkdirAll(); err != nil {
 		return fmt.Errorf("failed to create the prebuild dir: %w", err)
 	}
@@ -472,16 +548,25 @@ func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string,
 		}
 	}()
 
+	binds := []string{
+		srcDir.String() + ":/app:ro",
+		prebuildDir.String() + ":/app/.cache",
+	}
+	for _, brick := range thirdPartyBricks {
+		target, err := thirdPartyBrickTarget(brick.ID)
+		if err != nil {
+			return err
+		}
+		binds = append(binds, brick.FullPath.String()+":"+target+":ro")
+	}
+
 	output := NewCallbackWriter(func(line string) {
 		cb(StreamMessage{data: line})
 	})
 	err := dockerhelper.Run(ctx, docker.Client(), dockerhelper.RunOptions{
-		Image: pythonImage,
-		Cmd:   []string{"prepare"},
-		Binds: []string{
-			srcDir.String() + ":/app:ro",
-			prebuildDir.String() + ":/app/.cache",
-		},
+		Image:  pythonImage,
+		Cmd:    []string{"prepare"},
+		Binds:  binds,
 		Stdout: output,
 		Stderr: output,
 	})
