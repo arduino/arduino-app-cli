@@ -7,11 +7,13 @@ package generator
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
@@ -218,6 +220,27 @@ const brickTemplateRoot = "brick_template"
 var fsBrick embed.FS
 
 var ErrBrickAlreadyExists = fmt.Errorf("brick already exists")
+
+// The id is a folder name and a compose service prefix: keep it to [a-z0-9_].
+var brickIDRegexp = regexp.MustCompile(`[^a-z0-9]+`)
+
+// BrickIDFromName derives the id of a local brick from the name the user gives it.
+func BrickIDFromName(name string) (string, error) {
+	if strings.Contains(name, ".") {
+		return "", errors.New("brick name cannot contain '.' character")
+	}
+	if strings.Contains(name, ":") {
+		return "", errors.New("brick name cannot contain ':' character")
+	}
+
+	id := strings.ToLower(name)
+	id = brickIDRegexp.ReplaceAllString(id, "_")
+	id = strings.Trim(id, "_")
+	if id == "" {
+		return "", errors.New("brick name must contain at least one alphanumeric character")
+	}
+	return id, nil
+}
 
 func GenerateLocalBrick(basePath *paths.Path, id string, name string) error {
 	brickDir := basePath.Join(id)
