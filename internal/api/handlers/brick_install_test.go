@@ -208,19 +208,18 @@ func TestHandleInstallBrickFailure(t *testing.T) {
 }
 
 func TestBrickInstallStream(t *testing.T) {
-	t.Run("the download is reported once per percent", func(t *testing.T) {
+	t.Run("progress reports a percentage", func(t *testing.T) {
 		sse := &fakeSSE{}
-		progress := (&brickInstallStream{sse: sse}).downloadProgress("acme:camera@1.0.0")
+		(&brickInstallStream{sse: sse}).progress("acme:camera@1.0.0", 50, 200)
+		require.Equal(t, []string{"progress"}, sse.types())
+		assert.Equal(t, sseProgress{Name: "acme:camera@1.0.0", Current: 50, Total: 200, Progress: 25}, sse.events[0].Data)
+	})
 
-		// 150 and 1050 stay at the percent of the previous chunk.
-		for _, downloaded := range []int64{100, 150, 1000, 1050, 10000} {
-			progress(downloaded, 10000)
-		}
-
-		require.Equal(t, []string{"progress", "progress", "progress"}, sse.types())
-		assert.Equal(t, sseProgress{Name: "acme:camera@1.0.0", Current: 100, Total: 10000, Progress: 1}, sse.events[0].Data)
-		assert.Equal(t, sseProgress{Name: "acme:camera@1.0.0", Current: 1000, Total: 10000, Progress: 10}, sse.events[1].Data)
-		assert.Equal(t, sseProgress{Name: "acme:camera@1.0.0", Current: 10000, Total: 10000, Progress: 100}, sse.events[2].Data)
+	t.Run("progress with no total reports no percentage", func(t *testing.T) {
+		sse := &fakeSSE{}
+		(&brickInstallStream{sse: sse}).progress("Pulling image 1/1 (camera)", 50, 0)
+		require.Equal(t, []string{"progress"}, sse.types())
+		assert.Equal(t, float32(0), sse.events[0].Data.(sseProgress).Progress)
 	})
 
 	t.Run("a full disk carries its own code", func(t *testing.T) {

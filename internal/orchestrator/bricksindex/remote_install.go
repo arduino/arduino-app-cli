@@ -25,6 +25,7 @@ import (
 	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
+	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -82,6 +83,20 @@ func (idx *RemoteIndex) FindBrick(id string) (*RemoteBrick, error) {
 		}
 	}
 	return nil, fmt.Errorf("%w: %s", ErrBrickNotFound, id)
+}
+
+// FindBrickRelease returns the brick with the given id and its release to install, as
+// FindRelease chooses it.
+func (idx *RemoteIndex) FindBrickRelease(id string, version *semver.Version, platform platform.Platform) (*RemoteBrick, *RemoteRelease, error) {
+	brick, err := idx.FindBrick(id)
+	if err != nil {
+		return nil, nil, err
+	}
+	release, err := brick.FindRelease(version, platform)
+	if err != nil {
+		return nil, nil, err
+	}
+	return brick, release, nil
 }
 
 // FindRelease returns the release with the given version or, if version is nil,
@@ -182,7 +197,12 @@ func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Pat
 	}
 	var downloadProgress func(int64)
 	if progress != nil {
-		downloadProgress = func(downloaded int64) { progress(downloaded, release.Size) }
+		var reported helpers.LastPercent
+		downloadProgress = func(downloaded int64) {
+			if reported.Moved(downloaded, release.Size) {
+				progress(downloaded, release.Size)
+			}
+		}
 	}
 	if err := downloadArchive(ctx, config, release, archivePath, expectedHash, downloadProgress); err != nil {
 		return InstallResult{}, fmt.Errorf("downloading brick %s: %w", ref, err)

@@ -17,7 +17,6 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
-	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -60,16 +59,11 @@ func HandleInstallBrick(dockerClient command.Cli, cfg config.Configuration, serv
 			render.EncodeResponse(w, http.StatusServiceUnavailable, models.ErrorResponse{Details: fmt.Sprintf("bricks index not available: %v", err)})
 			return
 		}
-		brick, err := index.FindBrick(id)
-		if err != nil {
-			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: err.Error()})
-			return
-		}
-		release, err := brick.FindRelease(version, plat)
+		brick, release, err := index.FindBrickRelease(id, version, plat)
 		if err != nil {
 			status := http.StatusInternalServerError
 			switch {
-			case errors.Is(err, bricksindex.ErrReleaseNotFound):
+			case errors.Is(err, bricksindex.ErrBrickNotFound), errors.Is(err, bricksindex.ErrReleaseNotFound):
 				status = http.StatusNotFound
 			case errors.Is(err, bricksindex.ErrUnsupportedBoard):
 				status = http.StatusBadRequest
@@ -86,14 +80,15 @@ func HandleInstallBrick(dockerClient command.Cli, cfg config.Configuration, serv
 		}
 		defer sseStream.Close()
 
+		ref := id + "@" + release.Version.String()
 		stream := &brickInstallStream{sse: sseStream}
 		if warning != nil {
 			stream.message(fmt.Sprintf("cannot update the bricks index, using the saved one: %v", warning))
 		}
 		installed, err := orchestrator.InstallBrick(r.Context(), dockerClient, downloadConfig, cfg.BricksDir(), servicesIndex, brick, release, plat,
-			stream.downloadProgress(id+"@"+release.Version.String()), stream.message, stream.progress)
+			func(downloaded, total int64) { stream.progress(ref, downloaded, total) }, stream.message, stream.progress)
 		if err != nil {
-			slog.Error("unable to install brick", "brick", id+"@"+release.Version.String(), "error", err)
+			slog.Error("unable to install brick", "brick", ref, "error", err)
 			stream.sendError(err)
 			return
 		}
@@ -105,8 +100,8 @@ func HandleInstallBrick(dockerClient command.Cli, cfg config.Configuration, serv
 	}
 }
 
-// brickInstallStream sends the events of a brick install as SSE. After the stream opens, a
-// failure is an event, not an HTTP status.
+// brickInstallStream sends the events of a brick install as SSE, in the shape of the events of
+// the model installs. After the stream opens, a failure is an event, not an HTTP status.
 type brickInstallStream struct {
 	sse sseSender
 }
@@ -123,17 +118,6 @@ func (s *brickInstallStream) progress(name string, current, total int64) {
 	s.sse.Send(render.SSEEvent{Type: render.ProgressEvent, Data: sseProgress{
 		Name: name, Current: current, Total: total, Progress: progress,
 	}})
-}
-
-// downloadProgress reports the download of the archive of the brick once per percent, as it is
-// reported by the chunk. The pulls of the images are already reported once per percent.
-func (s *brickInstallStream) downloadProgress(name string) func(downloaded, total int64) {
-	var reported helpers.LastPercent
-	return func(downloaded, total int64) {
-		if reported.Moved(downloaded, total) {
-			s.progress(name, downloaded, total)
-		}
-	}
 }
 
 func (s *brickInstallStream) sendError(err error) {
