@@ -497,14 +497,6 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 		return fmt.Errorf("failed to create build directory: %w", err)
 	}
 
-	srv, inst, err := initializeArduinoCli(ctx, sketchPath, output)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
-	}()
-
 	// The option only exists on the platforms that wait for the Linux side.
 	menuOptions, err := GetPlatformMenuOptions(ctx, platform)
 	if err != nil {
@@ -515,33 +507,38 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 		fqbn += ":" + WaitForApp.String()
 	}
 
-	// Compile the sketch
-	if err := compileSketch(
-		ctx, srv, inst,
-		sketchPath, buildPath,
-		platform, fqbn,
-		verbose, output,
-	); err != nil {
-		return err
-	}
+	return cli.forSketch(ctx, sketchPath, output, func(srv rpc.ArduinoCoreServiceServer, inst *rpc.Instance) error {
+		result, err := compileSketch(
+			ctx, srv, inst,
+			sketchPath, buildPath,
+			platform, fqbn,
+			verbose, output,
+		)
+		if err != nil {
+			return err
+		}
+		// The staged copy is built once: its build leaves the cache of arduino-cli with it.
+		if result.GetBuildPath() != "" {
+			defer func() { _ = paths.New(result.GetBuildPath()).RemoveAll() }()
+		}
 
-	// Upload to file
-	uploadStream, _ := commands.UploadToServerStreams(ctx, output, output)
-	if err := srv.Upload(&rpc.UploadRequest{
-		Instance:   inst,
-		Fqbn:       fqbn,
-		SketchPath: sketchPath.String(),
-		ImportDir:  buildPath.String(),
-		Verbose:    verbose,
-		// There is no board to upload to: "default" is the protocol arduino-cli uses for
-		// portless uploads, and it selects the upload.tool.default recipe.
-		Port:                 &rpc.Port{Protocol: "default"},
-		UploadToFirmwareFile: new(destPath.Join(ReleaseFirmwareFileName).String()),
-	}, uploadStream); err != nil {
-		return fmt.Errorf("failed to create the sketch artifact: %w", err)
-	}
-
-	return nil
+		// Upload to file
+		uploadStream, _ := commands.UploadToServerStreams(ctx, output, output)
+		if err := srv.Upload(&rpc.UploadRequest{
+			Instance:   inst,
+			Fqbn:       fqbn,
+			SketchPath: sketchPath.String(),
+			ImportDir:  buildPath.String(),
+			Verbose:    verbose,
+			// There is no board to upload to: "default" is the protocol arduino-cli uses for
+			// portless uploads, and it selects the upload.tool.default recipe.
+			Port:                 &rpc.Port{Protocol: "default"},
+			UploadToFirmwareFile: new(destPath.Join(ReleaseFirmwareFileName).String()),
+		}, uploadStream); err != nil {
+			return fmt.Errorf("failed to create the sketch artifact: %w", err)
+		}
+		return nil
+	})
 }
 
 // archiveStream streams a release archive as it is written, so a caller can save it.
