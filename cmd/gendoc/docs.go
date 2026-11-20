@@ -246,6 +246,23 @@ func NewOpenApiGenerator(version string) *Generator {
 						},
 					},
 				},
+				"ServiceUnavailable": {
+					Response: &openapi3.Response{
+						Description: "Service Unavailable",
+						Content: map[string]openapi3.MediaType{
+							"application/json": {
+								Example: new(any(map[string]any{
+									"details": "A resource the request needs is not available.",
+								})),
+								Schema: &openapi3.SchemaOrRef{
+									SchemaReference: &openapi3.SchemaReference{
+										Ref: ErrorResponseSchema,
+									},
+								},
+							},
+						},
+					},
+				},
 				"Forbidden": {
 					Response: &openapi3.Response{
 						Description: "Forbidden",
@@ -989,6 +1006,65 @@ Contains a JSON object with the details of an error.
 			Tags:        []Tag{BrickTag},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "installBrick",
+			Method:      http.MethodPut,
+			Path:        "/v1/bricks/{id}",
+			Parameters: (*struct {
+				ID      string `path:"id" description:"The id of a third-party brick in the bricks index, in the form NAMESPACE:NAME." example:"acme:camera"`
+				Version string `query:"version" description:"The version to install. Without it, the latest version is installed. It must support the board." example:"1.0.0"`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) reporting the install.
+
+**Event 'message'**:
+A line of information: a warning when the bricks index cannot be updated and the saved one is
+used, and the lines of the pull of the container images of the brick.
+'event: message'
+'data: {"message":"Pulling container image ghcr.io/acme/camera:1.0.0 ..."}'
+
+**Event 'progress'**:
+The progress of the download of the brick, named after the brick and its version, then of the
+pull of its container images, named after the image being pulled.
+'event: progress'
+'data: {"name":"acme:camera@1.0.0","current":524288,"total":1048576,"progress":50}'
+'data: {"name":"Pulling image 1/1 (ghcr.io/acme/camera)","current":75876627,"total":105454144,"progress":71.95}'
+
+**Event 'done'**:
+The installed brick and version. "already_installed" is true when the version was installed
+already and nothing was done.
+'event: done'
+'data: {"id":"acme:camera","version":"1.0.0","already_installed":false}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error. The 200 status is sent with the stream, so
+every later failure is an error event. A disk with no free space for the brick or its images has
+the code 'insufficient_storage'.
+'event: error'
+'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+'data: {"code":"insufficient_storage","message":"downloading brick acme:camera@1.0.0: not enough disk space to install the brick: 1048576 bytes needed, 524288 bytes free"}'
+`,
+			},
+			Description: `Install a third-party brick from the bricks index, with the container images it needs. The progress is a stream of Server-Sent Events.
+
+The bricks index is updated first when it is missing, broken or older than one hour. If the update fails, the saved index is used and the stream starts with a warning; without a saved index the request fails with 503.
+
+A brick or version not in the index returns 404. A version that does not support the board returns 400. Without a version, the latest version is installed, and the request returns 400 if it does not support the board, even when an older version does.
+
+The request is idempotent: a version already installed is not downloaded again, and the stream sends "done" immediately.`,
+			Summary: "Install a third-party brick",
+			Tags:    []Tag{BrickTag},
+			// Only the failures that come before the stream opens. No 507: the disk space is
+			// known later, so that failure is an event.
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+				{StatusCode: http.StatusServiceUnavailable, Reference: "#/components/responses/ServiceUnavailable"},
 			},
 		},
 		{

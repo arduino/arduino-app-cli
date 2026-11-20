@@ -610,6 +610,9 @@ type NotFound = ErrorResponse
 // PreconditionFailed defines model for PreconditionFailed.
 type PreconditionFailed = ErrorResponse
 
+// ServiceUnavailable defines model for ServiceUnavailable.
+type ServiceUnavailable = ErrorResponse
+
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = ErrorResponse
 
@@ -702,6 +705,12 @@ type GetAppLogsParams struct {
 type StartAppParams struct {
 	// Verbose Return a verbose output. Default is false.
 	Verbose *bool `form:"verbose,omitempty" json:"verbose,omitempty"`
+}
+
+// InstallBrickParams defines parameters for InstallBrick.
+type InstallBrickParams struct {
+	// Version The version to install. Without it, the latest version is installed. It must support the board.
+	Version *string `form:"version,omitempty" json:"version,omitempty"`
 }
 
 // ListLibrariesParams defines parameters for ListLibraries.
@@ -988,6 +997,9 @@ type ClientInterface interface {
 
 	// GetBrickDetails request
 	GetBrickDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// InstallBrick request
+	InstallBrick(ctx context.Context, id string, params *InstallBrickParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetConfig request
 	GetConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1520,6 +1532,18 @@ func (c *Client) GetBricks(ctx context.Context, reqEditors ...RequestEditorFn) (
 
 func (c *Client) GetBrickDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetBrickDetailsRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) InstallBrick(ctx context.Context, id string, params *InstallBrickParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInstallBrickRequest(c.Server, id, params)
 	if err != nil {
 		return nil, err
 	}
@@ -3223,6 +3247,67 @@ func NewGetBrickDetailsRequest(server string, id string) (*http.Request, error) 
 	return req, nil
 }
 
+// NewInstallBrickRequest generates requests for InstallBrick
+func NewInstallBrickRequest(server string, id string, params *InstallBrickParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/bricks/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Version != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "version", *params.Version, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetConfigRequest generates requests for GetConfig
 func NewGetConfigRequest(server string) (*http.Request, error) {
 	var err error
@@ -4157,6 +4242,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetBrickDetailsWithResponse request
 	GetBrickDetailsWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetBrickDetailsResp, error)
+
+	// InstallBrickWithResponse request
+	InstallBrickWithResponse(ctx context.Context, id string, params *InstallBrickParams, reqEditors ...RequestEditorFn) (*InstallBrickResp, error)
 
 	// GetConfigWithResponse request
 	GetConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetConfigResp, error)
@@ -5188,6 +5276,39 @@ func (r GetBrickDetailsResp) ContentType() string {
 	return ""
 }
 
+type InstallBrickResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalServerError
+	JSON503      *ServiceUnavailable
+}
+
+// Status returns HTTPResponse.Status
+func (r InstallBrickResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r InstallBrickResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r InstallBrickResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetConfigResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -6109,6 +6230,15 @@ func (c *ClientWithResponses) GetBrickDetailsWithResponse(ctx context.Context, i
 		return nil, err
 	}
 	return ParseGetBrickDetailsResp(rsp)
+}
+
+// InstallBrickWithResponse request returning *InstallBrickResp
+func (c *ClientWithResponses) InstallBrickWithResponse(ctx context.Context, id string, params *InstallBrickParams, reqEditors ...RequestEditorFn) (*InstallBrickResp, error) {
+	rsp, err := c.InstallBrick(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseInstallBrickResp(rsp)
 }
 
 // GetConfigWithResponse request returning *GetConfigResp
@@ -7536,6 +7666,53 @@ func ParseGetBrickDetailsResp(rsp *http.Response) (*GetBrickDetailsResp, error) 
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseInstallBrickResp parses an HTTP response from a InstallBrickWithResponse call
+func ParseInstallBrickResp(rsp *http.Response) (*InstallBrickResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &InstallBrickResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ServiceUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
