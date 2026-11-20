@@ -105,6 +105,7 @@ func NewProvision(
 
 // Resolve turns the app bricks and services into the compose templates it is started
 // from, deriving them from the app and the target board and never from this host.
+// bricksIndex is the one of the app, from Bricks.
 func (p *Provision) Resolve(
 	arduinoApp *app.ArduinoApp,
 	genPath *paths.Path,
@@ -124,8 +125,6 @@ func (p *Provision) Resolve(
 			return fmt.Errorf("provisioning failed: unable to create %s: %w", genPath, err)
 		}
 	}
-
-	bricksIndex = bricksIndex.WithAppBricks(arduinoApp.LocalBricks)
 
 	return generateComposeTemplate(arduinoApp, genPath, bricksIndex, servicesIndex, p.pythonImage, cfg, appEnv, platform)
 }

@@ -8,12 +8,15 @@ package orchestrator
 import (
 	"bytes"
 	"cmp"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"maps"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -66,12 +69,22 @@ func generateComposeTemplate(
 
 	brickServices := make(map[string]servicesindex.Service)
 	var composeFiles paths.PathList
+	var brickMounts []volume
 	services := make([]serviceInfo, 0, len(arduinoApp.Descriptor.Bricks))
 	for _, brick := range arduinoApp.Descriptor.Bricks {
 		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
 		slog.Debug("Processing brick", slog.String("brick_id", brick.ID), slog.Bool("found", found))
 		if !found {
 			continue
+		}
+
+		// Only the bricks installed from the bricks index have a version.
+		if idxBrick.Version != "" {
+			mount, err := thirdPartyBrickMount(idxBrick)
+			if err != nil {
+				return err
+			}
+			brickMounts = append(brickMounts, mount)
 		}
 
 		// 1. Retrieve ports that we have to expose defined in the brick
@@ -176,6 +189,9 @@ func generateComposeTemplate(
 			Source: "/dev",
 			Target: "/dev",
 		},
+	}
+	for _, mount := range brickMounts {
+		volumes = append(volumes, mount)
 	}
 
 	// Mounted only where the board has them.
@@ -306,11 +322,21 @@ func frozenComposeIncludes(composeFiles paths.PathList, appDir *paths.Path, genP
 
 	includes := make([]composeInclude, 0, len(composeFiles))
 	for _, composeFile := range composeFiles {
-		// The copy keeps the layout of the asset dir, or of the app for a local brick. For a
-		// local brick, RelFrom answers a ../ chain and not an error.
+		// The copy keeps the layout of the asset dir, of the installed bricks, or of the app for a
+		// local brick. For a local brick, RelFrom answers a ../ chain and not an error.
 		var projectDir string
 		relPath, err := composeFile.RelFrom(cfg.AssetDir())
-		if inside, _ := composeFile.IsInsideDir(cfg.AssetDir()); err != nil || !inside {
+		if inside, _ := composeFile.IsInsideDir(cfg.BricksDir()); inside {
+			brickDir, err := composeFile.Parent().RelFrom(cfg.BricksDir())
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve the folder of %s: %w", composeFile, err)
+			}
+			relPath = paths.New("third-party-bricks").JoinPath(brickDir).Join(composeFile.Base())
+			// The relative paths of a third-party brick stay in its folder, wherever it is installed.
+			if projectDir, err = thirdPartyBrickRef(composeFile.Parent(), cfg.BricksDir()); err != nil {
+				return nil, err
+			}
+		} else if inside, _ := composeFile.IsInsideDir(cfg.AssetDir()); err != nil || !inside {
 			brickDir, err := composeFile.Parent().RelFrom(appDir)
 			if err != nil {
 				return nil, fmt.Errorf("failed to resolve the folder of %s: %w", composeFile, err)
@@ -493,6 +519,37 @@ func templateEnvironment(appEnv types.Mapping) types.Mapping {
 		env["VIDEO_DEVICE"] = fmt.Sprintf("${VIDEO_DEVICE:-%s}", brickValue)
 	}
 	return env
+}
+
+const thirdPartyBricksDir = "/opt/third-party-bricks"
+
+const thirdPartyBricksRef = "${THIRD_PARTY_BRICKS_PATH}"
+
+// thirdPartyBrickMount binds the Python package of an installed third-party brick into the app
+// container, in a folder of its own. The brick is imported by its name.
+func thirdPartyBrickMount(brick *bricksindex.Brick) (volume, error) {
+	namespace, name, err := bricksindex.ParseBrickID(brick.ID)
+	if err != nil {
+		return volume{}, fmt.Errorf("brick %s: %w", brick.ID, err)
+	}
+	hash := sha256.Sum256([]byte(namespace + "/" + name))
+	return volume{
+		Type:   "bind",
+		Source: brick.FullPath.String(),
+		Target: thirdPartyBricksDir + "/" + hex.EncodeToString(hash[:4]) + "/" + name,
+		// The brick must have been installed: a missing folder is an error, not an empty brick.
+		Bind: &bindOptions{CreateHostPath: false},
+	}, nil
+}
+
+// thirdPartyBrickRef is a path inside the folder the third-party bricks are installed in, as a
+// reference to the host variable that answers it.
+func thirdPartyBrickRef(p, bricksDir *paths.Path) (string, error) {
+	rel, err := p.RelFrom(bricksDir)
+	if inside, _ := p.IsInsideDir(bricksDir); err != nil || !inside {
+		return "", fmt.Errorf("%s is not in the folder of the installed bricks %s", p, bricksDir)
+	}
+	return thirdPartyBricksRef + "/" + filepath.ToSlash(rel.String()), nil
 }
 
 // mountExpr binds a path where it is, `<host>:<container>` at another path in the

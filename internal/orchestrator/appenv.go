@@ -39,6 +39,8 @@ var hostVariables = map[string]func(hostFacts) string{
 	"XDG_RUNTIME_DIR": func(hostFacts) string { return "/run/user/1000" },
 	// Directory where AI models are installed, shared with the containerized runners.
 	"MODELS_PATH": func(facts hostFacts) string { return facts.cfg.ModelsDir().String() },
+	// Directory where the third-party bricks are installed.
+	"THIRD_PARTY_BRICKS_PATH": func(facts hostFacts) string { return facts.cfg.BricksDir().String() },
 
 	// Some video devices in /dev are for HW acceleration and are not real cameras, so
 	// the first one in /dev/v4l/by-id is picked. A brick can override it.
@@ -92,7 +94,7 @@ type hostFacts struct {
 }
 
 // appEnvironment is what the app is wired with, from the app and the board it is built
-// for: nothing here is read off a machine.
+// for: nothing here is read off a machine. brickIndex is the one of the app, from Bricks.
 func appEnvironment(
 	ctx context.Context,
 	app app.ArduinoApp,
@@ -102,7 +104,6 @@ func appEnvironment(
 ) types.Mapping {
 	envs := make(types.Mapping)
 
-	brickIndex = brickIndex.WithAppBricks(app.LocalBricks)
 	models := modelsIndex.NewLookup()
 
 	for _, brick := range app.Descriptor.Bricks {

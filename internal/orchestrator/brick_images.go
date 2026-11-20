@@ -9,9 +9,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
+	"github.com/moby/moby/api/types/container"
 	dockerClient "github.com/moby/moby/client"
 	"go.bug.st/downloader/v3"
 	"go.bug.st/f"
@@ -115,6 +118,10 @@ func UninstallBrick(
 	version *semver.Version,
 	warn func(string),
 ) (bricksindex.UninstallResult, error) {
+	if err := checkBrickNotInUse(ctx, docker.Client(), cfg.BricksDir(), id, version); err != nil {
+		return bricksindex.UninstallResult{}, err
+	}
+
 	// Read before the files are removed. The images of the required services are ours, and
 	// the system cleanup removes them once nothing needs them.
 	imagesByVersion := map[string][]string{}
@@ -139,6 +146,39 @@ func UninstallBrick(
 		removeUnusedImages(ctx, docker.Client(), cfg, bricksIndex, servicesIndex, modelsIndex, f.Uniq(images), warn)
 	}
 	return res, err
+}
+
+// checkBrickNotInUse returns an error if a running app mounts the given version of the brick or,
+// if version is nil, any of its versions. The mounts tell the version an app started with, which
+// an unpinned brick may no longer resolve to.
+func checkBrickNotInUse(ctx context.Context, docker dockerClient.APIClient, bricksDir *paths.Path, id string, version *semver.Version) error {
+	namespace, name, ok := strings.Cut(id, ":")
+	if !ok {
+		// Uninstall reports the invalid id.
+		return nil
+	}
+	brickDir := bricksDir.Join(namespace, name).String() + string(filepath.Separator)
+	containers, err := dockerhelper.Containers(ctx, docker, DockerAppLabel+"=true")
+	if err != nil {
+		return fmt.Errorf("checking the apps that use the brick %s: %w", id, err)
+	}
+	for _, c := range containers {
+		if c.State != container.StateRunning && c.State != container.StateRestarting && c.State != container.StatePaused {
+			continue
+		}
+		for _, m := range c.Mounts {
+			rel, found := strings.CutPrefix(m.Source, brickDir)
+			if !found {
+				continue
+			}
+			mounted, _, _ := strings.Cut(rel, string(filepath.Separator))
+			if version != nil && mounted != version.String() {
+				continue
+			}
+			return fmt.Errorf("the brick %s@%s is used by the app at %s: stop the app first", id, mounted, c.Labels[DockerAppPathLabel])
+		}
+	}
+	return nil
 }
 
 // removeUnusedImages removes the images that nothing on the board may run.

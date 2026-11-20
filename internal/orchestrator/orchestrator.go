@@ -53,6 +53,10 @@ var (
 	ErrAppRunning       = fmt.Errorf("app is running")
 )
 
+// bricksUserAgent identifies the downloads of the bricks a start installs.
+// TODO: add the version of the cli, as brick install and update-index do.
+const bricksUserAgent = "arduino-app-cli"
+
 type AppStreamMessage struct {
 	Type string `json:"type"`
 	Data any    `json:"data"`
@@ -108,7 +112,27 @@ func StartApp(
 		cb = func(StreamMessage) {}
 	}
 
-	bricksIndex = appToStart.Bricks(bricksIndex)
+	if prepare && !appToStart.IsRelease() {
+		downloadConfig := bricksindex.DownloadConfig(bricksUserAgent)
+		install := func(brick *bricksindex.RemoteBrick, release *bricksindex.RemoteRelease) error {
+			_, err := InstallBrick(ctx, docker, downloadConfig, cfg.BricksDir(), servicesIndex, brick, release, platform,
+				nil, func(line string) { cb(StreamMessage{data: line}) }, nil)
+			return err
+		}
+		if err := bricksIndex.InstallReferences(ctx, downloadConfig, cfg.BricksIndexURL, appToStart.BrickReferences(), install, func(msg string) {
+			cb(StreamMessage{data: msg})
+		}); err != nil {
+			return fmt.Errorf("failed to install the bricks of the app: %w", err)
+		}
+	}
+
+	bricksIndex, err := appToStart.Bricks(bricksIndex)
+	if errors.Is(err, bricksindex.ErrNotInstalled) || errors.Is(err, bricksindex.ErrIndexNotFound) {
+		return fmt.Errorf("%w: %w", ErrNotPrepared, err)
+	}
+	if err != nil {
+		return err
+	}
 
 	modelsIndex = appToStart.Models(modelsIndex, docker, cfg, platform)
 
@@ -711,7 +735,10 @@ func AppDetails(
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (AppDetailedInfo, error) {
-	bricksIndex = bricksIndex.WithAppBricks(userApp.LocalBricks)
+	bricksIndex, err := userApp.ResolveBricks(bricksIndex)
+	if err != nil {
+		slog.Warn("cannot load the third-party bricks of the app", slog.String("app", userApp.Name), slog.String("error", err.Error()))
+	}
 	var wg sync.WaitGroup
 	wg.Add(2)
 	var defaultAppPath string
@@ -800,11 +827,12 @@ func CreateApp(
 	}
 
 	appBricks := make([]app.Brick, 0, len(req.Bricks))
-	for _, id := range req.Bricks {
-		if _, found := bricksIndex.FindBrickByID(id); !found {
-			return CreateAppResponse{}, fmt.Errorf("%w: brick %q not found", ErrBadRequest, id)
+	for _, ref := range req.Bricks {
+		brick, _, err := app.LookupBrick(bricksIndex, ref)
+		if err != nil {
+			return CreateAppResponse{}, fmt.Errorf("%w: %w", ErrBadRequest, err)
 		}
-		appBricks = append(appBricks, app.Brick{ID: id})
+		appBricks = append(appBricks, brick)
 	}
 
 	basePath, appExists := findAppPathByName(req.Name, cfg)

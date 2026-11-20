@@ -46,6 +46,33 @@ func TestCreateAppAlreadyExisting(t *testing.T) {
 	require.Contains(t, err.Error(), existingApp.ID.String())
 }
 
+func TestCreateAppWithThirdPartyBricks(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
+	indexDir := paths.New(t.TempDir())
+	index := `{"bricks": [{"id": "acme:hello", "namespace": "acme", "releases": [{"version": "1.0.0", "url": "https://example.com/1.0.0.zip", "hash": "0000000000000000000000000000000000000000000000000000000000000000", "size": 1}, {"version": "1.2.0", "url": "https://example.com/1.2.0.zip", "hash": "0000000000000000000000000000000000000000000000000000000000000000", "size": 1}]}]}`
+	require.NoError(t, indexDir.Join(bricksindex.RemoteIndexFileName).WriteFile([]byte(index)))
+	bricksIndex := (&bricksindex.BricksIndex{BuiltInBricks: []bricksindex.Brick{{ID: "arduino:camera"}}}).
+		WithInstalledBricks(paths.New(t.TempDir())).
+		WithRemoteIndex(indexDir)
+
+	t.Run("bricks listed in the index are added, keeping the pinned version", func(t *testing.T) {
+		res, err := CreateApp(CreateAppRequest{Name: "third-party", Bricks: []string{"arduino:camera", "acme:hello@1.0.0"}}, bricksIndex, idProvider, cfg)
+		require.NoError(t, err)
+		a, err := app.Load(res.ID.ToPath())
+		require.NoError(t, err)
+		require.Equal(t, []app.Brick{{ID: "arduino:camera"}, {ID: "acme:hello", Version: "1.0.0"}}, a.Descriptor.Bricks)
+	})
+
+	for _, ref := range []string{"acme:other", "acme:hello@2.0.0", "arduino:camera@1.0.0"} {
+		t.Run("rejects "+ref, func(t *testing.T) {
+			_, err := CreateApp(CreateAppRequest{Name: "rejected", Bricks: []string{ref}}, bricksIndex, idProvider, cfg)
+			require.ErrorIs(t, err, ErrBadRequest)
+			require.NoDirExists(t, cfg.AppsDir().Join("rejected").String())
+		})
+	}
+}
+
 func TestCloneApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)

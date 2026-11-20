@@ -183,13 +183,11 @@ func (e Editable) Save() error {
 func (e Editable) App() *ArduinoApp { return e.editableApp }
 
 // Secrets is the value of every variable a brick declares secret, the default of the
-// definition when the board never set it.
-func (a *ArduinoApp) Secrets(board *bricksindex.BricksIndex) map[string]string {
-	definitions := a.Bricks(board)
-
+// definition when the board never set it. index is the one of the app, from Bricks.
+func (a *ArduinoApp) Secrets(index *bricksindex.BricksIndex) map[string]string {
 	values := make(map[string]string)
 	for _, brick := range a.Descriptor.Bricks {
-		definition, found := definitions.FindBrickByID(brick.ID)
+		definition, found := index.FindBrickByID(brick.ID)
 		if !found {
 			continue
 		}
@@ -211,8 +209,9 @@ var ErrNotASecret = errors.New("the variable is not a secret")
 
 // UpdateSecrets writes the secrets of one brick and refuses every other variable. It
 // takes a release: a hole in the read-only rule, until the board has a secret store.
-func (a *ArduinoApp) UpdateSecrets(board *bricksindex.BricksIndex, brickID string, values map[string]string) error {
-	definition, found := a.Bricks(board).FindBrickByID(brickID)
+// index is the one of the app, from Bricks.
+func (a *ArduinoApp) UpdateSecrets(index *bricksindex.BricksIndex, brickID string, values map[string]string) error {
+	definition, found := index.FindBrickByID(brickID)
 	if !found {
 		return fmt.Errorf("brick %q is not in the index", brickID)
 	}
@@ -292,17 +291,68 @@ func (a *ArduinoApp) GetRelease() (Release, bool) {
 }
 
 // Bricks is the brick definitions the app is wired with, and the only way to ask: board
-// is the index this cli ships, and a release answers with the one a build froze.
-func (a *ArduinoApp) Bricks(board *bricksindex.BricksIndex) *bricksindex.BricksIndex {
+// is the index this cli ships, and a release answers with the one a build froze. It
+// returns an error when a third-party brick cannot be loaded, but the returned index
+// still holds every other brick: the caller decides whether to fail.
+func (a *ArduinoApp) Bricks(board *bricksindex.BricksIndex) (*bricksindex.BricksIndex, error) {
 	if a.IsRelease() {
 		frozen, err := a.ReleaseBricks()
 		if err != nil {
 			slog.Warn("cannot read the bricks the release ships", slog.String("app", a.Name), slog.String("error", err.Error()))
 		} else {
-			board = frozen
+			// TODO: a release does not ship its third-party bricks yet.
+			return frozen.WithApp(a.LocalBricks, nil)
 		}
 	}
-	return board.WithAppBricks(a.LocalBricks)
+	return a.ResolveBricks(board)
+}
+
+// ResolveBricks adds to board the bricks local to the app and the third-party bricks it
+// uses, without switching to the index of a release. Like Bricks, the returned index
+// holds every other brick on error.
+func (a *ArduinoApp) ResolveBricks(board *bricksindex.BricksIndex) (*bricksindex.BricksIndex, error) {
+	return board.WithApp(a.LocalBricks, a.BrickReferences())
+}
+
+// BrickReferences returns the bricks the app uses, apart from the ones local to it.
+func (a *ArduinoApp) BrickReferences() []bricksindex.Reference {
+	refs := make([]bricksindex.Reference, 0, len(a.Descriptor.Bricks))
+	for _, brick := range a.Descriptor.Bricks {
+		if slices.ContainsFunc(a.LocalBricks, func(local bricksindex.Brick) bool { return local.ID == brick.ID }) {
+			continue
+		}
+		refs = append(refs, bricksindex.Reference{ID: brick.ID, Version: brick.Version})
+	}
+	return refs
+}
+
+// LookupBrick parses a brick about to be added to an app, given as ID[@VERSION], and returns
+// it with its definition. The brick's variables cannot be checked until it is installed (definition is nil).
+func LookupBrick(index *bricksindex.BricksIndex, ref string) (Brick, *bricksindex.Brick, error) {
+	if !bricksindex.IsThirdParty(ref) {
+		if strings.Contains(ref, "@") {
+			return Brick{}, nil, fmt.Errorf("brick %q cannot be pinned to a version: only third-party bricks can", ref)
+		}
+		definition, found := index.FindBrickByID(ref)
+		if !found {
+			return Brick{}, nil, fmt.Errorf("brick %q not found", ref)
+		}
+		return Brick{ID: ref}, definition, nil
+	}
+
+	id, version, err := bricksindex.ParseBrickReference(ref)
+	if err != nil {
+		return Brick{}, nil, err
+	}
+	brick := Brick{ID: id}
+	if version != nil {
+		brick.Version = version.String()
+	}
+	definition, err := index.LookupReference(bricksindex.Reference{ID: brick.ID, Version: brick.Version})
+	if err != nil {
+		return Brick{}, nil, err
+	}
+	return brick, definition, nil
 }
 
 // ReleaseBricks is the brick definitions a release ships in its .cache, which are the

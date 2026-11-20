@@ -8,6 +8,7 @@ package bricks
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -119,6 +120,56 @@ func TestBrickCreate(t *testing.T) {
 		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
 		require.Equal(t, deviceID, after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"])
 		require.Equal(t, secret, after.Descriptor.Bricks[0].Variables["ARDUINO_SECRET"])
+	})
+
+	t.Run("third-party bricks", func(t *testing.T) {
+		indexDir := paths.New(t.TempDir())
+		index := `{"bricks": [
+			{"id": "acme:hello", "namespace": "acme", "releases": [{"version": "1.0.0", "url": "https://example.com/1.0.0.zip", "hash": "0000000000000000000000000000000000000000000000000000000000000000", "size": 1}, {"version": "1.2.0", "url": "https://example.com/1.2.0.zip", "hash": "0000000000000000000000000000000000000000000000000000000000000000", "size": 1}]},
+			{"id": "acme:installed", "namespace": "acme", "releases": [{"version": "1.0.0", "url": "https://example.com/1.0.0.zip", "hash": "0000000000000000000000000000000000000000000000000000000000000000", "size": 1}]}
+		]}`
+		require.NoError(t, indexDir.Join(bricksindex.RemoteIndexFileName).WriteFile([]byte(index)))
+		bricksDir := paths.New(t.TempDir())
+		installedDir := bricksDir.Join("acme", "installed", "1.0.0", "src", "installed")
+		require.NoError(t, installedDir.MkdirAll())
+		require.NoError(t, installedDir.Join("brick_config.yaml").WriteFile([]byte("id: acme:installed\nname: Installed\nvariables:\n  - name: GREETING\n")))
+		require.NoError(t, installedDir.Join("brick_compose.yaml").WriteFile([]byte("services: {}\n")))
+		thirdPartyIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
+		require.NoError(t, err)
+		svc := NewService(nil, thirdPartyIndex.WithInstalledBricks(bricksDir).WithRemoteIndex(indexDir))
+
+		appDir := paths.New(t.TempDir()).Join("app")
+		require.NoError(t, paths.New("testdata/dummy-app").CopyDirTo(appDir))
+		thirdPartyBricks := func() []app.Brick {
+			after, err := app.Load(appDir)
+			require.NoError(t, err)
+			return slices.DeleteFunc(after.Descriptor.Bricks, func(b app.Brick) bool { return !bricksindex.IsThirdParty(b.ID) })
+		}
+
+		t.Run("a brick that is not installed is added without checking its variables", func(t *testing.T) {
+			req := BrickCreateUpdateRequest{ID: "acme:hello@1.0.0", Variables: map[string]string{"ANY": "value"}}
+			require.NoError(t, svc.BrickCreate(t.Context(), req, mustEdit(t, appDir)))
+			require.Equal(t, []app.Brick{{ID: "acme:hello", Version: "1.0.0", Variables: map[string]string{"ANY": "value"}}}, thirdPartyBricks())
+		})
+
+		t.Run("without a version, the brick is unpinned", func(t *testing.T) {
+			req := BrickCreateUpdateRequest{ID: "acme:hello", Variables: map[string]string{"ANY": "other"}}
+			require.NoError(t, svc.BrickCreate(t.Context(), req, mustEdit(t, appDir)))
+			require.Equal(t, []app.Brick{{ID: "acme:hello", Variables: map[string]string{"ANY": "other"}}}, thirdPartyBricks())
+		})
+
+		t.Run("the variables of an installed brick are checked", func(t *testing.T) {
+			req := BrickCreateUpdateRequest{ID: "acme:installed", Variables: map[string]string{"UNKNOWN": "value"}}
+			err := svc.BrickCreate(t.Context(), req, mustEdit(t, appDir))
+			require.EqualError(t, err, `variable "UNKNOWN" does not exist on brick "acme:installed"`)
+		})
+
+		for _, ref := range []string{"acme:other", "acme:hello@2.0.0"} {
+			t.Run("rejects "+ref, func(t *testing.T) {
+				require.Error(t, svc.BrickCreate(t.Context(), BrickCreateUpdateRequest{ID: ref}, mustEdit(t, appDir)))
+				require.Len(t, thirdPartyBricks(), 1)
+			})
+		}
 	})
 }
 

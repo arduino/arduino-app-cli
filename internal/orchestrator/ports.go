@@ -7,6 +7,7 @@ package orchestrator
 
 import (
 	"fmt"
+	"log/slog"
 	"strconv"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -28,7 +29,10 @@ func AppPorts(
 	index *bricksindex.BricksIndex,
 	servicesIndex *servicesindex.ServicesIndex,
 ) ([]PortInfo, error) {
-	index = index.WithAppBricks(a.LocalBricks)
+	index, err := a.ResolveBricks(index)
+	if err != nil {
+		slog.Warn("cannot load the third-party bricks of the app", slog.String("app", a.Name), slog.String("error", err.Error()))
+	}
 
 	ports := make([]PortInfo, 0, len(a.Descriptor.Ports)+len(a.Descriptor.Bricks))
 
