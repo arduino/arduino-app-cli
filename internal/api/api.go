@@ -52,6 +52,7 @@ func NewHTTPRouter(
 	mux.Handle("GET /v1/examples", handlers.HandleExamples(cfg, bricksIndex, idProvider))
 	mux.Handle("GET /v1/bricks", handlers.HandleBrickList(brickService))
 	mux.Handle("GET /v1/bricks/{brickID}", handlers.HandleBrickDetails(brickService, idProvider, cfg, platform))
+	mux.Handle("PUT /v1/bricks/{brickID}", handlers.HandleInstallBrick(dockerClient, cfg, servicesIndex, platform, bricksindex.DownloadConfig("arduino-app-cli/"+version)))
 
 	mux.Handle("GET /v1/properties", handlers.HandlePropertyKeys(cfg))
 	mux.Handle("GET /v1/properties/{key}", handlers.HandlePropertyGet(cfg))
