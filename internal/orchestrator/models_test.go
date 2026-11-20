@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -48,6 +49,16 @@ bricks:
   variables:
   - name: CUSTOM_MODEL_PATH
     default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+- id: arduino:video_object_tracking
+  supported_boards:
+    - ventunoq
+  model_configuration_variables:
+    - EI_V_OBJ_TRACKING_MODEL
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/models/custom-ei
     description: Path to the custom model directory
     hidden: true
 - id: arduino:visual_anomaly_detection
@@ -225,6 +236,7 @@ bricks:
 				brickIndex,
 				&tt.category,
 				tt.learnBlocks,
+				nil,
 				edgeModelsDir,
 				blobModelsDir,
 			)
@@ -236,6 +248,66 @@ bricks:
 				require.Equal(t, expectedID, result[i].ID)
 				require.Equal(t, tt.expectedConfig[i], result[i].ModelConfiguration)
 			}
+		})
+	}
+
+	detectionBricks := []custommodel.BrickConfig{
+		{ID: "arduino:object_detection", ModelConfiguration: map[string]string{
+			"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
+			"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+		}},
+		{ID: "arduino:video_object_detection", ModelConfiguration: map[string]string{
+			"CUSTOM_MODEL_PATH":        "/models/custom-ei/ei-xxxx-yyyy",
+			"EI_V_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+		}},
+	}
+	trackingBrick := custommodel.BrickConfig{ID: "arduino:video_object_tracking", ModelConfiguration: map[string]string{
+		"CUSTOM_MODEL_PATH":       "/models/custom-ei/ei-xxxx-yyyy",
+		"EI_V_OBJ_TRACKING_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+	}}
+	objectTrackingTests := []struct {
+		name      string
+		boardName string
+		blockType string
+		expected  []custommodel.BrickConfig
+	}{
+		{
+			name:      "object detection with an object tracking block",
+			boardName: platform.BoardVentunoQ,
+			blockType: "object-tracking",
+			expected:  append(slices.Clone(detectionBricks), trackingBrick),
+		},
+		{
+			name:      "object detection with a SORT object tracking block",
+			boardName: platform.BoardVentunoQ,
+			blockType: "sort-object-tracking",
+			expected:  append(slices.Clone(detectionBricks), trackingBrick),
+		},
+		{
+			name:      "object detection with an object tracking block on a board without the tracking brick",
+			boardName: platform.BoardUnoQ,
+			blockType: "object-tracking",
+			expected:  detectionBricks,
+		},
+	}
+
+	for _, tt := range objectTrackingTests {
+		t.Run(tt.name, func(t *testing.T) {
+			boardIndex, err := bricksindex.Load(platform.Platform{BoardName: tt.boardName}, assetDir)
+			require.NoError(t, err)
+			category := edgeimpulse.ProjectCategoryObjectDetection
+
+			result, err := buildBrickConfigForEIModel(
+				boardIndex,
+				&category,
+				nil,
+				[]edgeimpulse.ImpulsePostProcessingBlock{{Type: tt.blockType}},
+				edgeModelsDir,
+				blobModelsDir,
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, result)
 		})
 	}
 }
