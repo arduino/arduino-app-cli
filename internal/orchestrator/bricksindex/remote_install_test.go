@@ -105,6 +105,7 @@ func TestFindBrickRelease(t *testing.T) {
 	index := &RemoteIndex{Bricks: []RemoteBrick{
 		{ID: "acme:camera", Releases: []RemoteRelease{release("1.10.0", "ventunoq"), release("1.2.0"), release("1.9.0", "unoq", "ventunoq")}},
 		{ID: "acme:audio", Releases: []RemoteRelease{release("1.0.0", "ventunoq")}},
+		{ID: "acme:empty"},
 	}}
 	unoq := platform.Platform{BoardName: "unoq"}
 
@@ -116,14 +117,16 @@ func TestFindBrickRelease(t *testing.T) {
 		want     string
 		wantErr  error
 	}{
-		{"latest supported release", "acme:camera", "", unoq, "1.9.0", nil},
-		{"latest release", "acme:camera", "", platform.Platform{BoardName: "ventunoq"}, "1.10.0", nil},
+		{"latest release, compared as semver", "acme:camera", "", platform.Platform{BoardName: "ventunoq"}, "1.10.0", nil},
+		// An older release that supports the board is not chosen instead.
+		{"latest release not supported", "acme:camera", "", unoq, "", ErrUnsupportedBoard},
 		{"any board without a board name", "acme:camera", "", platform.Platform{}, "1.10.0", nil},
 		{"given version", "acme:camera", "1.2.0", unoq, "1.2.0", nil},
 		{"given version, compared as semver", "acme:camera", "1.2", unoq, "1.2.0", nil},
 		{"given version not supported", "acme:camera", "1.10.0", unoq, "", ErrUnsupportedBoard},
 		{"no release supported", "acme:audio", "", unoq, "", ErrUnsupportedBoard},
 		{"missing version", "acme:camera", "9.9.9", unoq, "", ErrReleaseNotFound},
+		{"no releases", "acme:empty", "", unoq, "", ErrReleaseNotFound},
 		{"missing brick", "acme:missing", "", unoq, "", ErrBrickNotFound},
 	}
 	for _, tt := range tests {
@@ -145,8 +148,13 @@ func TestFindBrickRelease(t *testing.T) {
 		})
 	}
 
+	// The resolution of the bricks of an app falls back to the latest release that supports the board.
 	camera, err := index.FindBrick("acme:camera")
 	require.NoError(t, err)
+	latestSupported, err := camera.FindRelease(nil, unoq)
+	require.NoError(t, err)
+	require.Equal(t, "1.9.0", latestSupported.Version.String())
+
 	releases := camera.SupportedReleases(unoq)
 	versions := make([]string, 0, len(releases))
 	for _, r := range releases {

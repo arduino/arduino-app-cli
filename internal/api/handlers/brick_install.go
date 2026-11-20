@@ -34,7 +34,7 @@ type brickInstalled struct {
 }
 
 // HandleInstallBrick installs a release of a third-party brick from the bricks index: the one of
-// the version query parameter or, without it, the latest one that supports the board.
+// the version query parameter or, without it, the latest one. It must support the board.
 func HandleInstallBrick(dockerClient command.Cli, cfg config.Configuration, servicesIndex *servicesindex.ServicesIndex, plat platform.Platform, downloadConfig downloader.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("brickID")

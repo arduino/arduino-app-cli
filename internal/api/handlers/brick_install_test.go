@@ -32,17 +32,24 @@ import (
 
 const testBoard = "test-board"
 
-// brickIndexJSON returns an index with acme:camera 1.0.0, for every board, and 1.1.0, for
-// another board only, both downloaded from archiveURL.
+// brickIndexJSON returns an index whose releases are all downloaded from archiveURL, with:
+//   - acme:camera 1.0.0, for another board only, and 1.1.0, for every board;
+//   - acme:audio 1.0.0, for every board, and 1.1.0, for another board only.
 func brickIndexJSON(t *testing.T, archiveURL, hash string, size int) []byte {
 	t.Helper()
 	release := func(version string, boards []string) map[string]any {
 		return map[string]any{"version": version, "url": archiveURL, "hash": hash, "size": size, "supported_boards": boards}
 	}
-	data, err := json.Marshal(map[string]any{"bricks": []map[string]any{{
-		"id": "acme:camera", "namespace": "acme", "author": "Acme", "name": "Camera",
-		"releases": []map[string]any{release("1.0.0", nil), release("1.1.0", []string{"other-board"})},
-	}}})
+	data, err := json.Marshal(map[string]any{"bricks": []map[string]any{
+		{
+			"id": "acme:camera", "namespace": "acme", "author": "Acme", "name": "Camera",
+			"releases": []map[string]any{release("1.0.0", []string{"other-board"}), release("1.1.0", nil)},
+		},
+		{
+			"id": "acme:audio", "namespace": "acme", "author": "Acme", "name": "Audio",
+			"releases": []map[string]any{release("1.0.0", nil), release("1.1.0", []string{"other-board"})},
+		},
+	}})
 	require.NoError(t, err)
 	return data
 }
@@ -122,9 +129,11 @@ func TestHandleInstallBrickBeforeStream(t *testing.T) {
 		{"id without namespace", "/v1/bricks/camera", http.StatusBadRequest, "invalid brick id"},
 		{"empty version", "/v1/bricks/acme:camera?version=", http.StatusBadRequest, "missing version"},
 		{"invalid version", "/v1/bricks/acme:camera?version=v1", http.StatusBadRequest, "invalid version"},
-		{"brick not in the index", "/v1/bricks/acme:audio", http.StatusNotFound, "brick not found in the bricks index"},
+		{"brick not in the index", "/v1/bricks/acme:missing", http.StatusNotFound, "brick not found in the bricks index"},
 		{"version not in the index", "/v1/bricks/acme:camera?version=2.0.0", http.StatusNotFound, "brick version not found in the bricks index"},
-		{"version not supporting the board", "/v1/bricks/acme:camera?version=1.1.0", http.StatusBadRequest, "not supported by this board"},
+		{"version not supporting the board", "/v1/bricks/acme:camera?version=1.0.0", http.StatusBadRequest, "not supported by this board"},
+		// An older version that supports the board is not installed instead.
+		{"latest version not supporting the board", "/v1/bricks/acme:audio", http.StatusBadRequest, "the latest version of acme:audio, 1.1.0, does not support"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -145,9 +154,9 @@ func TestHandleInstallBrickBeforeStream(t *testing.T) {
 func TestHandleInstallBrickAlreadyInstalled(t *testing.T) {
 	index := brickIndexJSON(t, "https://example.com/camera.zip", strings.Repeat("0", 64), 1)
 
-	t.Run("the latest release supporting the board is done at once", func(t *testing.T) {
+	t.Run("the latest release is done at once", func(t *testing.T) {
 		cfg := brickTestConfig(t, index, "")
-		require.NoError(t, cfg.BricksDir().Join("acme", "camera", "1.0.0").MkdirAll())
+		require.NoError(t, cfg.BricksDir().Join("acme", "camera", "1.1.0").MkdirAll())
 
 		rec := installBrick(t, cfg, "/v1/bricks/acme:camera")
 
@@ -155,7 +164,7 @@ func TestHandleInstallBrickAlreadyInstalled(t *testing.T) {
 		assert.Contains(t, rec.Header().Get("Content-Type"), "text/event-stream")
 		events := sseEvents(t, rec.Body.String())
 		require.Equal(t, []string{"done"}, eventTypes(events))
-		assert.JSONEq(t, `{"id":"acme:camera","version":"1.0.0","already_installed":true}`, events[0].Data)
+		assert.JSONEq(t, `{"id":"acme:camera","version":"1.1.0","already_installed":true}`, events[0].Data)
 	})
 
 	t.Run("a stale index that cannot be updated is used with a warning", func(t *testing.T) {
@@ -163,9 +172,9 @@ func TestHandleInstallBrickAlreadyInstalled(t *testing.T) {
 		indexPath := cfg.BricksIndexDir().Join(bricksindex.RemoteIndexFileName)
 		old := time.Now().Add(-2 * bricksindex.RemoteIndexMaxAge)
 		require.NoError(t, os.Chtimes(indexPath.String(), old, old))
-		require.NoError(t, cfg.BricksDir().Join("acme", "camera", "1.0.0").MkdirAll())
+		require.NoError(t, cfg.BricksDir().Join("acme", "camera", "1.1.0").MkdirAll())
 
-		rec := installBrick(t, cfg, "/v1/bricks/acme:camera?version=1.0.0")
+		rec := installBrick(t, cfg, "/v1/bricks/acme:camera?version=1.1.0")
 
 		events := sseEvents(t, rec.Body.String())
 		require.Equal(t, []string{"message", "done"}, eventTypes(events))
@@ -198,13 +207,13 @@ func TestHandleInstallBrickFailure(t *testing.T) {
 	events := sseEvents(t, rec.Body.String())
 	require.NotEmpty(t, events)
 	assert.Equal(t, "progress", events[0].Type)
-	assert.Contains(t, events[0].Data, `"name":"acme:camera@1.0.0"`)
+	assert.Contains(t, events[0].Data, `"name":"acme:camera@1.1.0"`)
 	last := events[len(events)-1]
 	assert.Equal(t, "error", last.Type)
 	assert.Contains(t, last.Data, string(render.InternalServiceErr))
 	assert.Contains(t, last.Data, "src")
 	assert.NotContains(t, eventTypes(events), "done")
-	assert.NoDirExists(t, cfg.BricksDir().Join("acme", "camera", "1.0.0").String())
+	assert.NoDirExists(t, cfg.BricksDir().Join("acme", "camera", "1.1.0").String())
 }
 
 func TestBrickInstallStream(t *testing.T) {

@@ -85,18 +85,40 @@ func (idx *RemoteIndex) FindBrick(id string) (*RemoteBrick, error) {
 	return nil, fmt.Errorf("%w: %s", ErrBrickNotFound, id)
 }
 
-// FindBrickRelease returns the brick with the given id and its release to install, as
-// FindRelease chooses it.
+// FindBrickRelease returns the brick with the given id and its release to install.
+// The release must support the board.
 func (idx *RemoteIndex) FindBrickRelease(id string, version *semver.Version, platform platform.Platform) (*RemoteBrick, *RemoteRelease, error) {
 	brick, err := idx.FindBrick(id)
 	if err != nil {
 		return nil, nil, err
 	}
-	release, err := brick.FindRelease(version, platform)
-	if err != nil {
-		return nil, nil, err
+	if version != nil {
+		release, err := brick.FindRelease(version, platform)
+		if err != nil {
+			return nil, nil, err
+		}
+		return brick, release, nil
 	}
-	return brick, release, nil
+	latest := brick.latestRelease()
+	if latest == nil {
+		return nil, nil, fmt.Errorf("%w: %s has no releases", ErrReleaseNotFound, id)
+	}
+	if !latest.SupportsBoard(platform) {
+		return nil, nil, fmt.Errorf("%w: the latest version of %s, %s, does not support %s", ErrUnsupportedBoard, id, latest.Version, platform.BoardName)
+	}
+	return brick, latest, nil
+}
+
+// latestRelease returns the release with the highest version, whatever the boards it supports,
+// or nil if the brick has no releases.
+func (b *RemoteBrick) latestRelease() *RemoteRelease {
+	var latest *RemoteRelease
+	for i := range b.Releases {
+		if r := &b.Releases[i]; latest == nil || r.Version.GreaterThan(latest.Version) {
+			latest = r
+		}
+	}
+	return latest
 }
 
 // FindRelease returns the release with the given version or, if version is nil,

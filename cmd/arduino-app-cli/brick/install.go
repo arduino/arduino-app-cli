@@ -25,7 +25,7 @@ func newInstallCmd(cfg config.Configuration, version string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "install ID[@VERSION]...",
 		Short: "Install bricks from the bricks index",
-		Long: "Install bricks from the bricks index. Without a version, the latest one that supports the board is installed.\n" +
+		Long: "Install bricks from the bricks index. Without a version, the latest one is installed. It must support the board.\n" +
 			"Several versions of the same brick can be installed side by side.",
 		Example: "  arduino-app-cli brick install acme:camera\n  arduino-app-cli brick install acme:camera@1.0.0 acme:camera@1.1.0",
 		Args:    cobra.MinimumNArgs(1),
