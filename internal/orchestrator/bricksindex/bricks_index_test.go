@@ -438,10 +438,9 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 	t.Run("get by platform compose files", func(t *testing.T) {
 		// Force a Ventunoq platform to test the retrieval of platform-specific compose file
 		ventunoq := platform.Platform{
-			FQBN:        "arduino:zephyr:ventunoq",
-			PlatformID:  "arduino:zephyr",
-			BoardName:   "ventunoq",
-			CompileJobs: 0, // unlimited
+			FQBN:       "arduino:zephyr:ventunoq",
+			PlatformID: "arduino:zephyr",
+			BoardName:  "ventunoq",
 		}
 		bricksIndex, err := Load(ventunoq, paths.New("testdata/0.4.8"))
 		require.NoError(t, err)
