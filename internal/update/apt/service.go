@@ -181,7 +181,11 @@ func runUpdateCommand(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	if out, err := cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
+		if isAptLockHeldErr(out, err) {
+			return update.NewLockHeldError(fmt.Errorf("%w: %s", err, out))
+		}
 		return fmt.Errorf("error running apt-get update command: %w: %s", err, out)
 	}
 	return nil
@@ -194,6 +198,7 @@ func checkAptLockHeld(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	out, err := cmd.RunAndCaptureCombinedOutput(ctx)
 	// The probe never succeeds: apt exits 100 on the missing package. Anything
 	// else, a sudo denial included, means it never reached apt.
@@ -202,11 +207,21 @@ func checkAptLockHeld(ctx context.Context) error {
 		slog.Warn("apt lock probe did not run", "error", err, "output", string(out))
 		return nil
 	}
-	// The lock file path is in the message, so the match survives a translated apt.
-	if strings.Contains(strings.ToLower(string(out)), "lock") {
+
+	if isAptLockHeldErr(out, err) {
 		return update.NewLockHeldError(fmt.Errorf("%w: %s", err, out))
 	}
 	return nil
+}
+
+func isAptLockHeldErr(out []byte, err error) bool {
+	exitErr, ok := errors.AsType[*exec.ExitError](err)
+	if !ok || exitErr.ExitCode() != 100 {
+		return false
+	}
+	// check "/lock"" as all files locked by apt are "*/lock*"
+	// just checking "lock" may result in a false positive for words like "block"
+	return strings.Contains(strings.ToLower(string(out)), "/lock")
 }
 
 func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, error] {
@@ -247,7 +262,6 @@ func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, er
 			return
 		}
 	}
-
 }
 
 func runAptCleanCommand(ctx context.Context) iter.Seq2[string, error] {

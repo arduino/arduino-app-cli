@@ -52,7 +52,6 @@ type ServiceUpdater interface {
 const selfPackageName = "arduino-app-cli"
 
 type Manager struct {
-	lock                         sync.Mutex
 	isUpgrading                  atomic.Bool
 	debUpdateService             ServiceUpdater
 	arduinoPlatformUpdateService ServiceUpdater
@@ -140,12 +139,11 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		}
 	}
 
-	if !m.lock.TryLock() {
+	swapped := m.isUpgrading.CompareAndSwap(false, true)
+	if !swapped {
 		return ErrOperationAlreadyInProgress
 	}
-	m.isUpgrading.Store(true)
 	go func() {
-		defer m.lock.Unlock()
 		defer m.isUpgrading.Store(false)
 
 		const arduinoWeight float32 = 20.0
@@ -180,6 +178,7 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 				m.broadcast(e)
 			}
 		}); err != nil {
+			// TODO(stefano.fiori): handle errors instead of translating each error to a lock held error
 			m.broadcast(NewErrorEvent(NewLockHeldError(fmt.Errorf("failed to upgrade APT packages: %w", err))))
 			// continue: errors are reported to the subscribers but do not end the
 			// operation, DoneEvent is always broadcast as the only terminal event.
@@ -209,30 +208,30 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 }
 
 // Subscribe creates a new channel for receiving APT events.
-func (b *Manager) Subscribe() chan Event {
+func (m *Manager) Subscribe() chan Event {
 	eventCh := make(chan Event, 100)
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.subs[eventCh] = struct{}{}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.subs[eventCh] = struct{}{}
 	return eventCh
 }
 
 // Unsubscribe removes the channel from the list of subscribers and closes it.
-func (b *Manager) Unsubscribe(eventCh chan Event) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	delete(b.subs, eventCh)
+func (m *Manager) Unsubscribe(eventCh chan Event) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.subs, eventCh)
 	close(eventCh)
 }
 
-func (b *Manager) broadcast(event Event) {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
+func (m *Manager) broadcast(event Event) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	if event.Type == ErrorEvent {
 		slog.Error("An error occurred", slog.Any("event", event))
 	}
-	for ch := range b.subs {
+	for ch := range m.subs {
 		select {
 		case ch <- event:
 		default:
