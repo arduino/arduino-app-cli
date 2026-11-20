@@ -83,9 +83,6 @@ func NewHTTPRouter(
 	mux.Handle("DELETE /v1/apps/{appID}/sketch/libraries/{libRef}", handlers.HandleSketchRemoveLibrary(idProvider))
 	mux.Handle("GET /v1/apps/{appID}/sketch/libraries", handlers.HandleSketchListLibraries(idProvider))
 
-	mux.Handle("POST /v1/apps/{appID}/bricks", handlers.HandleAppLocalBrickCreate(idProvider))
-	mux.Handle("POST /v1/apps/{appID}/bricks/{brickID}/rename", handlers.HandleAppLocalBrickRename(brickService, idProvider))
-
 	mux.Handle("GET /v1/docs/", http.StripPrefix("/v1/docs/", handlers.DocsServer(docsFS)))
 
 	mux.Handle("GET /v1/monitor/ws", handlers.HandleMonitorWS(allowedOrigins))

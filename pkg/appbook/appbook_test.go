@@ -50,6 +50,14 @@ func TestNew(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `"name":"app2"`)
 
+	rec = serve("POST", "/v1/apps/"+renamed.ID+"/bricks", `{"name":"My Brick"}`)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	require.JSONEq(t, `{"id":"my_brick"}`, rec.Body.String())
+
+	rec = serve("POST", "/v1/apps/"+renamed.ID+"/bricks/my_brick/rename", `{"name":"Other Brick"}`)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "other_brick")
+
 	rec = serve("DELETE", "/v1/apps/"+renamed.ID, "")
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.NoDirExists(t, filepath.Join(tmp, "apps", "app2"))

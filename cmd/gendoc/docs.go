@@ -1402,10 +1402,10 @@ also when 'error' events were received.
 			Parameters: (*struct {
 				ID string `path:"appID" description:"application identifier."`
 			})(nil),
-			Request: handlers.AppLocalBrickCreateRequest{},
+			Request: httpapi.AppLocalBrickCreateRequest{},
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: handlers.AppLocalBrickCreateResponse{},
+				DataStructure: httpapi.AppLocalBrickCreateResponse{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusCreated,
 			},
@@ -1515,7 +1515,7 @@ also when 'error' events were received.
 				ID      string `path:"appID" description:"application identifier."`
 				BrickID string `path:"brickID" description:"brick identifier."`
 			})(nil),
-			Request: handlers.AppLocalBrickRenameRequest{},
+			Request: httpapi.AppLocalBrickRenameRequest{},
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
 				DataStructure: bricks.LocalBrickRenameResult{},

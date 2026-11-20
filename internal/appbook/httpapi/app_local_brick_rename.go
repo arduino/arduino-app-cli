@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package handlers
+package httpapi
 
 import (
 	"encoding/json"
@@ -12,8 +12,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/arduino/arduino-app-cli/internal/api/models"
-	"github.com/arduino/arduino-app-cli/internal/appbook/httpapi"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/render"
@@ -27,34 +25,34 @@ func HandleAppLocalBrickRename(brickService *bricks.Service, idProvider *appid.P
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
+			render.EncodeResponse(w, http.StatusPreconditionFailed, render.ErrorResponse{Details: "invalid app id"})
 			return
 		}
-		a, ok := httpapi.LoadEditableApp(w, appId)
+		a, ok := LoadEditableApp(w, appId)
 		if !ok {
 			return
 		}
 
 		oldID := r.PathValue("brickID")
 		if oldID == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "brickID must be set"})
+			render.EncodeResponse(w, http.StatusBadRequest, render.ErrorResponse{Details: "brickID must be set"})
 			return
 		}
 
 		var req AppLocalBrickRenameRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			slog.Error("Failed to decode request body", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid request body"})
+			render.EncodeResponse(w, http.StatusBadRequest, render.ErrorResponse{Details: "invalid request body"})
 			return
 		}
 		if req.Name == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "name is required"})
+			render.EncodeResponse(w, http.StatusBadRequest, render.ErrorResponse{Details: "name is required"})
 			return
 		}
 
 		newID, err := generateBrickID(req.Name)
 		if err != nil {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			render.EncodeResponse(w, http.StatusBadRequest, render.ErrorResponse{Details: err.Error()})
 			return
 		}
 
@@ -62,14 +60,14 @@ func HandleAppLocalBrickRename(brickService *bricks.Service, idProvider *appid.P
 		if err != nil {
 			switch {
 			case errors.Is(err, bricks.ErrBrickNotFound):
-				render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("brick %q not found", oldID)})
+				render.EncodeResponse(w, http.StatusNotFound, render.ErrorResponse{Details: fmt.Sprintf("brick %q not found", oldID)})
 			case errors.Is(err, bricks.ErrBrickNotLocal):
-				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "only local bricks can be renamed"})
+				render.EncodeResponse(w, http.StatusBadRequest, render.ErrorResponse{Details: "only local bricks can be renamed"})
 			case errors.Is(err, bricks.ErrBrickIDConflict):
-				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("a brick with id %q already exists", newID)})
+				render.EncodeResponse(w, http.StatusConflict, render.ErrorResponse{Details: fmt.Sprintf("a brick with id %q already exists", newID)})
 			default:
 				slog.Error("Failed to rename local brick", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "failed to rename local brick"})
+				render.EncodeResponse(w, http.StatusInternalServerError, render.ErrorResponse{Details: "failed to rename local brick"})
 			}
 			return
 		}

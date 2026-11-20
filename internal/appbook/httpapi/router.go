@@ -43,5 +43,7 @@ func NewRouter(
 	mux.Handle("PUT /v1/apps/{appID}/bricks/{brickID}", HandleBrickCreate(brickService, idProvider))
 	mux.Handle("PATCH /v1/apps/{appID}/bricks/{brickID}", HandleBrickUpdates(brickService, idProvider))
 	mux.Handle("DELETE /v1/apps/{appID}/bricks/{brickID}", HandleBrickDelete(brickService, idProvider))
+	mux.Handle("POST /v1/apps/{appID}/bricks", HandleAppLocalBrickCreate(idProvider))
+	mux.Handle("POST /v1/apps/{appID}/bricks/{brickID}/rename", HandleAppLocalBrickRename(brickService, idProvider))
 	return mux
 }

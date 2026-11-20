@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package handlers
+package httpapi
 
 import (
 	"encoding/json"
@@ -14,8 +14,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/arduino/arduino-app-cli/internal/api/models"
-	"github.com/arduino/arduino-app-cli/internal/appbook/httpapi"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/render"
@@ -33,10 +31,10 @@ func HandleAppLocalBrickCreate(idProvider *appid.Provider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
+			render.EncodeResponse(w, http.StatusPreconditionFailed, render.ErrorResponse{Details: "invalid app id"})
 			return
 		}
-		a, ok := httpapi.LoadEditableApp(w, appId)
+		a, ok := LoadEditableApp(w, appId)
 		if !ok {
 			return
 		}
@@ -44,28 +42,28 @@ func HandleAppLocalBrickCreate(idProvider *appid.Provider) http.HandlerFunc {
 		var req AppLocalBrickCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			slog.Error("Failed to decode request body", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid request body"})
+			render.EncodeResponse(w, http.StatusBadRequest, render.ErrorResponse{Details: "invalid request body"})
 			return
 		}
 		if req.Name == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "name is required"})
+			render.EncodeResponse(w, http.StatusBadRequest, render.ErrorResponse{Details: "name is required"})
 			return
 		}
 
 		id, err := generateBrickID(req.Name)
 		if err != nil {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			render.EncodeResponse(w, http.StatusBadRequest, render.ErrorResponse{Details: err.Error()})
 			return
 		}
 
 		err = generator.GenerateLocalBrick(a.GetBricksPath(), id, req.Name)
 		if err != nil {
 			if errors.Is(err, generator.ErrBrickAlreadyExists) {
-				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("a brick with the same id '%s' already exists", id)})
+				render.EncodeResponse(w, http.StatusConflict, render.ErrorResponse{Details: fmt.Sprintf("a brick with the same id '%s' already exists", id)})
 				return
 			}
 			slog.Error("Failed to generate local brick", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "failed to generate local brick"})
+			render.EncodeResponse(w, http.StatusInternalServerError, render.ErrorResponse{Details: "failed to generate local brick"})
 			return
 		}
 
