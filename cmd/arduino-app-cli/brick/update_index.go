@@ -35,27 +35,19 @@ func updateIndexHandler(ctx context.Context, cfg config.Configuration, version s
 	feedback.PrintResult(updateIndexResult{})
 }
 
-// loadRemoteIndex returns the bricks index, updating it first if it is older than bricksindex.RemoteIndexMaxAge.
-// If the update fails, the saved index is used.
+// loadRemoteIndex returns the bricks index, as bricksindex.LoadOrUpdateRemoteIndex does.
 func loadRemoteIndex(ctx context.Context, cfg config.Configuration, version string) *bricksindex.RemoteIndex {
-	dir := cfg.BricksIndexDir()
-	if bricksindex.RemoteIndexIsRecent(dir, bricksindex.RemoteIndexMaxAge) {
-		if index, err := bricksindex.LoadRemoteIndex(dir); err == nil {
-			return index
-		}
-	}
 	out, _, _ := feedback.OutputStreams()
-	fmt.Fprintln(out, "Updating the bricks index...")
-	index, err := bricksindex.UpdateRemoteIndex(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksIndexURL, dir)
-	if err == nil {
-		return index
-	}
-	saved, loadErr := bricksindex.LoadRemoteIndex(dir)
-	if loadErr != nil {
+	index, warning, err := bricksindex.LoadOrUpdateRemoteIndex(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksIndexURL, cfg.BricksIndexDir(), func() {
+		fmt.Fprintln(out, "Updating the bricks index...")
+	})
+	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
-	feedback.Warnf("Cannot update the bricks index, using the saved one: %v", err)
-	return saved
+	if warning != nil {
+		feedback.Warnf("Cannot update the bricks index, using the saved one: %v", warning)
+	}
+	return index
 }
 
 func userAgent(version string) string {

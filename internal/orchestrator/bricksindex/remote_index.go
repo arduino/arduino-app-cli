@@ -144,6 +144,26 @@ func RemoteIndexIsRecent(dir *paths.Path, maxAge time.Duration) bool {
 	return err == nil && time.Since(info.ModTime()) < maxAge
 }
 
+// LoadOrUpdateRemoteIndex returns the index saved in dir, downloading it from indexURL first when
+// there is none, when it is broken or when it is older than RemoteIndexMaxAge.
+func LoadOrUpdateRemoteIndex(ctx context.Context, config downloader.Config, indexURL *url.URL, dir *paths.Path, onUpdate func()) (index *RemoteIndex, warning error, err error) {
+	saved, loadErr := LoadRemoteIndex(dir)
+	if loadErr == nil && RemoteIndexIsRecent(dir, RemoteIndexMaxAge) {
+		return saved, nil, nil
+	}
+	if onUpdate != nil {
+		onUpdate()
+	}
+	updated, err := UpdateRemoteIndex(ctx, config, indexURL, dir)
+	if err == nil {
+		return updated, nil, nil
+	}
+	if loadErr != nil {
+		return nil, nil, err
+	}
+	return saved, err, nil
+}
+
 // UpdateRemoteIndex downloads the index from indexURL and saves it in dir.
 func UpdateRemoteIndex(ctx context.Context, config downloader.Config, indexURL *url.URL, dir *paths.Path) (*RemoteIndex, error) {
 	indexPath := dir.Join(RemoteIndexFileName)
