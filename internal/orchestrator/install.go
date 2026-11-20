@@ -99,7 +99,8 @@ func InstallRelease(
 	if err := stagingDir.Join(app.DataDirName).MkdirAll(); err != nil {
 		return InstallReleaseResult{}, fmt.Errorf("failed to create the data dir: %w", err)
 	}
-	if _, err := app.Load(stagingDir); err != nil {
+	stagedApp, err := app.Load(stagingDir)
+	if err != nil {
 		return InstallReleaseResult{}, fmt.Errorf("%w: the release does not hold a valid app: %v", ErrBadRequest, err)
 	}
 
@@ -107,33 +108,35 @@ func InstallRelease(
 	if releasePath.Exist() {
 		return InstallReleaseResult{}, fmt.Errorf("%w: %s is already installed", ErrAppAlreadyExists, releaseName)
 	}
-	// Before the rename: the models go to the board, so the staged copy of them must not
-	// stay in the app folder the release installs as.
+	// The release is not in place yet: its id is the one of where it is moved to.
+	appID, err := idProvider.IDFromPathAllowMissing(releasePath)
+	if err != nil {
+		return InstallReleaseResult{}, err
+	}
+
+	// Before the render, which looks up the models of the bricks on the board, and before
+	// the rename: the staged copy of them must not stay in the app folder the release
+	// installs as.
 	if err := installEIModels(stagingDir.Join(releaseCustomEIDir), cfg.EIModelsDir()); err != nil {
 		return InstallReleaseResult{}, err
 	}
+
+	prj, err := renderRelease(ctx, docker, provisioner, stagedApp, releasePath, cfg, plat)
+	if err != nil {
+		return InstallReleaseResult{}, err
+	}
+
 	fatomic.Sync()
 	if err := stagingDir.Rename(releasePath); err != nil {
 		return InstallReleaseResult{}, fmt.Errorf("failed to install the release: %w", err)
 	}
 
-	appID, err := idProvider.IDFromPath(releasePath)
-	if err != nil {
-		return InstallReleaseResult{}, err
-	}
-
-	// Loaded from where it is installed: the render resolves absolute paths, so the
-	// staging dir must not be the one they point at.
-	installedApp, err := app.Load(releasePath)
-	if err != nil {
-		return InstallReleaseResult{}, fmt.Errorf("failed to load the installed release: %w", err)
-	}
-	prj, err := renderRelease(ctx, docker, provisioner, installedApp, cfg, plat)
-	if err != nil {
-		return InstallReleaseResult{}, err
-	}
-	fatomic.Sync()
 	if prepare {
+		// Loaded back from where it is installed: the models it ships are read from there.
+		installedApp, err := app.Load(releasePath)
+		if err != nil {
+			return InstallReleaseResult{}, fmt.Errorf("%s is installed, but cannot be loaded: %w", releaseName, err)
+		}
 		// The release is installed either way: what failed is a download a start does
 		// again, so it is worth saying which of the two the caller is looking at.
 		if err := PrepareRelease(ctx, docker, installedApp, prj, cfg, plat, cb); err != nil {
