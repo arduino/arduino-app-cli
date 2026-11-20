@@ -545,8 +545,10 @@ func TestListApp(t *testing.T) {
 	})
 
 	t.Run("ignore temporary apps starting with .tmp_", func(t *testing.T) {
-		tmpAppPath, err := app.MkTmpAppDir(cfg.AppsDir())
+		tmpAppDir, cleanup, err := app.MkTmpAppDir(cfg.AppsDir(), "tmp-app")
 		require.NoError(t, err)
+		defer cleanup()
+		tmpAppPath := tmpAppDir.Parent()
 
 		tmpAppName := tmpAppPath.Base()
 		require.True(t, strings.HasPrefix(tmpAppName, ".tmp_"))
@@ -574,10 +576,10 @@ func TestListApp(t *testing.T) {
 	})
 
 	t.Run("ignore apps staged inside a .tmp_ container", func(t *testing.T) {
-		containerPath, err := app.MkTmpAppDir(cfg.AppsDir())
+		stagedAppPath, cleanup, err := app.MkTmpAppDir(cfg.AppsDir(), "staged-app")
 		require.NoError(t, err)
-		stagedAppPath := containerPath.Join("staged-app")
-		require.NoError(t, stagedAppPath.MkdirAll())
+		defer cleanup()
+		containerPath := stagedAppPath.Parent()
 		require.NoError(t, stagedAppPath.Join("app.yaml").WriteFile([]byte("name: staged-app")))
 
 		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
@@ -590,6 +592,31 @@ func TestListApp(t *testing.T) {
 		}
 		for _, b := range res.BrokenApps {
 			assert.NotContains(t, b.Name, "staged-app", "the staged app should not be in the broken apps list")
+		}
+	})
+
+	t.Run("ignore releases staged by an install", func(t *testing.T) {
+		stagingDir, cleanup, err := app.MkTmpAppDir(cfg.ReleasesDir(), "staged-release")
+		require.NoError(t, err)
+		defer cleanup()
+		containerPath := stagingDir.Parent()
+		require.True(t, strings.HasPrefix(containerPath.Base(), ".tmp_"))
+		require.True(t, app.IsValidFolderName(stagingDir.Base()), "the staged release must be loadable")
+		require.NoError(t, stagingDir.Join("app.yaml").WriteFile([]byte("name: staged-release")))
+		require.NoError(t, stagingDir.Join("python").MkdirAll())
+		require.NoError(t, stagingDir.Join("python", "main.py").WriteFile([]byte("print('hi')\n")))
+
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
+			ShowApps:     true,
+			ShowReleases: true,
+		}, idProvider, nil, cfg, unoQPlatform)
+		require.NoError(t, err)
+
+		for _, a := range res.Apps {
+			assert.NotContains(t, a.ID.String(), containerPath.Base(), "the staged release should not be listed")
+		}
+		for _, b := range res.BrokenApps {
+			assert.NotContains(t, b.Name, "staged-release", "the staged release should not be in the broken apps list")
 		}
 	})
 
