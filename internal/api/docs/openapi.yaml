@@ -822,6 +822,18 @@ paths:
         schema:
           description: Return a verbose output. Default is false.
           type: boolean
+      - description: Flash the firmware file sent in the 'file' form field instead
+          of compiling the sketch on the board. The client must compile the sketch
+          with the full FQBN of the board, including the menu option wait_linux_boot=app
+          when the core of the board has it.
+        in: query
+        name: prebuilt_sketch
+        schema:
+          description: Flash the firmware file sent in the 'file' form field instead
+            of compiling the sketch on the board. The client must compile the sketch
+            with the full FQBN of the board, including the menu option wait_linux_boot=app
+            when the core of the board has it.
+          type: boolean
       - description: application identifier.
         in: path
         name: id
@@ -829,6 +841,14 @@ paths:
         schema:
           description: application identifier.
           type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                file:
+                  $ref: '#/components/schemas/File'
+              type: object
       responses:
         "200":
           content:
@@ -859,6 +879,8 @@ paths:
             (PUT /v1/apps/{appID}/prepare); otherwise the missing model must be installed
             before the app is started again.
             'data: {"code":"not_prepared","message":"the app is not prepared: the container \"...\" is not on the board"}'
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "412":
           $ref: '#/components/responses/PreconditionFailed'
         "500":
@@ -2358,6 +2380,9 @@ components:
           nullable: true
           type: array
       type: object
+    File:
+      format: binary
+      type: string
     Library:
       properties:
         architectures:

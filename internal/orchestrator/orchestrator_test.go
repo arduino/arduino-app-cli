@@ -1203,3 +1203,56 @@ func mustEdit(t *testing.T, a *app.ArduinoApp) app.Editable {
 	require.NoError(t, err)
 	return editable
 }
+
+func TestCheckPrebuiltSketch(t *testing.T) {
+	writePrebuilt := func(t *testing.T) *paths.Path {
+		fwFile := paths.New(t.TempDir()).Join("sketch-prebuilt.fw")
+		require.NoError(t, fwFile.WriteFile([]byte("fw")))
+		return fwFile
+	}
+
+	t.Run("editable app with the file", func(t *testing.T) {
+		a, err := app.Load(createTestAppWithSketch(t))
+		require.NoError(t, err)
+		require.NoError(t, checkPrebuiltSketch(a, writePrebuilt(t)))
+	})
+	t.Run("file missing", func(t *testing.T) {
+		a, err := app.Load(createTestAppWithSketch(t))
+		require.NoError(t, err)
+		require.ErrorIs(t, checkPrebuiltSketch(a, paths.New(t.TempDir()).Join("missing.fw")), ErrBadRequest)
+	})
+	t.Run("directory instead of a file", func(t *testing.T) {
+		a, err := app.Load(createTestAppWithSketch(t))
+		require.NoError(t, err)
+		require.ErrorIs(t, checkPrebuiltSketch(a, paths.New(t.TempDir())), ErrBadRequest)
+	})
+	t.Run("app without sketch", func(t *testing.T) {
+		a, err := app.Load(createTestAppPythonOnly(t))
+		require.NoError(t, err)
+		require.ErrorIs(t, checkPrebuiltSketch(a, writePrebuilt(t)), ErrBadRequest)
+	})
+	t.Run("release app", func(t *testing.T) {
+		appPath := createTestAppWithSketch(t)
+		require.NoError(t, appPath.Join(app.ReleaseManifestFileName).WriteFile([]byte("schema: 1\nname: a-release\ntarget: unoq\n")))
+		a, err := app.Load(appPath)
+		require.NoError(t, err)
+		require.True(t, a.IsRelease())
+		require.ErrorIs(t, checkPrebuiltSketch(a, writePrebuilt(t)), ErrBadRequest)
+	})
+}
+
+func TestUsesLegacyFlashToRam(t *testing.T) {
+	unoq := platform.Platform{FQBN: "arduino:zephyr:unoq"}
+	other := platform.Platform{FQBN: "arduino:zephyr:other"}
+	withWaitForApp := MenuOptions{{name: WaitForApp.name, values: []string{"no", WaitForApp.value}}}
+
+	require.True(t, usesLegacyFlashToRam(nil, unoq), "UNO Q with a core without wait_linux_boot=app")
+	require.False(t, usesLegacyFlashToRam(withWaitForApp, unoq), "UNO Q with a core with wait_linux_boot=app")
+	require.False(t, usesLegacyFlashToRam(nil, other), "board without flash to RAM")
+}
+
+func TestCheckPrebuiltSketchPlatformSkipsBoardWithoutFlashToRam(t *testing.T) {
+	// The board cannot flash to RAM, so the check passes without asking arduino-cli.
+	ventunoq := platform.Platform{FQBN: "arduino:zephyr:ventunoq"}
+	require.NoError(t, checkPrebuiltSketchPlatform(t.Context(), ventunoq))
+}

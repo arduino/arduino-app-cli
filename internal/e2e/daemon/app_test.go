@@ -594,7 +594,7 @@ func TestAppStart(t *testing.T) {
 
 	t.Run("InvalidAppId_Fail", func(t *testing.T) {
 		var actualResponseBody models.ErrorResponse
-		resp, err := httpClient.StartApp(t.Context(), malformedAppId, nil)
+		resp, err := httpClient.StartAppWithBody(t.Context(), malformedAppId, nil, "", nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -608,7 +608,7 @@ func TestAppStart(t *testing.T) {
 
 	t.Run("NonExistentAppId_Fail", func(t *testing.T) {
 		var actualResponseBody models.ErrorResponse
-		resp, err := httpClient.StartApp(t.Context(), noExistingApp, nil)
+		resp, err := httpClient.StartAppWithBody(t.Context(), noExistingApp, nil, "", nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -1215,7 +1215,7 @@ func TestGetAppsStatusEvents(t *testing.T) {
 			)
 			require.NoError(t, err)
 			require.Equal(t, http.StatusCreated, createResp.StatusCode())
-			appResponse, err := httpClient.StartAppWithResponse(t.Context(), *createResp.JSON201.Id, nil)
+			appResponse, err := httpClient.StartAppWithBodyWithResponse(t.Context(), *createResp.JSON201.Id, nil, "", nil)
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, appResponse.StatusCode())
 		}()

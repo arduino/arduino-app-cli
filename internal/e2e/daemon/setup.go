@@ -98,7 +98,7 @@ func loop(r io.ReadCloser, events chan Event) {
 // startApp starts the app and fails the test on any error the start stream reports.
 func startApp(t *testing.T, httpClient *client.ClientWithResponses, appID string) {
 	t.Helper()
-	startResp, err := httpClient.StartApp(t.Context(), appID, nil)
+	startResp, err := httpClient.StartAppWithBody(t.Context(), appID, nil, "", nil)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, startResp.StatusCode)
 	defer startResp.Body.Close() // loop closes it too, but the linter cannot see that
