@@ -56,6 +56,7 @@ func generateComposeTemplate(
 	cfg config.Configuration,
 	appEnv types.Mapping,
 	platform platform.Platform,
+	launcher bool,
 ) error {
 	slog.Debug("Generating main compose file for the App")
 
@@ -178,6 +179,30 @@ func generateComposeTemplate(
 		},
 	}
 
+	labels := map[string]string{
+		DockerAppLabel:         "true",
+		DockerAppMainLabel:     "true",
+		DockerAppPathLabel:     appHomeRef,
+		DockerAppLauncherLabel: "true",
+	}
+
+	environment := templateEnvironment(appEnv)
+	command := []string{"launch"}
+	if launcher {
+		// Where the app launcher binds its control socket
+		volumes = append(volumes, volume{
+			Type:   "bind",
+			Source: appRuntimeDirRef,
+			Target: launcherSocketDir,
+		})
+	} else {
+		// run.sh runs the app as the first process of the container, and the template
+		// references nothing of the launcher: any daemon can render it.
+		command = nil
+		delete(labels, DockerAppLauncherLabel)
+		delete(environment, appRuntimeDirVar)
+	}
+
 	// Mounted only where the board has them.
 	optionalMounts := slices.Concat(
 		[]string{"/run/udev:ro", "/run/user/1000/pipewire-0"},
@@ -248,18 +273,15 @@ func generateComposeTemplate(
 		Volumes:           volumes,
 		Ports:             slices.Collect(maps.Keys(ports)),
 		Entrypoint:        "/run.sh",
+		Command:           command,
 		DependsOn:         dependsOn,
 		User:              appUserExpr,
 		GroupAdd:          groupExprs(groupNames),
 		DeviceCgroupRules: cgroupRules,
 		SecurityOpt:       apparmorSecurityOpt(),
 		ExtraHosts:        []string{"msgpack-rpc-router:host-gateway"},
-		Labels: map[string]string{
-			DockerAppLabel:     "true",
-			DockerAppMainLabel: "true",
-			DockerAppPathLabel: appHomeRef,
-		},
-		Environment: templateEnvironment(appEnv),
+		Labels:            labels,
+		Environment:       environment,
 		Logging: &logging{
 			Driver: "json-file",
 			Options: map[string]string{

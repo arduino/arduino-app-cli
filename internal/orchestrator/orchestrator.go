@@ -269,6 +269,14 @@ func StartApp(
 			}
 		}
 
+		// The folder the launcher binds its socket in, created by the daemon so that the
+		// app user owns it: docker would create a missing bind source as root.
+		if launcherServed(prj) {
+			if err := appRuntimeDir(cfg, appToStart.FullPath).MkdirAll(); err != nil {
+				return fmt.Errorf("failed to create the app runtime folder: %w", err)
+			}
+		}
+
 		cb(StreamMessage{data: "python downloading"})
 
 		if err := dockerhelper.PullImages(ctx, docker.Client(), dockerhelper.ComposeImages(prj),
@@ -375,6 +383,9 @@ func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, platform p
 	}
 	if err := cleanAppCacheFiles(app, cb); err != nil {
 		return err
+	}
+	if err := appRuntimeDir(cfg, app.FullPath).RemoveAll(); err != nil {
+		slog.Warn("unable to remove the app runtime folder", slog.String("error", err.Error()))
 	}
 	return nil
 }
