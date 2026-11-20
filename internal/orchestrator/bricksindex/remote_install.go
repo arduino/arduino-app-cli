@@ -46,21 +46,32 @@ var (
 // when the reference does not have one.
 func ParseBrickReference(ref string) (id string, version *semver.Version, err error) {
 	id, versionString, hasVersion := strings.Cut(ref, "@")
-	if _, _, err := splitBrickID(id); err != nil {
+	if err := ValidateBrickID(id); err != nil {
 		return "", nil, fmt.Errorf("invalid brick reference %q: expected NAMESPACE:NAME[@VERSION]", ref)
 	}
 	if !hasVersion {
 		return id, nil, nil
 	}
-	// semver.Parse accepts an empty string.
-	if versionString == "" {
-		return "", nil, fmt.Errorf("invalid brick reference %q: missing version after '@'", ref)
-	}
-	version, err = semver.Parse(versionString)
+	version, err = ParseBrickVersion(versionString)
 	if err != nil {
 		return "", nil, fmt.Errorf("invalid brick reference %q: %w", ref, err)
 	}
 	return id, version, nil
+}
+
+// ValidateBrickID returns an error if id is not in the form NAMESPACE:NAME, each part made of
+// lowercase letters, digits and underscores, starting with a letter.
+func ValidateBrickID(id string) error {
+	_, _, err := splitBrickID(id)
+	return err
+}
+
+// ParseBrickVersion parses the version of a brick. Unlike semver.Parse, it rejects an empty string.
+func ParseBrickVersion(version string) (*semver.Version, error) {
+	if version == "" {
+		return nil, errors.New("missing version")
+	}
+	return semver.Parse(version)
 }
 
 // FindBrick returns the brick with the given id.

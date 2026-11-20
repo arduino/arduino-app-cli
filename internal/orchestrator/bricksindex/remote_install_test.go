@@ -72,6 +72,28 @@ func TestParseBrickReference(t *testing.T) {
 	}
 }
 
+func TestValidateBrickID(t *testing.T) {
+	for _, id := range []string{"acme:camera", "acme_2:my_camera2"} {
+		require.NoError(t, ValidateBrickID(id), id)
+	}
+	for _, id := range []string{"", "camera", ":camera", "acme:", "acme:Camera", "acme:my-camera", "acme:2camera", "acme:_camera", "acme.io:camera", "acme:camera/..", "../acme:camera", "acme:camera@1.0.0"} {
+		require.ErrorContains(t, ValidateBrickID(id), "invalid brick id", id)
+	}
+}
+
+func TestParseBrickVersion(t *testing.T) {
+	version, err := ParseBrickVersion("1.2.0")
+	require.NoError(t, err)
+	require.Equal(t, "1.2.0", version.String())
+
+	_, err = ParseBrickVersion("")
+	require.ErrorContains(t, err, "missing version")
+	for _, v := range []string{"v1", "1.0.0/..", "latest"} {
+		_, err := ParseBrickVersion(v)
+		require.Error(t, err, v)
+	}
+}
+
 func TestFindRelease(t *testing.T) {
 	release := func(version string, boards ...string) RemoteRelease {
 		return RemoteRelease{Version: semver.MustParse(version), SupportedBoards: boards}
