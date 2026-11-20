@@ -67,7 +67,8 @@ func TestRun(t *testing.T) {
 // TestPullImages downloads what the board has not, and says how far it got.
 func TestPullImages(t *testing.T) {
 	docker := getDockerCli(t).Client()
-	const image = "busybox:latest"
+	// No other test uses this image, so the remove below cannot break them.
+	const image = "hello-world:latest"
 
 	// Start from a board that does not have it.
 	_, _ = RemoveImage(t.Context(), docker, image)
