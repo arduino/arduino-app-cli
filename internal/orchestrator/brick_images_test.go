@@ -59,12 +59,38 @@ func TestCheckBrickNotInUse(t *testing.T) {
 	running := []container.Summary{appContainer(container.StateRunning, camera)}
 	require.ErrorContains(t, check(running, "acme:camera", nil), "acme:camera@1.0.0 is used by the app at /apps/demo")
 	require.ErrorContains(t, check(running, "acme:camera", semver.MustParse("1.0.0")), "acme:camera@1.0.0 is used")
+	require.ErrorContains(t, check(running, "acme:camera", semver.MustParse("1.0")), "acme:camera@1.0.0 is used", "the version is compared as semver")
 	require.NoError(t, check(running, "acme:camera", semver.MustParse("1.1.0")))
 	require.NoError(t, check(running, "acme:cam", nil), "a brick whose name is a prefix of another")
 	require.NoError(t, check(running, "other:camera", nil))
 
 	stopped := []container.Summary{appContainer(container.StateExited, camera), appContainer(container.StateCreated, camera)}
 	require.NoError(t, check(stopped, "acme:camera", nil))
+}
+
+func TestInstalledBrickVersionsImages(t *testing.T) {
+	bricksDir := paths.New(t.TempDir())
+	for version, image := range map[string]string{"1.0.0": "ghcr.io/acme/camera:1.0.0", "1.2.0": "ghcr.io/acme/camera:1.2.0"} {
+		srcDir := bricksDir.Join("acme", "camera", version, "src", "camera")
+		require.NoError(t, srcDir.MkdirAll())
+		require.NoError(t, srcDir.Join("brick_config.yaml").WriteFile([]byte("id: acme:camera\n")))
+		require.NoError(t, srcDir.Join("brick_compose.yaml").WriteFile([]byte("services:\n  camera:\n    image: "+image+"\n")))
+	}
+	bricksIndex := (&bricksindex.BricksIndex{}).WithInstalledBricks(bricksDir)
+	images := func(version *semver.Version) map[string][]string {
+		versions, err := bricksindex.ListInstalledVersions(bricksDir, "acme:camera", version)
+		require.NoError(t, err)
+		return installedBrickVersionsImages(bricksIndex, "acme:camera", versions, func(msg string) {
+			t.Errorf("unexpected warning: %s", msg)
+		})
+	}
+
+	// The version is compared as semver: 1.2 is the version installed in the folder 1.2.0.
+	require.Equal(t, map[string][]string{"1.2.0": {"ghcr.io/acme/camera:1.2.0"}}, images(semver.MustParse("1.2")))
+	require.Equal(t, map[string][]string{
+		"1.0.0": {"ghcr.io/acme/camera:1.0.0"},
+		"1.2.0": {"ghcr.io/acme/camera:1.2.0"},
+	}, images(nil))
 }
 
 func TestUninstallBrickNotInstalled(t *testing.T) {

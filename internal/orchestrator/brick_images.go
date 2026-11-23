@@ -126,20 +126,7 @@ func UninstallBrick(
 		return bricksindex.UninstallResult{}, err
 	}
 
-	// Read before the files are removed. The images of the required services are ours, and
-	// the system cleanup removes them once nothing needs them.
-	imagesByVersion := map[string][]string{}
-	for _, brick := range bricksIndex.AllInstalledBricks() {
-		if brick.ID != id || (version != nil && brick.Version != version.String()) {
-			continue
-		}
-		images, err := brickComposeImages(brick)
-		if err != nil {
-			warn(fmt.Sprintf("the images of %s@%s are not removed: %v", id, brick.Version, err))
-			continue
-		}
-		imagesByVersion[brick.Version] = images
-	}
+	imagesByVersion := installedBrickVersionsImages(bricksIndex, id, installed, warn)
 
 	res, err := bricksindex.Uninstall(cfg.BricksDir(), id, version)
 	var images []string
@@ -150,6 +137,30 @@ func UninstallBrick(
 		removeUnusedImages(ctx, docker.Client(), cfg, bricksIndex, servicesIndex, modelsIndex, f.Uniq(images), warn)
 	}
 	return res, err
+}
+
+// installedBrickVersionsImages returns the images of the compose files of the given installed
+// versions of the brick, by version. The images of the required services are ours, and the
+// system cleanup removes them once nothing needs them.
+func installedBrickVersionsImages(bricksIndex *bricksindex.BricksIndex, id string, versions []*semver.Version, warn func(string)) map[string][]string {
+	// The versions are the names of the folders of the installed versions, as the installed bricks report them.
+	wanted := map[string]bool{}
+	for _, v := range versions {
+		wanted[v.String()] = true
+	}
+	res := map[string][]string{}
+	for _, brick := range bricksIndex.AllInstalledBricks() {
+		if brick.ID != id || !wanted[brick.Version] {
+			continue
+		}
+		images, err := brickComposeImages(brick)
+		if err != nil {
+			warn(fmt.Sprintf("the images of %s@%s are not removed: %v", id, brick.Version, err))
+			continue
+		}
+		res[brick.Version] = images
+	}
+	return res
 }
 
 // checkBrickNotInUse returns an error if a running app mounts the given version of the brick or,
@@ -176,8 +187,11 @@ func checkBrickNotInUse(ctx context.Context, docker dockerClient.APIClient, bric
 				continue
 			}
 			mounted, _, _ := strings.Cut(rel, string(filepath.Separator))
-			if version != nil && mounted != version.String() {
-				continue
+			// Compared as semver: the version 1.2 is the one installed in the folder 1.2.0.
+			if version != nil {
+				if v, err := semver.Parse(mounted); err != nil || !v.Equal(version) {
+					continue
+				}
 			}
 			return fmt.Errorf("the brick %s@%s is used by the app at %s: stop the app first", id, mounted, c.Labels[DockerAppPathLabel])
 		}

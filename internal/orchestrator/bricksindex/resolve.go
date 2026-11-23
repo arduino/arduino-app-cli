@@ -182,7 +182,13 @@ func (b *BricksIndex) resolve(index *RemoteIndex, ref Reference) (resolvedBrick,
 			return resolvedBrick{}, fmt.Errorf("invalid version %q for brick %q: %w", ref.Version, ref.ID, err)
 		}
 		if b.installedDir != nil {
-			if dir := installPath(b.installedDir, ref.ID, res.version); dir.IsDir() {
+			installed, err := ListInstalledVersions(b.installedDir, ref.ID, res.version)
+			if err != nil {
+				return resolvedBrick{}, err
+			}
+			if len(installed) > 0 {
+				res.version = installed[len(installed)-1]
+				dir := installPath(b.installedDir, ref.ID, res.version)
 				brick, err := loadInstalledBrick(b.platform, dir, namespace, name)
 				if err != nil {
 					return resolvedBrick{}, fmt.Errorf("loading brick %s@%s: %w", ref.ID, res.version, err)

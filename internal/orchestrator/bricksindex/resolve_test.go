@@ -83,6 +83,7 @@ func TestResolve(t *testing.T) {
 		{name: "unpinned not in the index", ref: Reference{ID: "acme:other"}, wantErr: ErrBrickNotFound},
 		{name: "pinned", ref: Reference{ID: "acme:hello", Version: "1.0.0"}, wantVersion: "1.0.0"},
 		{name: "pinned installed", installed: []string{"1.0.0", "1.2.0"}, ref: Reference{ID: "acme:hello", Version: "1.0.0"}, wantVersion: "1.0.0", wantInstalled: true},
+		{name: "pinned installed, compared as semver", installed: []string{"1.0.0", "1.2.0"}, ref: Reference{ID: "acme:hello", Version: "1.2"}, wantVersion: "1.2.0", wantInstalled: true},
 		{name: "pinned to a version that does not support the board", ref: Reference{ID: "acme:hello", Version: "1.3.0"}, wantErr: ErrUnsupportedBoard},
 		{name: "pinned installed to a version that does not support the board", installed: []string{"1.3.0:ventunoq"}, ref: Reference{ID: "acme:hello", Version: "1.3.0"}, wantErr: ErrUnsupportedBoard},
 		{name: "pinned installed but removed from the index", installed: []string{"0.9.0"}, ref: Reference{ID: "acme:hello", Version: "0.9.0"}, wantErr: ErrReleaseNotFound},
