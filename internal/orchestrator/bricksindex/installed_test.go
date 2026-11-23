@@ -134,7 +134,7 @@ func TestBricksIndexWithInstalledBricks(t *testing.T) {
 func TestListInstalledVersions(t *testing.T) {
 	bricksDir := installedBricks(t, "acme/camera/1.10.0", "acme/camera/1.2.0", "acme/camera/notes", "acme/camera2/1.0.0")
 	names := func(versions []*semver.Version) []string {
-		res := []string{}
+		res := make([]string, 0, len(versions))
 		for _, v := range versions {
 			res = append(res, v.String())
 		}
