@@ -399,6 +399,8 @@ func frozenLookup(cfg config.Configuration, appEnv types.Mapping) func(string) (
 // ones are baked in now and which stay a reference. A host fact stays as it is written,
 // default included, for the render step to answer.
 func frozenYAML(content []byte, lookup func(string) (string, bool)) ([]byte, error) {
+	// A literal $$ must still be $$ after Interpolate, for the render step to read it once more.
+	content = bytes.ReplaceAll(content, []byte("$$"), []byte("$$$$"))
 	for name := range hostVariables {
 		for _, end := range []string{"}", ":"} {
 			content = bytes.ReplaceAll(content, []byte("${"+name+end), []byte("$${"+name+end))
