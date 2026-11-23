@@ -395,12 +395,12 @@ func frozenLookup(cfg config.Configuration, appEnv types.Mapping) func(string) (
 	}
 }
 
-// frozenYAML substitutes the ${VAR} expressions of a yaml document: lookup says which
-// ones are baked in now and which stay a reference. A host fact stays as it is written,
-// default included, for the render step to answer.
+// frozenYAML substitutes the ${VAR} expressions that lookup answers; a host fact stays a reference.
+// The output is compose text: every $ escape of the input is kept.
 func frozenYAML(content []byte, lookup func(string) (string, bool)) ([]byte, error) {
-	// A literal $$ must still be $$ after Interpolate, for the render step to read it once more.
+	// Interpolate turns $$ into $: doubled, a literal $$ is still $$ for the render step.
 	content = bytes.ReplaceAll(content, []byte("$$"), []byte("$$$$"))
+	// Escaped, a host fact comes out of Interpolate as written, default included.
 	for name := range hostVariables {
 		for _, end := range []string{"}", ":"} {
 			content = bytes.ReplaceAll(content, []byte("${"+name+end), []byte("$${"+name+end))

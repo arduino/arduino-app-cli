@@ -198,6 +198,7 @@ handlers:
       image: ${DOCKER_REGISTRY_BASE}models-downloader:ei
       volumes:
         - ${MODELS_PATH}/${models_repository}:/models
+        - /cache/a$$b:/cache
       actions:
         - download:
             command: ["/app/edge_impulse/download.sh"]
@@ -257,6 +258,8 @@ handlers:
 	require.True(t, found)
 	// The image is the one the build resolved, not a reference the board answers.
 	assert.Equal(t, "build.example/models-downloader:ei", handler.Image)
+	// The board substitutes the volumes once more: a literal $$ must still be there.
+	assert.Contains(t, modelsindex.ResolveVarsSlice(handler.Volumes, nil), "/cache/a$b:/cache")
 	_, found = frozen.Handlers.GetHandlerByID("ai-hub-handler")
 	assert.True(t, found, "handlers of built-in models should be included in the frozen index")
 }

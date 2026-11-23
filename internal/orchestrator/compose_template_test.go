@@ -78,6 +78,24 @@ func TestFrozenLookup(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, string(frozen), "${HOST_DSP_INSTALLATION_PATH:-/usr/share/qcom}:/usr/share/qcom")
 	})
+
+	// The frozen copy is compose text again: each case is what the render step must read.
+	frozenCases := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{"a literal $$ stays escaped", `sh -c "pid=$$(pgrep -o hypercorn) && kill -TERM $$pid || true"`, `pid=$$(pgrep -o hypercorn) && kill -TERM $$pid || true`},
+		{"a $$ in a default stays escaped", `${NOT_DECLARED_ANYWHERE:-a$$b}`, `a$$b`},
+		{"a $$ after a default in the same value stays escaped", `${NOT_DECLARED_ANYWHERE:-a} $$pid ${LOG_LEVEL}`, `a $$pid debug`},
+	}
+	for _, test := range frozenCases {
+		t.Run(test.name, func(t *testing.T) {
+			frozen, err := frozenYAML([]byte("command: '"+test.value+"'\n"), lookup)
+			require.NoError(t, err)
+			assert.Contains(t, string(frozen), test.want)
+		})
+	}
 }
 
 func TestFrozenComposeIncludes(t *testing.T) {
