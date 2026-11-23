@@ -55,6 +55,12 @@ func (s *Service) ListUpgradablePackages(ctx context.Context, matcher func(updat
 		return nil, err
 	}
 
+	// Probe the lock here so a held lock is reported now, instead of later in
+	// Upgrade, where apt may block for a long time (e.g. lock::timeout=-1).
+	if err := checkAptLockHeld(ctx); err != nil {
+		return nil, err
+	}
+
 	pkgs, err := listUpgradablePackages(ctx, matcher)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list upgradable packages: %w", err)
@@ -182,9 +188,22 @@ func runUpdateCommand(ctx context.Context) error {
 		return err
 	}
 	if out, err := cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
+		if isAptLockHeldErr(out, err) {
+			return update.NewLockHeldError(fmt.Errorf("%w: %s", err, out))
+		}
 		return fmt.Errorf("error running apt-get update command: %w: %s", err, out)
 	}
 	return nil
+}
+
+func isAptLockHeldErr(out []byte, err error) bool {
+	exitErr, ok := errors.AsType[*exec.ExitError](err)
+	if !ok || exitErr.ExitCode() != 100 {
+		return false
+	}
+	// check "/lock"" as all files locked by apt are "*/lock*"
+	// just checking "lock" may result in a false positive for words like "block"
+	return strings.Contains(strings.ToLower(string(out)), "/lock")
 }
 
 // checkAptLockHeld probes whether the dpkg lock is held by another process
@@ -247,7 +266,6 @@ func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, er
 			return
 		}
 	}
-
 }
 
 func runAptCleanCommand(ctx context.Context) iter.Seq2[string, error] {
@@ -346,10 +364,6 @@ func cleanupDockerContainers(ctx context.Context) iter.Seq2[string, error] {
 // packages apt holds back as not installable are left out, an upgrade that needs a
 // new dependency is kept in, and nothing is ever removed.
 func listUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
-	if err := checkAptLockHeld(ctx); err != nil {
-		return nil, err
-	}
-
 	simulateUpgrade, err := paths.NewProcess(nil, "apt-get", "-s", "upgrade", "--with-new-pkgs")
 	if err != nil {
 		return nil, err
