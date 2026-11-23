@@ -39,7 +39,7 @@ func TestComposeRoundTrip(t *testing.T) {
 		},
 	}
 	t.Cleanup(func() {
-		_ = ComposeDown(t.Context(), docker, projectName, nil)
+		_ = ComposeDown(t.Context(), docker, projectName, nil, nil)
 	})
 
 	require.NoError(t, ComposeUp(t.Context(), docker, prj, nil))
@@ -54,18 +54,46 @@ func TestComposeRoundTrip(t *testing.T) {
 	require.Equal(t, container.StateRunning, containers.Items[0].State)
 	require.Equal(t, "main", containers.Items[0].Labels["com.docker.compose.service"])
 
-	require.NoError(t, ComposeStop(t.Context(), docker, projectName, nil))
+	require.NoError(t, ComposeStop(t.Context(), docker, projectName, nil, nil))
 	stopped, err := docker.Client().ContainerInspect(t.Context(), containers.Items[0].ID, dockerClient.ContainerInspectOptions{})
 	require.NoError(t, err)
 	require.Equal(t, container.StateExited, stopped.Container.State.Status)
 
-	require.NoError(t, ComposeDown(t.Context(), docker, projectName, nil))
+	require.NoError(t, ComposeDown(t.Context(), docker, projectName, nil, nil))
 	gone, err := docker.Client().ContainerList(t.Context(), dockerClient.ContainerListOptions{
 		All:     true,
 		Filters: make(dockerClient.Filters).Add("label", "com.docker.compose.project="+projectName),
 	})
 	require.NoError(t, err)
 	require.Empty(t, gone.Items)
+}
+
+// TestComposeStopRunsPreStopHooks stops a service with a pre_stop hook, given the project.
+func TestComposeStopRunsPreStopHooks(t *testing.T) {
+	docker := getDockerCli(t)
+	const projectName = "arduino-app-cli-pre-stop"
+
+	hooksDir := paths.New(t.TempDir())
+	prj := &types.Project{
+		Name:       projectName,
+		WorkingDir: t.TempDir(),
+		Services: types.Services{
+			"main": types.ServiceConfig{
+				Name:    "main",
+				Image:   "busybox:latest",
+				Command: types.ShellCommand{"sleep", "600"},
+				Volumes: []types.ServiceVolumeConfig{{Type: types.VolumeTypeBind, Source: hooksDir.String(), Target: "/hooks"}},
+				PreStop: []types.ServiceHook{{Command: types.ShellCommand{"touch", "/hooks/pre-stop"}}},
+			},
+		},
+	}
+	t.Cleanup(func() {
+		_ = ComposeDown(context.Background(), docker, projectName, nil, nil)
+	})
+
+	require.NoError(t, ComposeUp(t.Context(), docker, prj, nil))
+	require.NoError(t, ComposeStop(t.Context(), docker, projectName, prj, nil))
+	require.True(t, hooksDir.Join("pre-stop").Exist())
 }
 
 // TestComposeUpPrunesReplacedBuilds rebuilds a service after a change to its context: the
@@ -106,7 +134,7 @@ func TestComposeUpPrunesReplacedBuilds(t *testing.T) {
 	t.Cleanup(func() {
 		// t.Context() is already canceled when cleanups run.
 		ctx := context.Background()
-		_ = ComposeDown(ctx, docker, projectName, nil)
+		_ = ComposeDown(ctx, docker, projectName, nil, nil)
 		for _, id := range builtImages(ctx, false) {
 			_, _ = docker.Client().ImageRemove(ctx, id, dockerClient.ImageRemoveOptions{Force: true, PruneChildren: true})
 		}

@@ -349,13 +349,14 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 		// The project name stops the app without its compose file, which an update
 		// can remove, and finds what an older cli started just the same.
 		projectName := composeProjectName(app.FullPath, cfg.AppsDir())
+		prj := startedProject(ctx, &app, projectName)
 		line := func(line string) { cb(StreamMessage{data: line}) }
 		var err error
 		switch cmd {
 		case "down":
-			err = dockerhelper.ComposeDown(ctx, docker, projectName, line)
+			err = dockerhelper.ComposeDown(ctx, docker, projectName, prj, line)
 		default:
-			err = dockerhelper.ComposeStop(ctx, docker, projectName, line)
+			err = dockerhelper.ComposeStop(ctx, docker, projectName, prj, line)
 		}
 		if err != nil {
 			return err
