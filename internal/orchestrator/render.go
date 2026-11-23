@@ -132,6 +132,27 @@ func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, sec
 	return prj, nil
 }
 
+// startedProject reads back the compose file the app was last started with, nil when it
+// cannot be read.
+func startedProject(ctx context.Context, arduinoApp *app.ArduinoApp, projectName string) *types.Project {
+	content, err := arduinoApp.AppComposeFilePath().ReadFile()
+	if err != nil {
+		return nil
+	}
+	prj, err := loader.LoadWithContext(ctx,
+		types.ConfigDetails{
+			ConfigFiles: []types.ConfigFile{{Content: content}},
+			WorkingDir:  arduinoApp.ProvisioningStateDir().String(),
+		},
+		func(o *loader.Options) { o.SetProjectName(projectName, true) },
+		loader.WithSkipValidation,
+	)
+	if err != nil {
+		return nil
+	}
+	return prj
+}
+
 // renderComposeTemplate evaluates the expressions of a compose template: a value
 // becomes what it renders to, and a list item that renders to nothing is dropped.
 func renderComposeTemplate(content []byte) ([]byte, error) {

@@ -247,3 +247,20 @@ bricks:
 	require.Equal(t, "Hello {{ name }}, reply", *main.Environment["PROMPT"])
 	require.Contains(t, main.DependsOn, "ei-video-obj-detection-runner")
 }
+
+func TestStartedProject(t *testing.T) {
+	arduinoApp := &app.ArduinoApp{FullPath: paths.New(t.TempDir())}
+	require.Nil(t, startedProject(t.Context(), arduinoApp, "my-app"))
+
+	// As renderComposeFile writes it: every $ escaped.
+	require.NoError(t, arduinoApp.ProvisioningStateDir().MkdirAll())
+	require.NoError(t, arduinoApp.AppComposeFilePath().WriteFile([]byte(`services:
+  runner:
+    image: runner:1.0
+    pre_stop:
+      - command: ["kill", "-TERM", "$$pid"]
+`)))
+	prj := startedProject(t.Context(), arduinoApp, "my-app")
+	require.NotNil(t, prj)
+	require.Equal(t, types.ShellCommand{"kill", "-TERM", "$pid"}, prj.Services["runner"].PreStop[0].Command)
+}
