@@ -118,6 +118,10 @@ func UninstallBrick(
 	version *semver.Version,
 	warn func(string),
 ) (bricksindex.UninstallResult, error) {
+	installed, err := bricksindex.ListInstalledVersions(cfg.BricksDir(), id, version)
+	if err != nil || len(installed) == 0 {
+		return bricksindex.UninstallResult{}, err
+	}
 	if err := checkBrickNotInUse(ctx, docker.Client(), cfg.BricksDir(), id, version); err != nil {
 		return bricksindex.UninstallResult{}, err
 	}

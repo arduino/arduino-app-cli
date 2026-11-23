@@ -14,6 +14,7 @@ import (
 	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 )
 
@@ -64,4 +65,31 @@ func TestCheckBrickNotInUse(t *testing.T) {
 
 	stopped := []container.Summary{appContainer(container.StateExited, camera), appContainer(container.StateCreated, camera)}
 	require.NoError(t, check(stopped, "acme:camera", nil))
+}
+
+func TestUninstallBrickNotInstalled(t *testing.T) {
+	tmp := paths.New(t.TempDir())
+	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", tmp.Join("data").String())
+	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", tmp.Join("apps").String())
+	cfg, err := config.NewFromEnv()
+	require.NoError(t, err)
+	require.NoError(t, cfg.BricksDir().Join("acme", "camera", "1.0.0").MkdirAll())
+
+	// The docker client is nil, so the uninstall fails if it uses it: a brick that is not
+	// installed is reported without docker, even when docker is not available.
+	uninstall := func(id string, version *semver.Version) (bricksindex.UninstallResult, error) {
+		return UninstallBrick(t.Context(), nil, cfg, nil, nil, nil, id, version, func(msg string) {
+			t.Errorf("unexpected warning: %s", msg)
+		})
+	}
+	res, err := uninstall("acme:audio", nil)
+	require.NoError(t, err)
+	require.Empty(t, res.Versions)
+
+	res, err = uninstall("acme:camera", semver.MustParse("2.0.0"))
+	require.NoError(t, err)
+	require.Empty(t, res.Versions)
+
+	_, err = uninstall("camera", nil)
+	require.ErrorContains(t, err, "invalid brick id")
 }
