@@ -24,6 +24,8 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
+const dockerComposeServiceLabel = "com.docker.compose.service"
+
 type AppStatusInfo struct {
 	AppPath *paths.Path
 	Status  Status
@@ -47,7 +49,9 @@ func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 		if !ok {
 			continue
 		}
-		appsStatusMap[appPath] = append(appsStatusMap[appPath], StatusFromDockerState(c.State, c.Status))
+		service := c.Labels[dockerComposeServiceLabel]
+		isSupportingService := service != "" && service != "main"
+		appsStatusMap[appPath] = append(appsStatusMap[appPath], StatusFromDockerState(c.State, c.Status, isSupportingService))
 
 	}
 
@@ -160,7 +164,6 @@ func getAppServicesFromContainers(ctx context.Context, docker dockerClient.APICl
 		return nil, err
 	}
 
-	const dockerComposeServiceLabel = "com.docker.compose.service"
 	services := make([]string, 0, len(containers))
 	for _, info := range containers {
 		if name := info.Labels[dockerComposeServiceLabel]; name != "" && !slices.Contains(services, name) {

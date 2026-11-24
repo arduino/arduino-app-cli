@@ -11,7 +11,6 @@ import (
 	"strconv"
 
 	"github.com/moby/moby/api/types/container"
-	"go.bug.st/f"
 )
 
 type Status string
@@ -25,7 +24,7 @@ const (
 	StatusUninitialized Status = "uninitialized"
 )
 
-func StatusFromDockerState(s container.ContainerState, statusMessage string) Status {
+func StatusFromDockerState(s container.ContainerState, statusMessage string, isSupportingService bool) Status {
 	switch s {
 	case container.StateRunning:
 		return StatusRunning
@@ -36,11 +35,12 @@ func StatusFromDockerState(s container.ContainerState, statusMessage string) Sta
 	case container.StateCreated, container.StatePaused:
 		return StatusStopped
 	case container.StateExited:
-		if !isExitBySignal(statusMessage) {
-			// The app exited on its own, which we consider a failure.
-			return StatusFailed
+		code, ok := exitCodeFromDockerStatus(statusMessage)
+		if ok && (code > 128 || (isSupportingService && code == 0)) {
+			return StatusStopped
 		}
-		return StatusStopped
+		// A main process exiting on its own is considered an app failure.
+		return StatusFailed
 	case container.StateDead:
 		return StatusFailed
 	default:
@@ -66,16 +66,13 @@ func (s Status) AllowedStatuses() []Status {
 	return []Status{StatusStarting, StatusRunning, StatusStopping, StatusStopped, StatusFailed, StatusUninitialized}
 }
 
-func isExitBySignal(statusMessage string) bool {
-	var exitCodeRegex = regexp.MustCompile(`Exited \((\d+)\)`)
-	matches := exitCodeRegex.FindStringSubmatch(statusMessage)
+var dockerExitCodeRegex = regexp.MustCompile(`^Exited \((\d+)\)`)
+
+func exitCodeFromDockerStatus(message string) (int, bool) {
+	matches := dockerExitCodeRegex.FindStringSubmatch(message)
 	if len(matches) < 2 {
-		// not matching an exit code
-		return false
+		return 0, false
 	}
-	exitCode := f.Must(strconv.Atoi(matches[1]))
-
-	// posix exit code greater than 128+n means terminated by signal https://tldp.org/LDP/abs/html/exitcodes.html
-	return exitCode > 128
-
+	code, err := strconv.Atoi(matches[1])
+	return code, err == nil
 }
