@@ -574,6 +574,48 @@ before the app is started again.
 			},
 		},
 		{
+			OperationId: "restartApp",
+			Method:      http.MethodPost,
+			Path:        "/v1/apps/{id}/restart",
+			Request: (*struct {
+				ID      string `path:"id" description:"application identifier."`
+				Verbose bool   `query:"verbose" description:"Return a verbose output. Default is false."`
+			})(nil),
+			Description: "Restarts the application: stops it if it is running, then starts it again. If the app is not running, it is simply started. Fails if another app is running. The restart leverages Docker Compose and the Python launcher to perform a fast restart.",
+			Summary:     "Restart an existing app/example",
+			Tags:        []Tag{ApplicationTag},
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) that notifies the progress.
+The client will receive events formatted as follows:
+
+**Event 'progress'**:
+Contains a JSON object with the percentage of completion.
+'event: progress'
+'data: {"progress":0.25}'
+
+**Event 'message'**:
+Contains a JSON object with an informational message.
+'event: message'
+'data: {"message":"Starting container..."}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error.
+'event: error'
+'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+
+When the containers or models the start needs are not on the board, the error code
+is 'not_prepared'.
+'data: {"code":"not_prepared","message":"the app is not prepared: the container \"...\" is not on the board"}'
+`,
+			},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "buildApp",
 			Method:      http.MethodPost,
 			Path:        "/v1/apps/{appID}/build",
