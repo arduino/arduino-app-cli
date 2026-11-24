@@ -703,6 +703,32 @@ func TestTheMainServiceRunsTheAppUnderTheLauncher(t *testing.T) {
 	require.Contains(t, main.Volumes, map[string]any{"type": "bind", "source": appRuntimeDirRef, "target": launcherSocketDir}, "where the launcher binds its socket")
 }
 
+func TestTheSameAppIsResolvedToTheSameTemplate(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	app := app.ArduinoApp{
+		Name:       "TestApp",
+		FullPath:   paths.New(t.TempDir()),
+		Descriptor: app.AppDescriptor{Ports: []int{9000, 8123, 8080, 7001, 6000, 5000}},
+	}
+	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
+	require.NoError(t, cfg.AssetDir().Join("bricks-list.yaml").WriteFile([]byte("bricks: []\n")))
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
+	require.NoError(t, err)
+
+	resolve := func() string {
+		err := generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, &servicesindex.ServicesIndex{}, "app-bricks:python-apps-base:dev-latest", cfg, types.Mapping{}, unkownPlatform, true)
+		require.NoError(t, err)
+		composed, err := app.AppComposeTemplateFilePath().ReadFile()
+		require.NoError(t, err)
+		return string(composed)
+	}
+
+	first := resolve()
+	for range 20 {
+		require.Equal(t, first, resolve(), "a reload tells a changed project from the file it renders")
+	}
+}
+
 func TestAReleaseRunsItsAppWithoutTheLauncher(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	staged := app.ArduinoApp{Name: "TestApp", FullPath: paths.New(t.TempDir())}
