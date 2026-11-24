@@ -169,13 +169,13 @@ type appContainer struct {
 // mainContainer is the running main container of the app at appDir.
 func mainContainer(t *testing.T, appDir *paths.Path) appContainer {
 	t.Helper()
-	id, err := exec.CommandContext(t.Context(), "docker", "ps", "-q",
+	id, err := exec.CommandContext(t.Context(), "docker", "ps", "-q", //nolint:gosec
 		"--filter", "label="+orchestrator.DockerAppMainLabel+"=true",
 		"--filter", "label="+orchestrator.DockerAppPathLabel+"="+appDir.String(),
 	).Output()
 	require.NoError(t, err)
 	require.NotEmpty(t, strings.TrimSpace(string(id)))
-	out, err := exec.CommandContext(t.Context(), "docker", "inspect", "-f", "{{.Id}} {{.State.StartedAt}}", strings.TrimSpace(string(id))).Output()
+	out, err := exec.CommandContext(t.Context(), "docker", "inspect", "-f", "{{.Id}} {{.State.StartedAt}}", strings.TrimSpace(string(id))).Output() //nolint:gosec
 	require.NoError(t, err)
 	fields := strings.Fields(string(out))
 	require.Len(t, fields, 2)

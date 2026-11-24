@@ -172,12 +172,12 @@ func getAppServicesFromContainers(ctx context.Context, docker dockerClient.APICl
 
 // mainContainer is the main container of the app, nil when it has none.
 func mainContainer(ctx context.Context, docker dockerClient.APIClient, appPath *paths.Path) (*container.Summary, error) {
-	containers, err := dockerhelper.Containers(ctx, docker, DockerAppPathLabel+"="+appPath.String())
+	containers, err := dockerhelper.Containers(ctx, docker, DockerAppMainLabel+"=true")
 	if err != nil {
 		return nil, err
 	}
 	for _, c := range containers {
-		if c.Labels[DockerAppMainLabel] == "true" {
+		if c.Labels[DockerAppPathLabel] == appPath.String() {
 			return &c, nil
 		}
 	}
