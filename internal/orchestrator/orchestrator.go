@@ -37,6 +37,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/fingerprint"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
@@ -310,6 +311,12 @@ func StartApp(
 			return err
 		}
 	}
+	if fp, err := computeAppFingerprint(ctx, appToStart, platform); err != nil {
+		slog.Warn("failed to compute app fingerprint", slog.String("error", err.Error()))
+	} else if err := fingerprint.Save(appToStart.FullPath, fp); err != nil {
+		slog.Warn("failed to save app fingerprint", slog.String("error", err.Error()))
+	}
+
 	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
 	return nil
 }
@@ -440,12 +447,97 @@ func RestartApp(
 			return fmt.Errorf("another app %q is running", runningApp.Name)
 		}
 
+		// A restart with nothing changed since the last start would only recompile,
+		// reflash and restart the very same thing: skip it, and leave the app running.
+		if unchanged, err := appUnchangedSinceLastStart(ctx, appToStart, platform); err != nil {
+			slog.Warn("failed to compute app fingerprint, restarting the app", slog.String("error", err.Error()))
+		} else if unchanged {
+			return nil
+		}
+
 		if err := StopApp(ctx, docker, platform, *runningApp, cfg, cb); err != nil {
 			return err
 		}
 	}
 
 	return StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, !appToStart.IsRelease(), cb)
+}
+
+// appUnchangedSinceLastStart tells whether appToStart's fingerprint still matches the one
+// saved by its last start.
+func appUnchangedSinceLastStart(ctx context.Context, appToStart app.ArduinoApp, platform platform.Platform) (bool, error) {
+	current, err := computeAppFingerprint(ctx, appToStart, platform)
+	if err != nil {
+		return false, err
+	}
+
+	previous, err := fingerprint.Load(appToStart.FullPath)
+	if err != nil {
+		return false, err
+	}
+
+	return previous != "" && previous == current, nil
+}
+
+// computeAppFingerprint derives the fingerprint of what starting appToStart on platform
+// would compile, flash and run: the sketch, the board fqbn and flash mode it is built
+// for, the platform core its sketch profile pins, and the bricks it declares.
+func computeAppFingerprint(ctx context.Context, appToStart app.ArduinoApp, platform platform.Platform) (string, error) {
+	sketchPath, hasSketch := appToStart.GetSketchPath()
+
+	fqbn := platform.FQBN
+	flashToRAM := platform.SupportFlashToRam()
+	var platforms string
+
+	if hasSketch {
+		menuOptions, err := GetPlatformMenuOptions(ctx, platform)
+		if err != nil {
+			return "", fmt.Errorf("failed to get platform menu options: %w", err)
+		}
+		if menuOptions.Has(WaitForApp) {
+			fqbn += ":" + WaitForApp.String()
+		}
+		flashToRAM = flashToRAM && !menuOptions.Has(WaitForApp)
+
+		platforms, err = sketchPlatforms(ctx, sketchPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to get sketch platforms: %w", err)
+		}
+	}
+
+	return fingerprint.Compute(sketchPath, fqbn, flashToRAM, platforms, appToStart.Descriptor.Bricks)
+}
+
+// sketchPlatforms is the platforms the sketch profile pins, so a core release can be
+// told apart from a profile that leaves it unversioned.
+func sketchPlatforms(ctx context.Context, sketchPath *paths.Path) (string, error) {
+	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
+	srv := commands.NewArduinoCoreServer()
+	if err := SetArduinoCliConfig(ctx, srv); err != nil {
+		return "", err
+	}
+
+	resp, err := srv.Create(ctx, &rpc.CreateRequest{})
+	if err != nil {
+		return "", err
+	}
+	inst := resp.GetInstance()
+	defer func() {
+		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
+	}()
+
+	sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath.String()})
+	if err != nil {
+		return "", err
+	}
+
+	platformRefs := sketchResp.GetSketch().GetDefaultProfile().GetPlatforms()
+	refs := make([]string, 0, len(platformRefs))
+	for _, p := range platformRefs {
+		refs = append(refs, p.GetId()+"@"+p.GetVersion())
+	}
+	slices.Sort(refs)
+	return strings.Join(refs, ","), nil
 }
 
 func StartDefaultApp(
