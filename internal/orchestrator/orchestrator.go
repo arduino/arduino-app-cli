@@ -271,9 +271,23 @@ func StartApp(
 
 		// The folder the launcher binds its socket in, created by the daemon so that the
 		// app user owns it: docker would create a missing bind source as root.
-		if launcherServed(prj) {
+		served := launcherServed(prj)
+		python, pythonHash := pythonFingerprint(appToStart), ""
+		if served {
 			if err := appRuntimeDir(cfg, appToStart.FullPath).MkdirAll(); err != nil {
 				return fmt.Errorf("failed to create the app runtime folder: %w", err)
+			}
+
+			// The fingerprint of the project compose is about to bring up. It is dropped
+			// before compose changes any container and saved once all are up: a start that
+			// fails leaves no record of a project that does not run.
+			rendered, err := appToStart.AppComposeFilePath().ReadFile()
+			if err != nil {
+				return fmt.Errorf("failed to read the app compose file: %w", err)
+			}
+			pythonHash = hashOf(rendered)
+			if err := python.forget(); err != nil {
+				return err
 			}
 		}
 
@@ -308,6 +322,11 @@ func StartApp(
 		}
 		if err != nil {
 			return err
+		}
+		if served {
+			if err := python.save(pythonHash); err != nil {
+				return err
+			}
 		}
 	}
 	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
