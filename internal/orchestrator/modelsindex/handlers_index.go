@@ -252,17 +252,21 @@ func (e handlerModelEntry) applyStat(m *AIModel) {
 }
 
 const (
-	llmBrickID = "arduino:llm"
-	vlmBrickID = "arduino:vlm"
+	llmBrickID           = "arduino:llm"
+	vlmBrickID           = "arduino:vlm"
+	multimodalLLMBrickID = "arduino:multimodal_llm"
+	decisionModelBrickID = "arduino:decision_model"
 )
 
-// bricksForVision says which brick can run a model nothing declares. A projection file is
-// what makes a GGUF multimodal, so a download that fetched one is a vision model.
-func bricksForVision(mmprojURL string) []BrickConfig {
-	if mmprojURL != "" {
-		return []BrickConfig{{ID: vlmBrickID}}
+// bricksForMultimodal says which bricks can run a model nothing declares. An mmproj file is
+// what makes a llama.cpp GGUF multimodal, so a download that fetched one goes to the bricks
+// that read images, and one that did not to the text brick. The decision brick takes
+// either: it serves a model with or without its mmproj.
+func bricksForMultimodal(mmproj string) []BrickConfig {
+	if mmproj != "" {
+		return []BrickConfig{{ID: vlmBrickID}, {ID: multimodalLLMBrickID}, {ID: decisionModelBrickID}}
 	}
-	return []BrickConfig{{ID: llmBrickID}}
+	return []BrickConfig{{ID: llmBrickID}, {ID: decisionModelBrickID}}
 }
 
 // setSourceURL records the link a model was downloaded from. The declaration wins: a
@@ -320,7 +324,7 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 		Name:      entry.Name,
 		IsBuiltIn: false,
 		Origin:    UserOrigin,
-		Bricks:    bricksForVision(entry.Mmproj),
+		Bricks:    bricksForMultimodal(entry.Mmproj),
 		Deployment: &ModelDeployment{
 			Handler: md.Handler,
 			Variables: []map[string]PlatformDeploymentConfig{

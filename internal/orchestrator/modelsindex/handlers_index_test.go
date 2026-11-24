@@ -251,9 +251,19 @@ func TestUserDownloadModel(t *testing.T) {
 		// The handler id comes from the record: entry.Handler is a namespace.
 		assert.Equal(t, "hf-handler", model.Deployment.Handler)
 		assert.Equal(t, inputs, model.Deployment.VariablesForPlatform("unoq"))
-		assert.Equal(t, []BrickConfig{{ID: "arduino:llm"}}, model.Bricks)
+		assert.Equal(t, []BrickConfig{{ID: "arduino:llm"}, {ID: "arduino:decision_model"}}, model.Bricks)
 		// Nothing declares this model, and the listing reports no metadata for it.
 		assert.Nil(t, model.Metadata)
+	})
+
+	t.Run("a projection file opens the bricks that read images", func(t *testing.T) {
+		model, ok := testHandlersIndex().userDownloadModel(entry(func(e *handlerModelEntry) {
+			e.Mmproj = "mmproj-F16.gguf"
+		}))
+		require.True(t, ok)
+		assert.Equal(t, []BrickConfig{
+			{ID: "arduino:vlm"}, {ID: "arduino:multimodal_llm"}, {ID: "arduino:decision_model"},
+		}, model.Bricks)
 	})
 
 	// models-downloader <= 0.12.0 writes neither field, so on an older image every
