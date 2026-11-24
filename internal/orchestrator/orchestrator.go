@@ -1154,8 +1154,12 @@ func restartInPlace(
 				}
 				return nil
 			}).Start(ctx, nil)
+			// The sketch and the bricks are already updated: a restart of the container runs the new app
 			if err != nil {
-				return fmt.Errorf("%w: %w", errReload, err)
+				cb(StreamMessage{data: fmt.Sprintf("the app could not be reloaded in its container: %s, restarting the container", err)})
+				if _, err := docker.Client().ContainerRestart(ctx, after.ID, dockerClient.ContainerRestartOptions{}); err != nil {
+					return err
+				}
 			}
 		}
 	}
