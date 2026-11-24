@@ -7,6 +7,7 @@ package daemon
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,9 +16,11 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 )
@@ -120,6 +123,31 @@ func startApp(t *testing.T, httpClient *client.ClientWithResponses, appID string
 		}
 		t.Fatalf("app failed to start: code=%s message=%s", errData.Code, errData.Message)
 	}
+}
+
+// waitForLog fails the test when the containers of the app, main or bricks, do not print
+// message within 30 seconds.
+func waitForLog(t *testing.T, httpClient *client.ClientWithResponses, appID, filter, message string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	logsResp, err := httpClient.GetAppLogs(ctx, appID, &client.GetAppLogsParams{Filter: new(filter)})
+	require.NoError(t, err)
+	defer logsResp.Body.Close()
+	require.Equal(t, http.StatusOK, logsResp.StatusCode)
+	logEvents := make(chan Event)
+	go loop(logsResp.Body, logEvents)
+	for event := range logEvents {
+		if event.Event != "message" {
+			continue
+		}
+		var payload handlers.ResponseLogs
+		require.NoError(t, json.Unmarshal(event.Data, &payload))
+		if strings.Contains(payload.Message, message) {
+			return
+		}
+	}
+	t.Fatalf("the %s containers did not print %q", filter, message)
 }
 
 // skipWithoutModelsImage skips a test that reads what the models-downloader container

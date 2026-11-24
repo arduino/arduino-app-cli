@@ -703,6 +703,29 @@ func TestTheMainServiceRunsTheAppUnderTheLauncher(t *testing.T) {
 	require.Contains(t, main.Volumes, map[string]any{"type": "bind", "source": appRuntimeDirRef, "target": launcherSocketDir}, "where the launcher binds its socket")
 }
 
+func TestTheMainServicePortsAreSorted(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	app := app.ArduinoApp{Name: "TestApp", FullPath: paths.New(t.TempDir())}
+	app.Descriptor.Ports = []int{9000, 80, 7000, 1234, 5000}
+	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
+	require.NoError(t, cfg.AssetDir().Join("bricks-list.yaml").WriteFile([]byte("bricks: []\n")))
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
+	require.NoError(t, err)
+
+	err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, &servicesindex.ServicesIndex{}, "app-bricks:python-apps-base:dev-latest", cfg, types.Mapping{}, unkownPlatform, true)
+	require.NoError(t, err)
+
+	composed, err := app.AppComposeTemplateFilePath().ReadFile()
+	require.NoError(t, err)
+	var content struct {
+		Services map[string]struct {
+			Ports []string `yaml:"ports"`
+		} `yaml:"services"`
+	}
+	require.NoError(t, yaml.Unmarshal(composed, &content))
+	require.Equal(t, []string{"1234:1234", "5000:5000", "7000:7000", "80:80", "9000:9000"}, content.Services["main"].Ports, "compose recreates the container when the order changes")
+}
+
 func TestAReleaseRunsItsAppWithoutTheLauncher(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	staged := app.ArduinoApp{Name: "TestApp", FullPath: paths.New(t.TempDir())}

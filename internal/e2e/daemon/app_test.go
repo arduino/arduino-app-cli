@@ -17,6 +17,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -31,6 +32,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 )
 
 func TestApps(t *testing.T) {
@@ -909,26 +911,7 @@ func TestAppStartBuildsLocalBrick(t *testing.T) {
 	startAndExpect := func(message string) {
 		require.NoError(t, brickDir.Join("message.txt").WriteFile([]byte(message+"\n")))
 		startApp(t, httpClient, appID)
-
-		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
-		defer cancel()
-		logsResp, err := httpClient.GetAppLogs(ctx, appID, &client.GetAppLogsParams{Filter: new("bricks")})
-		require.NoError(t, err)
-		defer logsResp.Body.Close()
-		require.Equal(t, http.StatusOK, logsResp.StatusCode)
-		logEvents := make(chan Event)
-		go loop(logsResp.Body, logEvents)
-		for event := range logEvents {
-			if event.Event != "message" {
-				continue
-			}
-			var payload handlers.ResponseLogs
-			require.NoError(t, json.Unmarshal(event.Data, &payload))
-			if strings.Contains(payload.Message, message) {
-				return
-			}
-		}
-		t.Fatalf("the brick container did not print %q", message)
+		waitForLog(t, httpClient, appID, "bricks", message)
 	}
 
 	t.Run("FirstStartBuilds", func(t *testing.T) {
@@ -960,6 +943,62 @@ func TestAppStartBuildsLocalBrick(t *testing.T) {
 		assert.Equal(t, "error", failure.Event)
 		assert.Equal(t, "BAD_REQUEST", failure.Code)
 		assert.Contains(t, failure.Details, `the brick "hello-build" builds its container from a Dockerfile`)
+	})
+}
+
+func TestAppRestartInPlace(t *testing.T) {
+	cli := e2e.CreateEnvForDaemon(t)
+	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
+	require.NoError(t, err)
+
+	appName := "app-restart-in-place"
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: new(true)},
+		client.CreateAppRequest{Icon: new("🔁"), Name: appName},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	appID := *createResp.JSON201.Id
+	appDir := cli.AppsDir().Join(appName)
+
+	writeMain := func(message string) {
+		main := "import time\nprint(" + strconv.Quote(message) + ", flush=True)\nwhile True:\n    time.sleep(1)\n"
+		require.NoError(t, appDir.Join("python", "main.py").WriteFile([]byte(main)))
+	}
+	// The id and the start time of the main container
+	mainContainer := func() string {
+		id, err := exec.CommandContext(t.Context(), "docker", "ps", "-q",
+			"--filter", "label="+orchestrator.DockerAppMainLabel+"=true",
+			"--filter", "label="+orchestrator.DockerAppPathLabel+"="+appDir.String(),
+		).Output()
+		require.NoError(t, err)
+		require.NotEmpty(t, strings.TrimSpace(string(id)))
+		out, err := exec.CommandContext(t.Context(), "docker", "inspect", "-f", "{{.Id}} {{.State.StartedAt}}", strings.TrimSpace(string(id))).Output()
+		require.NoError(t, err)
+		return strings.TrimSpace(string(out))
+	}
+	restart := func(message string) {
+		writeMain(message)
+		stdout, stderr, err := cli.Run(t.Context(), "app", "restart", appDir.String())
+		require.NoError(t, err, "stdout: %s\nstderr: %s", stdout, stderr)
+		waitForLog(t, httpClient, appID, "main", message)
+	}
+
+	writeMain("hello from run 1")
+	startApp(t, httpClient, appID)
+	waitForLog(t, httpClient, appID, "main", "hello from run 1")
+	started := mainContainer()
+
+	t.Run("PythonEditReloadsInTheSameContainer", func(t *testing.T) {
+		restart("hello from run 2")
+		require.Equal(t, started, mainContainer())
+	})
+
+	t.Run("NewPortReplacesTheContainer", func(t *testing.T) {
+		require.NoError(t, appDir.Join("app.yaml").WriteFile([]byte("name: "+appName+"\nports:\n- 7123\n")))
+		restart("hello from run 3")
+		require.NotEqual(t, strings.Fields(started)[0], strings.Fields(mainContainer())[0])
 	})
 }
 
