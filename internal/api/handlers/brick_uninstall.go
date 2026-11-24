@@ -24,12 +24,11 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
-// brickUninstalled is the response of a brick uninstall.
-type brickUninstalled struct {
-	ID       string   `json:"id"`
-	Versions []string `json:"versions"`
-	// Warnings are the images of the brick that could not be removed, and why.
-	Warnings []string `json:"warnings"`
+// BrickUninstallResponse is the response of a brick uninstall.
+type BrickUninstallResponse struct {
+	ID       string   `json:"id" description:"The id of the uninstalled brick." example:"acme:camera" required:"true"`
+	Versions []string `json:"versions" description:"The uninstalled versions." example:"[\"1.0.0\",\"1.1.0\"]" required:"true"`
+	Warnings []string `json:"warnings" description:"The container images of the brick that could not be removed, and why. The brick is uninstalled anyway." required:"true"`
 }
 
 // HandleUninstallBrick uninstalls a third-party brick: the version of the version query parameter
@@ -86,6 +85,6 @@ func HandleUninstallBrick(
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("the brick %s is not installed", ref)})
 			return
 		}
-		render.EncodeResponse(w, http.StatusOK, brickUninstalled{ID: id, Versions: res.Versions, Warnings: warnings})
+		render.EncodeResponse(w, http.StatusOK, BrickUninstallResponse{ID: id, Versions: res.Versions, Warnings: warnings})
 	}
 }

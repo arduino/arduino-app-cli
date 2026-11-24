@@ -1068,6 +1068,36 @@ The request is idempotent: a version already installed is not downloaded again, 
 			},
 		},
 		{
+			OperationId: "uninstallBrick",
+			Method:      http.MethodDelete,
+			Path:        "/v1/bricks/{id}",
+			Parameters: (*struct {
+				ID      string `path:"id" description:"The id of an installed third-party brick, in the form NAMESPACE:NAME." example:"acme:camera"`
+				Version string `query:"version" description:"The version to uninstall. Without it, every installed version is uninstalled." example:"1.0.0"`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: handlers.BrickUninstallResponse{},
+				Description:   "The brick is uninstalled",
+				StatusCode:    http.StatusOK,
+			},
+			Description: `Uninstall a third-party brick, and remove the container images that only the uninstalled versions use.
+
+A built-in brick returns 400. A brick, or a version, that is not installed returns 404.
+
+A version used by a running app is not uninstalled, and the request returns 409. Without a version, one version in use blocks the whole uninstall: nothing is removed. Stop the app first, or uninstall the other versions one at a time.
+
+A failure after some versions were removed returns 500, and its details list the versions that were removed.`,
+			Summary: "Uninstall a third-party brick",
+			Tags:    []Tag{BrickTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
+				{StatusCode: http.StatusConflict, Reference: "#/components/responses/Conflict"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "getConfig",
 			Method:      http.MethodGet,
 			Path:        "/v1/config",

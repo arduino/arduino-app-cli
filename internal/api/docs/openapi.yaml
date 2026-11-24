@@ -1112,6 +1112,52 @@ paths:
       tags:
       - Brick
   /v1/bricks/{id}:
+    delete:
+      description: |-
+        Uninstall a third-party brick, and remove the container images that only the uninstalled versions use.
+
+        A built-in brick returns 400. A brick, or a version, that is not installed returns 404.
+
+        A version used by a running app is not uninstalled, and the request returns 409. Without a version, one version in use blocks the whole uninstall: nothing is removed. Stop the app first, or uninstall the other versions one at a time.
+
+        A failure after some versions were removed returns 500, and its details list the versions that were removed.
+      operationId: uninstallBrick
+      parameters:
+      - description: The version to uninstall. Without it, every installed version
+          is uninstalled.
+        in: query
+        name: version
+        schema:
+          description: The version to uninstall. Without it, every installed version
+            is uninstalled.
+          example: 1.0.0
+          type: string
+      - description: The id of an installed third-party brick, in the form NAMESPACE:NAME.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: The id of an installed third-party brick, in the form NAMESPACE:NAME.
+          example: acme:camera
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrickUninstallResponse'
+          description: The brick is uninstalled
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Uninstall a third-party brick
+      tags:
+      - Brick
     get:
       description: Returns a detailed list of property associated to the given brick.
       operationId: getBrickDetails
@@ -2288,6 +2334,33 @@ components:
             $ref: '#/components/schemas/BrickListItem'
           nullable: true
           type: array
+      type: object
+    BrickUninstallResponse:
+      properties:
+        id:
+          description: The id of the uninstalled brick.
+          example: acme:camera
+          type: string
+        versions:
+          description: The uninstalled versions.
+          example:
+          - 1.0.0
+          - 1.1.0
+          items:
+            type: string
+          nullable: true
+          type: array
+        warnings:
+          description: The container images of the brick that could not be removed,
+            and why. The brick is uninstalled anyway.
+          items:
+            type: string
+          nullable: true
+          type: array
+      required:
+      - id
+      - versions
+      - warnings
       type: object
     BrickVariable:
       properties:
