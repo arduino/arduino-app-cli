@@ -19,25 +19,31 @@ func newBricksListCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List all available bricks",
+		Long:  "List all available bricks: the built-in ones and those installed from the bricks index.",
 		Run: func(cmd *cobra.Command, args []string) {
-			res := servicelocator.GetBrickService().List()
-			feedback.PrintResult(brickListResult{Bricks: res.Bricks})
+			bricksListHandler()
 		},
 	}
 }
 
+func bricksListHandler() {
+	res := servicelocator.GetBrickService().List()
+	feedback.PrintResult(brickListResult{BrickListResult: res})
+}
+
 type brickListResult struct {
-	Bricks []bricks.BrickListItem `json:"bricks"`
+	bricks.BrickListResult
 }
 
 func (r brickListResult) String() string {
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"ID", "NAME", "AUTHOR"})
+	t.AppendHeader(table.Row{"ID", "VERSION", "NAME", "AUTHOR"})
 
 	for _, brick := range r.Bricks {
 		t.AppendRow(table.Row{
 			brick.ID,
+			brick.Version,
 			brick.Name,
 			brick.Author,
 		})

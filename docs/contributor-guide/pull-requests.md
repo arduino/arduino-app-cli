@@ -64,7 +64,7 @@ Some things to keep in mind:
 - Remember to also update the documentation content in the repository if required by your changes.
 - If the project contains a test suite, update or add tests according to your change as appropriate.
 
-See [the development guide](../development.md#development-guide) for more information.
+See [the development guide](development.md#development-guide) for more information.
 
 ### 6. Test
 
@@ -72,7 +72,7 @@ Test your change carefully to make sure it works correctly and did not break oth
 
 As a supplement for general testing, the project is set up with automated checks and tests to facilitate development.
 
-See [the development guide](../development.md#development-guide) for instructions.
+See [the development guide](development.md#development-guide) for instructions.
 
 ### 7. Commit
 

@@ -2194,6 +2194,8 @@ components:
           type: boolean
         status:
           type: string
+        version:
+          type: string
       type: object
     BrickListResult:
       properties:

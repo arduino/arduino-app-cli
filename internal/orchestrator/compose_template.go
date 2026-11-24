@@ -278,6 +278,7 @@ func generateComposeTemplate(
 		User:              appUserExpr,
 		GroupAdd:          groupExprs(groupNames),
 		DeviceCgroupRules: cgroupRules,
+		SecurityOpt:       apparmorSecurityOpt(),
 		ExtraHosts:        []string{"msgpack-rpc-router:host-gateway"},
 		Labels:            labels,
 		Environment:       environment,

@@ -81,25 +81,31 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 // subnet left is one of the reasons, worded by the daemon.
 var ErrNetwork = errors.New("failed to create the network of the app")
 
-// ComposeStop leaves the containers of the app where they are, stopped.
-func ComposeStop(ctx context.Context, docker command.Cli, projectName string, line func(string)) error {
+// ComposeStop leaves the containers of the app where they are, stopped. The pre_stop
+// hooks run only when prj is given: the container labels do not carry them.
+func ComposeStop(ctx context.Context, docker command.Cli, projectName string, prj *types.Project, line func(string)) error {
 	backend, err := compose.NewComposeService(docker, compose.WithEventProcessor(newProgress(line)))
 	if err != nil {
 		return err
 	}
 	timeout := stopTimeout
-	return backend.Stop(ctx, projectName, api.StopOptions{Timeout: &timeout})
+	if err := backend.Stop(ctx, projectName, api.StopOptions{Project: prj, Timeout: &timeout}); err != nil {
+		return err
+	}
+	// Workaround: moby returns a stop before its container list shows it, and a status read in that gap finds the app running.
+	return waitStopped(ctx, docker.Client(), api.ProjectLabel+"="+projectName, stopTimeout)
 }
 
 // ComposeDown removes the containers of the app, its volumes, the images it built and its
-// leftovers.
-func ComposeDown(ctx context.Context, docker command.Cli, projectName string, line func(string)) error {
+// leftovers. As for ComposeStop, the pre_stop hooks run only when prj is given.
+func ComposeDown(ctx context.Context, docker command.Cli, projectName string, prj *types.Project, line func(string)) error {
 	backend, err := compose.NewComposeService(docker, compose.WithEventProcessor(newProgress(line)))
 	if err != nil {
 		return err
 	}
 	timeout := stopTimeout
 	err = backend.Down(ctx, projectName, api.DownOptions{
+		Project:       prj,
 		RemoveOrphans: true,
 		Volumes:       true,
 		Images:        "local",

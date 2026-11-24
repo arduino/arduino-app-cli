@@ -9,11 +9,14 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/containerd/errdefs"
 	dockerClient "github.com/moby/moby/client"
 	"github.com/stretchr/testify/require"
+
+	"github.com/arduino/arduino-app-cli/internal/helpers"
 )
 
 type imageInspectClient struct {
@@ -71,6 +74,32 @@ func TestPullImagesReportsInspectFailure(t *testing.T) {
 	daemonError := errors.New("cannot reach Docker")
 	docker := imageInspectClient{inspect: func(string) error { return daemonError }}
 	require.ErrorIs(t, PullImages(t.Context(), docker, []string{"viktoruj/ping_pong"}, nil, nil), daemonError)
+}
+
+type imagePullClient struct {
+	dockerClient.APIClient
+	stream string
+}
+
+func (c imagePullClient) ImagePull(context.Context, string, dockerClient.ImagePullOptions) (dockerClient.ImagePullResponse, error) {
+	return pullResponse{body: strings.NewReader(c.stream)}, nil
+}
+
+type pullResponse struct {
+	dockerClient.ImagePullResponse
+	body io.Reader
+}
+
+func (r pullResponse) Read(p []byte) (int, error) { return r.body.Read(p) }
+func (pullResponse) Close() error                 { return nil }
+
+func TestPullImageReportsStreamError(t *testing.T) {
+	docker := imagePullClient{stream: `{"status":"Pulling from library/busybox","id":"latest"}
+{"errorDetail":{"message":"failed to register layer: no space left on device"}}
+`}
+	var reported helpers.LastPercent
+	err := pullImage(t.Context(), docker, "busybox:latest", map[string]int64{}, 0, &reported, func(int64) {})
+	require.EqualError(t, err, "failed to register layer: no space left on device")
 }
 
 func TestParseDockerImage(t *testing.T) {

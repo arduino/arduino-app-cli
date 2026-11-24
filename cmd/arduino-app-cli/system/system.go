@@ -15,6 +15,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/cmdutil"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/buildtag"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -32,12 +33,14 @@ func NewSystemCmd(cfg config.Configuration) *cobra.Command {
 	}
 
 	cmd.AddCommand(newDownloadImageCmd(cfg))
-	cmd.AddCommand(newUpdateCmd(cfg))
 	cmd.AddCommand(newCleanUpCmd(cfg, servicelocator.GetDockerClient()))
-	cmd.AddCommand(newNetworkModeCmd())
-	cmd.AddCommand(newKeyboardSetCmd())
-	cmd.AddCommand(newBoardSetNameCmd())
 	cmd.AddCommand(newCheckCmd(servicelocator.GetDockerClient()))
+	if !buildtag.ImmutableOS {
+		cmd.AddCommand(newUpdateCmd(cfg))
+		cmd.AddCommand(newNetworkModeCmd())
+		cmd.AddCommand(newKeyboardSetCmd())
+		cmd.AddCommand(newBoardSetNameCmd())
+	}
 
 	return cmd
 }
@@ -72,6 +75,11 @@ func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 		},
 	}
 
+	// The image defines the platform and libraries: only the docker images are left.
+	if buildtag.ImmutableOS {
+		onlyImages = true
+		return cmd
+	}
 	cmd.PersistentFlags().BoolVar(&onlyImages, "only-docker-images", false, "Only download the application docker images")
 	cmd.PersistentFlags().BoolVar(&onlyPlatformAndLibraries, "only-arduino-platform", false, "Only download the Arduino platform and libraries")
 

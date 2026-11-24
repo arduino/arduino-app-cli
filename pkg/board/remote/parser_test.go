@@ -107,6 +107,31 @@ lrwxrwxrwx 1 u g   10 Jan  1 12:00 "link" -> "target"
 	}, got)
 }
 
+func TestParseLsOutputEscapedNames(t *testing.T) {
+	input := `total 0
+-rw-r--r-- 1 u g 0 Jan  1 12:00 "report\"final.txt"
+-rw-r--r-- 1 u g 0 Jan  1 12:00 "back\\slash.txt"
+-rw-r--r-- 1 u g 0 Jan  1 12:00 "line\nbreak.txt"
+-rw-r--r-- 1 u g 0 Jan  1 12:00 "tab\tname.txt"
+-rw-r--r-- 1 u g 0 Jan  1 12:00 "byte\001\377.txt"
+-rw-r--r-- 1 u g 0 Jan  1 12:00 "literal\\123.txt"
+lrwxrwxrwx 1 u g 0 Jan  1 12:00 "shortcut\"today" -> "../report\"final.txt"
+-rw-r--r-- 1 u g 0 Jan  1 12:00 "café.txt"
+`
+	got, err := ParseLsOutput(strings.NewReader(input))
+	require.NoError(t, err)
+	assert.Equal(t, []FileInfo{
+		{Name: "report\"final.txt"},
+		{Name: "back\\slash.txt"},
+		{Name: "line\nbreak.txt"},
+		{Name: "tab\tname.txt"},
+		{Name: "byte\x01\xff.txt"},
+		{Name: "literal\\123.txt"},
+		{Name: "shortcut\"today", IsSymlink: true},
+		{Name: "café.txt"},
+	}, got)
+}
+
 func TestParseChage(t *testing.T) {
 	tests := []struct {
 		name    string

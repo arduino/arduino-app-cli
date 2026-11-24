@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   build-and-update:
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.runner || 'ubuntu-22.04' }}
 
     strategy:
       # The scenarios share the host network, the docker socket and the build
@@ -40,10 +40,12 @@ jobs:
               Downgrading to the last published release is expected to fail;
               the test reports the reason in the job log.
           # The other legs shim `system init` away to save time. This one runs
-          # it, so the upgrade path is tested with the real command once.
+          # it, so the upgrade path is tested with the real command once. It runs
+          # on arm64, the only platform the runner image can be pulled on.
           - scenario: StableToCurrent
             distro: debian:trixie
             skip_system_init: "0"
+            runner: ubuntu-24.04-arm
 
     name: ${{ matrix.scenario }} on ${{ matrix.distro }}
 
