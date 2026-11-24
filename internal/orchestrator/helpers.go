@@ -160,10 +160,9 @@ func getAppServicesFromContainers(ctx context.Context, docker dockerClient.APICl
 		return nil, err
 	}
 
-	const dockerComposeServiceLabel = "com.docker.compose.service"
 	services := make([]string, 0, len(containers))
 	for _, info := range containers {
-		if name := info.Labels[dockerComposeServiceLabel]; name != "" && !slices.Contains(services, name) {
+		if name := info.Labels[composeServiceLabel]; name != "" && !slices.Contains(services, name) {
 			services = append(services, name)
 		}
 	}
