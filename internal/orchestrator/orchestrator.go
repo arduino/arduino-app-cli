@@ -1126,7 +1126,13 @@ func restartInPlace(
 		if err != nil {
 			return err
 		}
-		if err := dockerhelper.ComposeUp(ctx, docker, prj, func(line string) { cb(StreamMessage{data: line}) }); err != nil {
+		upToDate, err := dockerhelper.ComposeUpToDate(ctx, docker.Client(), prj)
+		if err != nil {
+			return err
+		}
+		if upToDate {
+			cb(StreamMessage{data: "The containers of the app are up to date"})
+		} else if err := dockerhelper.ComposeUp(ctx, docker, prj, func(line string) { cb(StreamMessage{data: line}) }); err != nil {
 			return err
 		}
 		after, err := mainContainer(ctx, docker.Client(), appToStart.FullPath)
