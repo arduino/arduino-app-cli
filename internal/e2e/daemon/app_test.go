@@ -17,7 +17,6 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
-	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -32,7 +31,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 )
 
 func TestApps(t *testing.T) {
@@ -947,6 +945,11 @@ func TestAppStartBuildsLocalBrick(t *testing.T) {
 }
 
 func TestAppRestartInPlace(t *testing.T) {
+	// The app runs in the runner image, which cannot be pulled on amd64.
+	if runtime.GOARCH != ARM64Arch {
+		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
+	}
+
 	cli := e2e.CreateEnvForDaemon(t)
 	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
 	require.NoError(t, err)
@@ -966,39 +969,40 @@ func TestAppRestartInPlace(t *testing.T) {
 		main := "import time\nprint(" + strconv.Quote(message) + ", flush=True)\nwhile True:\n    time.sleep(1)\n"
 		require.NoError(t, appDir.Join("python", "main.py").WriteFile([]byte(main)))
 	}
-	// The id and the start time of the main container
-	mainContainer := func() string {
-		id, err := exec.CommandContext(t.Context(), "docker", "ps", "-q",
-			"--filter", "label="+orchestrator.DockerAppMainLabel+"=true",
-			"--filter", "label="+orchestrator.DockerAppPathLabel+"="+appDir.String(),
-		).Output()
-		require.NoError(t, err)
-		require.NotEmpty(t, strings.TrimSpace(string(id)))
-		out, err := exec.CommandContext(t.Context(), "docker", "inspect", "-f", "{{.Id}} {{.State.StartedAt}}", strings.TrimSpace(string(id))).Output()
-		require.NoError(t, err)
-		return strings.TrimSpace(string(out))
-	}
-	restart := func(message string) {
+	// Each restart runs a new main.py, which must print its message
+	restart := func(t *testing.T, message string) string {
 		writeMain(message)
-		stdout, stderr, err := cli.Run(t.Context(), "app", "restart", appDir.String())
-		require.NoError(t, err, "stdout: %s\nstderr: %s", stdout, stderr)
+		stdout := restartApp(t, cli, appDir)
 		waitForLog(t, httpClient, appID, "main", message)
+		return stdout
 	}
 
 	writeMain("hello from run 1")
 	startApp(t, httpClient, appID)
 	waitForLog(t, httpClient, appID, "main", "hello from run 1")
-	started := mainContainer()
+	before := mainContainer(t, appDir)
 
 	t.Run("PythonEditReloadsInTheSameContainer", func(t *testing.T) {
-		restart("hello from run 2")
-		require.Equal(t, started, mainContainer())
+		stdout := restart(t, "hello from run 2")
+		require.Contains(t, stdout, "The containers of the app are up to date")
+		require.Contains(t, stdout, "Reloading the app in its container")
+		require.Equal(t, before, mainContainer(t, appDir))
+	})
+
+	t.Run("RequirementsChangeRestartsTheContainer", func(t *testing.T) {
+		// A comment changes what the launcher prepared and installs nothing
+		require.NoError(t, appDir.Join("python", "requirements.txt").WriteFile([]byte("# no package\n")))
+		stdout := restart(t, "hello from run 3")
+		require.Contains(t, stdout, "restarting the container")
+		after := mainContainer(t, appDir)
+		require.Equal(t, before.ID, after.ID)
+		require.NotEqual(t, before.StartedAt, after.StartedAt)
 	})
 
 	t.Run("NewPortReplacesTheContainer", func(t *testing.T) {
 		require.NoError(t, appDir.Join("app.yaml").WriteFile([]byte("name: "+appName+"\nports:\n- 7123\n")))
-		restart("hello from run 3")
-		require.NotEqual(t, strings.Fields(started)[0], strings.Fields(mainContainer())[0])
+		restart(t, "hello from run 4")
+		require.NotEqual(t, before.ID, mainContainer(t, appDir).ID)
 	})
 }
 

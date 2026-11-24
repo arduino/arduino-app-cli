@@ -13,16 +13,19 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 )
 
 // SSE event type and the error code the stream teardown always emits.
@@ -148,6 +151,35 @@ func waitForLog(t *testing.T, httpClient *client.ClientWithResponses, appID, fil
 		}
 	}
 	t.Fatalf("the %s containers did not print %q", filter, message)
+}
+
+// restartApp restarts the app through the cli and returns what it printed.
+func restartApp(t *testing.T, cli *e2e.ArduinoAppCLI, appDir *paths.Path) string {
+	t.Helper()
+	stdout, stderr, err := cli.Run(t.Context(), "app", "restart", appDir.String())
+	require.NoError(t, err, "stdout: %s\nstderr: %s", stdout, stderr)
+	return stdout
+}
+
+type appContainer struct {
+	ID        string
+	StartedAt string
+}
+
+// mainContainer is the running main container of the app at appDir.
+func mainContainer(t *testing.T, appDir *paths.Path) appContainer {
+	t.Helper()
+	id, err := exec.CommandContext(t.Context(), "docker", "ps", "-q",
+		"--filter", "label="+orchestrator.DockerAppMainLabel+"=true",
+		"--filter", "label="+orchestrator.DockerAppPathLabel+"="+appDir.String(),
+	).Output()
+	require.NoError(t, err)
+	require.NotEmpty(t, strings.TrimSpace(string(id)))
+	out, err := exec.CommandContext(t.Context(), "docker", "inspect", "-f", "{{.Id}} {{.State.StartedAt}}", strings.TrimSpace(string(id))).Output()
+	require.NoError(t, err)
+	fields := strings.Fields(string(out))
+	require.Len(t, fields, 2)
+	return appContainer{ID: fields[0], StartedAt: fields[1]}
 }
 
 // skipWithoutModelsImage skips a test that reads what the models-downloader container
