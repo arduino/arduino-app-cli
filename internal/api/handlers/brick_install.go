@@ -25,12 +25,10 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
-// brickInstalled is the data of the done event of a brick install.
 type brickInstalled struct {
-	ID      string `json:"id"`
-	Version string `json:"version"`
-	// AlreadyInstalled is true when the release was found installed and nothing was done.
-	AlreadyInstalled bool `json:"already_installed"`
+	ID               string `json:"id"`
+	Version          string `json:"version"`
+	AlreadyInstalled bool   `json:"already_installed"`
 }
 
 // HandleInstallBrick installs a release of a third-party brick from the bricks index: the one of
