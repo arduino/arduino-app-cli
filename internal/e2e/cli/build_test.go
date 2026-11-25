@@ -248,8 +248,7 @@ func ensurePlatformInstalled(t *testing.T, platformID string) {
 	}, installStream))
 }
 
-// appEntries is every path of the app folder, relative and sorted, .cache apart: the
-// sketch is compiled with the cache of the app, as a start does.
+// appEntries is every path of the app folder, relative and sorted, .cache apart.
 func appEntries(t *testing.T, appDir *paths.Path) []string {
 	t.Helper()
 

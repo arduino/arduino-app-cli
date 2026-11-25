@@ -219,9 +219,8 @@ func BuildRelease(
 	// python only ships without a firmware.
 	if _, hasSketch := stagedApp.GetSketchPath(); hasSketch {
 		cb(StreamMessage{data: "building sketch", progress: &Progress{Name: "sketch", Progress: 80.0}})
-		// The compile reads the staged sources and caches in the app folder, as a
-		// start does. Only the firmware lands in the release, in prebuild.
-		if err := buildSketch(ctx, stagedApp, plat, appToBuild.SketchBuildPath(), prebuildDir, req.Verbose, cb); err != nil {
+		// Built from the app folder: a start and a release share one arduino-cli build folder.
+		if err := buildSketch(ctx, appToBuild, plat, prebuildDir, req.Verbose, cb); err != nil {
 			return BuildReleaseResult{}, nil, err
 		}
 	}
@@ -486,7 +485,7 @@ func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string,
 // ReleaseFirmwareFileName is the compiled sketch a release ships in its prebuild dir.
 const ReleaseFirmwareFileName = "sketch.fw"
 
-func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platform.Platform, buildPath, destPath *paths.Path, verbose bool, cb func(StreamMessage)) error {
+func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platform.Platform, destPath *paths.Path, verbose bool, cb func(StreamMessage)) error {
 	output := NewCallbackWriter(func(line string) {
 		cb(StreamMessage{data: line})
 	})
@@ -494,9 +493,6 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 	sketchPath, ok := appToBuild.GetSketchPath()
 	if !ok {
 		return fmt.Errorf("no sketch path found in the Arduino app")
-	}
-	if err := buildPath.MkdirAll(); err != nil {
-		return fmt.Errorf("failed to create build directory: %w", err)
 	}
 
 	srv, inst, err := initializeArduinoCli(ctx, sketchPath, output)
@@ -518,12 +514,13 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 	}
 
 	// Compile the sketch
-	if err := compileSketch(
+	buildPath, err := compileSketch(
 		ctx, srv, inst,
-		sketchPath, buildPath,
+		sketchPath,
 		platform, fqbn,
 		verbose, output,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
 

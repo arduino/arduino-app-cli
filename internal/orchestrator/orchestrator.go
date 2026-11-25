@@ -8,6 +8,9 @@ package orchestrator
 import (
 	"bytes"
 	"context"
+	"crypto/md5" //nolint:gosec // arduino-cli names the build dir with it
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -382,7 +385,7 @@ func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, platform p
 	if err := stopAppWithCmd(ctx, dockerClient, platform, app, cfg, "down", cb); err != nil {
 		return err
 	}
-	if err := cleanAppCacheFiles(app, cb); err != nil {
+	if err := cleanAppCacheFiles(ctx, app, cb); err != nil {
 		return err
 	}
 	if err := appRuntimeDir(cfg, app.FullPath).RemoveAll(); err != nil {
@@ -391,7 +394,7 @@ func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, platform p
 	return nil
 }
 
-func cleanAppCacheFiles(app app.ArduinoApp, cb func(StreamMessage)) error {
+func cleanAppCacheFiles(ctx context.Context, app app.ArduinoApp, cb func(StreamMessage)) error {
 	if cb == nil {
 		cb = func(StreamMessage) {}
 	}
@@ -401,6 +404,10 @@ func cleanAppCacheFiles(app app.ArduinoApp, cb func(StreamMessage)) error {
 	if app.IsRelease() {
 		cb(StreamMessage{data: "Keeping the cache the release ships."})
 		return nil
+	}
+
+	if err := removeSketchBuildDir(ctx, app); err != nil {
+		slog.Warn("unable to remove the sketch build dir", slog.String("error", err.Error()))
 	}
 
 	cachePath := app.FullPath.Join(".cache")
@@ -958,6 +965,9 @@ func DeleteApp(ctx context.Context, dockerClient command.Cli, platform platform.
 	// We try to remove docker related resources at best effort
 	_ = StopAndDestroyApp(ctx, dockerClient, platform, app, cfg, func(StreamMessage) {})
 	// TODO: Shall we report stop error?
+	if err := removeSketchBuildDir(ctx, app); err != nil {
+		slog.Warn("unable to remove the sketch build dir", slog.String("error", err.Error()))
+	}
 
 	if err := app.FullPath.RemoveAll(); err != nil {
 		return err
@@ -1044,7 +1054,7 @@ func EditApp(
 	}
 
 	if req.Name != nil || req.Icon != nil || req.Description != nil {
-		if err := editAppFolder(req, editApp, cfg); err != nil {
+		if err := editAppFolder(ctx, req, editApp, cfg); err != nil {
 			return err
 		}
 	}
@@ -1057,7 +1067,7 @@ func EditApp(
 	return nil
 }
 
-func editAppFolder(req AppEditRequest, editApp *app.ArduinoApp, cfg config.Configuration) error {
+func editAppFolder(ctx context.Context, req AppEditRequest, editApp *app.ArduinoApp, cfg config.Configuration) error {
 	editable, err := editApp.GetAsEditable()
 	if err != nil {
 		return err
@@ -1084,6 +1094,10 @@ func editAppFolder(req AppEditRequest, editApp *app.ArduinoApp, cfg config.Confi
 		}
 		if !newPath.EqualsTo(editable.FullPath) {
 			oldPath := editable.FullPath
+			// The build dir is named after the sketch path, which the rename changes.
+			if err := removeSketchBuildDir(ctx, *editApp); err != nil {
+				slog.Warn("unable to remove the sketch build dir", slog.String("error", err.Error()))
+			}
 			if err := editable.FullPath.Rename(newPath); err != nil {
 				return fmt.Errorf("failed to rename app path: %w", err)
 			}
@@ -1164,12 +1178,6 @@ func compileUploadSketch(
 	if !ok {
 		return fmt.Errorf("no sketch path found in the Arduino app")
 	}
-	// Make the cache dir for the compiled sketch
-	buildPath := arduinoApp.SketchBuildPath()
-	if err := buildPath.MkdirAll(); err != nil {
-		return fmt.Errorf("failed to create build directory: %w", err)
-	}
-
 	srv, inst, err := initializeArduinoCli(ctx, sketchPath, w)
 	if err != nil {
 		return err
@@ -1189,12 +1197,13 @@ func compileUploadSketch(
 	useLegacyFlashToRam := !menuOptions.Has(WaitForApp) && platform.SupportFlashToRam()
 
 	// Compile the sketch
-	if err := compileSketch(
+	buildPath, err := compileSketch(
 		ctx, srv, inst,
-		sketchPath, buildPath,
+		sketchPath,
 		platform, fqbn,
 		verbose, w,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
 
@@ -1311,26 +1320,26 @@ func compileSketch(
 	ctx context.Context,
 	srv rpc.ArduinoCoreServiceServer,
 	inst *rpc.Instance,
-	sketchPath, buildPath *paths.Path,
+	sketchPath *paths.Path,
 	platform platform.Platform,
 	fqbn string,
 	verbose bool,
 	w io.Writer,
-) error {
+) (*paths.Path, error) {
 	// build the sketch
 	slog.Debug("compile sketch", slog.String("fqbn", fqbn))
 
+	// No BuildPath: arduino-cli uses the core cache only with its default build path.
 	server, getCompileResult := commands.CompilerServerToStreams(ctx, w, w, nil)
 	compileReq := rpc.CompileRequest{
 		Instance:   inst,
 		Fqbn:       fqbn,
 		SketchPath: sketchPath.String(),
-		BuildPath:  buildPath.String(),
 		Jobs:       platform.CompileJobs,
 		Verbose:    verbose,
 	}
 	if err := srv.Compile(&compileReq, server); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Output compilations details
@@ -1349,7 +1358,7 @@ func compileSketch(
 	for _, lib := range result.GetUsedLibraries() {
 		_, _ = w.Write([]byte("Used library " + lib.GetName() + " (" + lib.GetVersion() + ") in " + lib.GetInstallDir() + "\n"))
 	}
-	return nil
+	return paths.New(result.GetBuildPath()), nil
 }
 
 // uploadSketch flashes what buildPath holds, whether a compile has just written it or
@@ -1488,4 +1497,30 @@ func GetOrchestratorConfig(cfg config.Configuration) ConfigResponse {
 		},
 		PythonRunner: cfg.RunnerVersion,
 	}
+}
+
+// removeSketchBuildDir removes the default build dir of arduino-cli for the app sketch.
+// WORKAROUND: it copies sketch.Hash() of arduino-cli, which has no API for the path.
+func removeSketchBuildDir(ctx context.Context, app app.ArduinoApp) error {
+	sketchPath, ok := app.GetSketchPath()
+	if !ok {
+		return nil
+	}
+
+	srv := commands.NewArduinoCoreServer()
+	if err := SetArduinoCliConfig(ctx, srv); err != nil {
+		return err
+	}
+	resp, err := srv.SettingsGetValue(ctx, &rpc.SettingsGetValueRequest{Key: "build_cache.path"})
+	if err != nil {
+		return err
+	}
+	var buildCachePath string
+	if err := json.Unmarshal([]byte(resp.GetEncodedValue()), &buildCachePath); err != nil {
+		return err
+	}
+	hash := md5.Sum([]byte(sketchPath.Canonical().String())) //nolint:gosec
+	buildPath := paths.New(buildCachePath, "sketches", strings.ToUpper(hex.EncodeToString(hash[:])))
+	slog.Debug("removing sketch build dir", slog.String("path", buildPath.String()))
+	return buildPath.RemoveAll()
 }
