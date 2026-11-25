@@ -51,11 +51,7 @@ func detailsHandler(ctx context.Context, cfg config.Configuration, arduinoApp ap
 		return err
 	}
 
-	index, err := arduinoApp.Bricks(servicelocator.GetBricksIndex())
-	if err != nil {
-		feedback.Warnf("%v", err)
-	}
-	feedback.PrintResult(newAppDetailsResult(details, arduinoApp, index))
+	feedback.PrintResult(newAppDetailsResult(details, arduinoApp, servicelocator.GetBricksIndex()))
 	return nil
 }
 
@@ -94,7 +90,7 @@ type appDetailsVariable struct {
 func newAppDetailsResult(
 	details orchestrator.AppDetailedInfo,
 	arduinoApp appmodel.ArduinoApp,
-	index *bricksindex.BricksIndex,
+	bricksIndex *bricksindex.BricksIndex,
 ) appDetailsResult {
 	result := appDetailsResult{
 		ID:           details.ID.String(),
@@ -113,9 +109,10 @@ func newAppDetailsResult(
 		Bricks:       make([]appDetailsBrick, len(arduinoApp.Descriptor.Bricks)),
 	}
 
+	index := arduinoApp.Bricks(bricksIndex)
 	for i, appBrick := range arduinoApp.Descriptor.Bricks {
 		brick := appDetailsBrick{ID: appBrick.ID, Model: appBrick.Model}
-		if definition, found := index.FindBrickByID(appBrick.ID); found {
+		if definition, found := index.FindBrick(appBrick.ID, appBrick.Version); found {
 			brick.Name = definition.Name
 			brick.Category = definition.Category
 			for _, variable := range definition.Variables {

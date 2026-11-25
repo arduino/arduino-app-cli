@@ -53,7 +53,7 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 	var allErrors error
 	models := modelIndex.NewLookup()
 	for _, appBrick := range bricks {
-		indexBrick, found := index.FindBrickByID(appBrick.ID)
+		indexBrick, found := index.FindBrick(appBrick.ID, appBrick.Version)
 		if !found {
 			allErrors = errors.Join(allErrors, fmt.Errorf("brick %q not found", appBrick.ID))
 			continue // Skip further validation for this brick since it doesn't exist
@@ -125,7 +125,7 @@ func RequiredServices(
 ) ([]RequiredService, error) {
 	services := make(map[string]RequiredService)
 	for _, appBrick := range bricks {
-		indexBrick, found := index.FindBrickByID(appBrick.ID)
+		indexBrick, found := index.FindBrick(appBrick.ID, appBrick.Version)
 		if !found {
 			return nil, fmt.Errorf("brick %q not found in the index", appBrick.ID)
 		}
@@ -172,7 +172,7 @@ func checkPortCollisions(
 	}
 
 	for _, appBrick := range descriptor.Bricks {
-		indexBrick, found := index.FindBrickByID(appBrick.ID)
+		indexBrick, found := index.FindBrick(appBrick.ID, appBrick.Version)
 		if !found {
 			continue
 		}
@@ -214,7 +214,7 @@ func requiredDeviceClasses(bricksIndex *bricksindex.BricksIndex, appBricks []app
 	required := make(map[peripherals.DeviceClass]bool)
 
 	for _, brick := range appBricks {
-		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
+		idxBrick, found := bricksIndex.FindBrick(brick.ID, brick.Version)
 		if !found {
 			return nil, fmt.Errorf("brick %q not found", brick.ID)
 		}

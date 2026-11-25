@@ -74,10 +74,7 @@ func AppLogs(
 
 	projectName := composeProjectName(app.FullPath, cfg.AppsDir())
 
-	bricksIndex, err = app.ResolveBricks(bricksIndex)
-	if err != nil {
-		slog.Warn("cannot load the third-party bricks of the app", slog.String("app", app.Name), slog.String("error", err.Error()))
-	}
+	bricksIndex = bricksIndex.WithAppBricks(app.LocalBricks)
 
 	// Obtain mapping compose service name <-> brick name
 	serviceToBrickMapping := make(map[string]string, len(app.Descriptor.Bricks))
@@ -94,7 +91,7 @@ func AppLogs(
 		return nil
 	}
 	for _, appBrick := range app.Descriptor.Bricks {
-		brick, ok := bricksIndex.FindBrickByID(appBrick.ID)
+		brick, ok := bricksIndex.FindBrick(appBrick.ID, appBrick.Version)
 		if !ok {
 			slog.Warn("brick not valid", slog.String("brick_id", appBrick.ID))
 			continue

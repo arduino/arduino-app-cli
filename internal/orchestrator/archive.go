@@ -33,10 +33,8 @@ func ExportAppZip(
 	appTarget app.ArduinoApp,
 	includeData bool,
 ) ([]byte, string, error) {
-	bricksIndex, err := appTarget.ResolveBricks(bricksIndex)
-	if err != nil {
-		return nil, "", err
-	}
+
+	bricksIndex = bricksIndex.WithAppBricks(appTarget.LocalBricks)
 
 	appName := strings.ToLower(strings.ReplaceAll(appTarget.Name, " ", "-"))
 	if appName == "" {
@@ -334,7 +332,7 @@ func redactSecrets(bricksindex *bricksindex.BricksIndex, desc *app.AppDescriptor
 	for i := range desc.Bricks {
 		brick := &desc.Bricks[i]
 
-		brickDef, found := bricksindex.FindBrickByID(brick.ID)
+		brickDef, found := bricksindex.FindBrick(brick.ID, brick.Version)
 		if !found {
 			// Brick definition not found; skip secret redaction
 			continue

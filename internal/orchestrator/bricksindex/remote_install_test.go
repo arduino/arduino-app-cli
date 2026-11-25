@@ -295,3 +295,17 @@ func TestInstallFailures(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckListed(t *testing.T) {
+	dir := paths.New(t.TempDir())
+	index := `{"bricks": [{"id": "acme:camera", "namespace": "acme", "releases": [{"version": "1.2.0", "url": "https://example.com/1.2.0.zip", "hash": "0000000000000000000000000000000000000000000000000000000000000000", "size": 1, "supported_boards": ["other"]}]}]}`
+	require.NoError(t, dir.Join(RemoteIndexFileName).WriteFile([]byte(index)))
+
+	require.NoError(t, CheckListed(dir, "acme:camera", nil))
+	require.NoError(t, CheckListed(dir, "acme:camera", semver.MustParse("1.2")), "the version is compared as semver")
+	require.ErrorIs(t, CheckListed(dir, "acme:camera", semver.MustParse("1.0.0")), ErrReleaseNotFound)
+	require.ErrorIs(t, CheckListed(dir, "acme:audio", nil), ErrBrickNotFound)
+	require.ErrorContains(t, CheckListed(dir, "acme:audio", nil), "brick update-index")
+	require.ErrorIs(t, CheckListed(paths.New(t.TempDir()), "acme:camera", nil), ErrIndexNotFound)
+	require.ErrorIs(t, CheckListed(nil, "acme:camera", nil), ErrIndexNotFound)
+}

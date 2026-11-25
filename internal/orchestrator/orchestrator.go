@@ -53,10 +53,6 @@ var (
 	ErrAppRunning       = fmt.Errorf("app is running")
 )
 
-// bricksUserAgent identifies the downloads of the bricks a start installs.
-// TODO: add the version of the cli, as brick install and update-index do.
-const bricksUserAgent = "arduino-app-cli"
-
 type AppStreamMessage struct {
 	Type string `json:"type"`
 	Data any    `json:"data"`
@@ -112,26 +108,15 @@ func StartApp(
 		cb = func(StreamMessage) {}
 	}
 
-	if prepare && !appToStart.IsRelease() {
-		downloadConfig := bricksindex.DownloadConfig(bricksUserAgent)
-		install := func(brick *bricksindex.RemoteBrick, release *bricksindex.RemoteRelease) error {
-			_, err := InstallBrick(ctx, docker, downloadConfig, cfg.BricksDir(), servicesIndex, brick, release, platform,
-				nil, func(line string) { cb(StreamMessage{data: line}) }, nil)
-			return err
+	bricksIndex = appToStart.Bricks(bricksIndex)
+
+	if missing := missingBricks(appToStart, bricksIndex); len(missing) > 0 {
+		if !prepare {
+			return fmt.Errorf("%w: the third-party brick %q is not installed", ErrNotPrepared, missing[0].Reference())
 		}
-		if err := bricksIndex.InstallReferences(ctx, downloadConfig, cfg.BricksIndexURL, appToStart.BrickReferences(), install, func(msg string) {
-			cb(StreamMessage{data: msg})
-		}); err != nil {
+		if err := installBricks(ctx, docker, cfg, servicesIndex, platform, missing, cb); err != nil {
 			return fmt.Errorf("failed to install the bricks of the app: %w", err)
 		}
-	}
-
-	bricksIndex, err := appToStart.Bricks(bricksIndex)
-	if errors.Is(err, bricksindex.ErrNotInstalled) || errors.Is(err, bricksindex.ErrIndexNotFound) {
-		return fmt.Errorf("%w: %w", ErrNotPrepared, err)
-	}
-	if err != nil {
-		return err
 	}
 
 	modelsIndex = appToStart.Models(modelsIndex, docker, cfg, platform)
@@ -747,10 +732,7 @@ func AppDetails(
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (AppDetailedInfo, error) {
-	bricksIndex, err := userApp.ResolveBricks(bricksIndex)
-	if err != nil {
-		slog.Warn("cannot load the third-party bricks of the app", slog.String("app", userApp.Name), slog.String("error", err.Error()))
-	}
+	bricksIndex = bricksIndex.WithAppBricks(userApp.LocalBricks)
 	var wg sync.WaitGroup
 	wg.Add(2)
 	var defaultAppPath string
@@ -803,7 +785,7 @@ func AppDetails(
 		Notes:        release.Notes,
 		Bricks: f.Map(userApp.Descriptor.Bricks, func(b app.Brick) AppDetailedBrick {
 			res := AppDetailedBrick{ID: b.ID}
-			bi, found := bricksIndex.FindBrickByID(b.ID)
+			bi, found := bricksIndex.FindBrick(b.ID, b.Version)
 			if !found {
 				slog.Warn("brick not found in bricks index", slog.String("id", b.ID), slog.String("app", userApp.FullPath.String()))
 				return res
@@ -840,7 +822,7 @@ func CreateApp(
 
 	appBricks := make([]app.Brick, 0, len(req.Bricks))
 	for _, ref := range req.Bricks {
-		brick, _, err := app.LookupBrick(bricksIndex, ref)
+		brick, _, err := app.LookupBrick(bricksIndex, cfg.BricksIndexDir(), ref)
 		if err != nil {
 			return CreateAppResponse{}, fmt.Errorf("%w: %w", ErrBadRequest, err)
 		}

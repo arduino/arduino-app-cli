@@ -95,6 +95,26 @@ func (b *RemoteBrick) FindRelease(version *semver.Version, platform platform.Pla
 	return nil, fmt.Errorf("%w: %s@%s", ErrReleaseNotFound, b.ID, version)
 }
 
+// CheckListed returns an error if the bricks index saved in dir does not list the brick or,
+// if version is not nil, that version of it. The boards are not checked.
+func CheckListed(dir *paths.Path, id string, version *semver.Version) error {
+	if dir == nil {
+		return ErrIndexNotFound
+	}
+	index, err := LoadRemoteIndex(dir)
+	if err != nil {
+		return err
+	}
+	brick, err := index.FindBrick(id)
+	if err == nil && version != nil && !slices.ContainsFunc(brick.Releases, func(r RemoteRelease) bool { return r.Version.Equal(version) }) {
+		err = fmt.Errorf("%w: %s@%s", ErrReleaseNotFound, id, version)
+	}
+	if err != nil {
+		return fmt.Errorf("%w: if it was published recently, run 'arduino-app-cli brick update-index'", err)
+	}
+	return nil
+}
+
 // Latest returns the release with the highest version that supports the board of platform,
 // or nil if there is none.
 func (b *RemoteBrick) Latest(platform platform.Platform) *RemoteRelease {

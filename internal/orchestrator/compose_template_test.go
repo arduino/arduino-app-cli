@@ -24,9 +24,6 @@ import (
 
 func TestComposeTemplateMountsThirdPartyBricks(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	indexDir := paths.New(t.TempDir())
-	index := `{"bricks": [{"id": "acme:camera", "namespace": "acme", "releases": [{"version": "1.0.0", "url": "https://example.com/1.0.0.zip", "hash": "0000000000000000000000000000000000000000000000000000000000000000", "size": 1}]}]}`
-	require.NoError(t, indexDir.Join(bricksindex.RemoteIndexFileName).WriteFile([]byte(index)))
 	bricksDir := paths.New(t.TempDir())
 	brickDir := bricksDir.Join("acme", "camera", "1.0.0", "src", "camera")
 	require.NoError(t, brickDir.MkdirAll())
@@ -34,15 +31,12 @@ func TestComposeTemplateMountsThirdPartyBricks(t *testing.T) {
 
 	testApp := app.ArduinoApp{
 		Name:       "TestApp",
-		Descriptor: app.AppDescriptor{Bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "acme:camera"}}},
+		Descriptor: app.AppDescriptor{Bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "acme:camera", Version: "1.0.0"}}},
 		FullPath:   paths.New(t.TempDir()),
 	}
 	require.NoError(t, testApp.ProvisioningStateDir().MkdirAll())
-	bricksIndex, err := (&bricksindex.BricksIndex{BuiltInBricks: []bricksindex.Brick{{ID: "arduino:web_ui"}}}).
-		WithInstalledBricks(bricksDir).
-		WithRemoteIndex(indexDir).
-		WithApp(nil, []bricksindex.Reference{{ID: "arduino:web_ui"}, {ID: "acme:camera"}})
-	require.NoError(t, err)
+	bricksIndex := (&bricksindex.BricksIndex{BuiltInBricks: []bricksindex.Brick{{ID: "arduino:web_ui"}}}).
+		WithInstalledBricks(bricksDir)
 
 	require.NoError(t, generateComposeTemplate(&testApp, testApp.ProvisioningStateDir(), bricksIndex, &servicesindex.ServicesIndex{}, "python-apps-base", cfg, types.Mapping{}, platform.Platform{}, true))
 

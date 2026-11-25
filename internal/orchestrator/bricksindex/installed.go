@@ -111,6 +111,44 @@ func (b *BricksIndex) findInstalledBrick(id string) (Brick, bool) {
 	return Brick{}, false
 }
 
+// FindBrick returns the brick with the given id in the given version. Without a version, it is
+// FindBrickByID; with a version, the brick is looked up only among the installed ones, and it is
+// found only if that version is installed and supports the board.
+func (b *BricksIndex) FindBrick(id, version string) (*Brick, bool) {
+	if version == "" {
+		return b.FindBrickByID(id)
+	}
+	namespace, name, err := splitBrickID(id)
+	if b.installedDir == nil || err != nil {
+		return nil, false
+	}
+	v, err := semver.Parse(version)
+	if err != nil {
+		return nil, false
+	}
+	versions, err := ListInstalledVersions(b.installedDir, id, v)
+	if err != nil {
+		slog.Warn("cannot read the installed bricks", "error", err)
+		return nil, false
+	}
+	if len(versions) == 0 {
+		return nil, false
+	}
+	// The folder name is the installed version: 1.2 is the version installed in the folder 1.2.0.
+	installed := versions[0]
+	brickDir := installPath(b.installedDir, id, installed)
+	brick, err := loadInstalledBrick(b.platform, brickDir, namespace, name)
+	if err != nil {
+		slog.Warn("skipping invalid installed brick", "path", brickDir, "error", err)
+		return nil, false
+	}
+	if !brick.SupportsBoard(b.platform) {
+		return nil, false
+	}
+	brick.Version = installed.String()
+	return &brick, true
+}
+
 // ListInstalledVersions returns all the versions of the brick installed in bricksDir,
 // or the given version only, if version is not nil.
 func ListInstalledVersions(bricksDir *paths.Path, id string, version *semver.Version) ([]*semver.Version, error) {

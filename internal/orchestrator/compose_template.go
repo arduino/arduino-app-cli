@@ -73,7 +73,7 @@ func generateComposeTemplate(
 	var brickMounts []volume
 	services := make([]serviceInfo, 0, len(arduinoApp.Descriptor.Bricks))
 	for _, brick := range arduinoApp.Descriptor.Bricks {
-		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
+		idxBrick, found := bricksIndex.FindBrick(brick.ID, brick.Version)
 		slog.Debug("Processing brick", slog.String("brick_id", brick.ID), slog.Bool("found", found))
 		if !found {
 			continue

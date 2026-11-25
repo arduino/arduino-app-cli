@@ -93,22 +93,17 @@ func BuildRelease(
 	}
 
 	// TODO: ship third-party bricks in the release
-	for _, ref := range appToBuild.BrickReferences() {
-		if bricksindex.IsThirdParty(ref.ID) {
-			return BuildReleaseResult{}, nil, fmt.Errorf("%w: the app uses the third-party brick %q: releases do not support third-party bricks yet", ErrBadRequest, ref.ID)
-		}
+	if thirdParty := appToBuild.ThirdPartyBricks(); len(thirdParty) > 0 {
+		return BuildReleaseResult{}, nil, fmt.Errorf("%w: the app uses the third-party brick %q: releases do not support third-party bricks yet", ErrBadRequest, thirdParty[0].ID)
 	}
 
 	// Loaded per build, never by the caller: an index must be the target's own.
-	plat, targetBricks, servicesIndex, modelsIndex, err := targetIndexes(cfg, docker, req.Target)
+	plat, bricksIndex, servicesIndex, modelsIndex, err := targetIndexes(cfg, docker, req.Target)
 	if err != nil {
 		return BuildReleaseResult{}, nil, err
 	}
 
-	bricksIndex, err := appToBuild.ResolveBricks(targetBricks)
-	if err != nil {
-		return BuildReleaseResult{}, nil, err
-	}
+	bricksIndex = bricksIndex.WithAppBricks(appToBuild.LocalBricks)
 	if err := checkBricks(ctx, appToBuild.Descriptor.Bricks, bricksIndex, modelsIndex, false); err != nil {
 		return BuildReleaseResult{}, nil, err
 	}
@@ -207,17 +202,12 @@ func BuildRelease(
 	if err != nil {
 		return BuildReleaseResult{}, nil, fmt.Errorf("the staged app is not valid: %w", err)
 	}
-	// Resolve again the bricks: the compose files of the release are frozen relative to the staged app.
-	stagedBricks, err := stagedApp.ResolveBricks(targetBricks)
-	if err != nil {
-		return BuildReleaseResult{}, nil, err
-	}
 
 	// Before the environment, as in a start: it is quick and it is where a build
 	// fails, so it does not make anyone wait for the venv to find it out.
 	cb(StreamMessage{data: "freezing the compose files", progress: &Progress{Name: "compose files", Progress: 10.0}})
-	appEnv := appEnvironment(ctx, stagedApp, stagedBricks, modelsIndex, plat)
-	if err := provisioner.ResolveRelease(&stagedApp, prebuildDir, stagedBricks, servicesIndex, cfg, appEnv, plat); err != nil {
+	appEnv := appEnvironment(ctx, stagedApp, bricksIndex, modelsIndex, plat)
+	if err := provisioner.ResolveRelease(&stagedApp, prebuildDir, bricksIndex, servicesIndex, cfg, appEnv, plat); err != nil {
 		return BuildReleaseResult{}, nil, fmt.Errorf("failed to freeze the compose files: %w", err)
 	}
 

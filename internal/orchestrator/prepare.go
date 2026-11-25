@@ -141,7 +141,7 @@ func prepareModels(
 ) error {
 	models := modelIndex.NewLookup()
 	for _, appBrick := range bricks {
-		indexBrick, found := index.FindBrickByID(appBrick.ID)
+		indexBrick, found := index.FindBrick(appBrick.ID, appBrick.Version)
 		if !found || !indexBrick.RequireModel {
 			continue
 		}
@@ -177,10 +177,6 @@ func renderRelease(
 	bricksIndex, err := arduinoApp.ReleaseBricks()
 	if err != nil {
 		return nil, fmt.Errorf("cannot read the bricks the release ships: %w", err)
-	}
-	bricksIndex, err = bricksIndex.WithApp(arduinoApp.LocalBricks, nil)
-	if err != nil {
-		return nil, err
 	}
 	modelsIndex, err := arduinoApp.ReleaseModels(docker, cfg, plat)
 	if err != nil {

@@ -160,3 +160,38 @@ func TestListInstalledVersions(t *testing.T) {
 	_, err = ListInstalledVersions(bricksDir, "camera", nil)
 	require.ErrorContains(t, err, "invalid brick id")
 }
+
+func TestFindBrick(t *testing.T) {
+	bricksDir := paths.New(t.TempDir())
+	write := func(folder, config string) { writeInstalledBrick(t, bricksDir, folder, config) }
+	write("acme/camera/1.0.0", "id: acme:camera\nname: Camera 1.0\n")
+	write("acme/camera/1.2.0", "id: acme:camera\nname: Camera 1.2\n")
+	write("acme/camera/2.0.0", "id: acme:camera\nname: Camera 2.0\nsupported_boards: [other]\n")
+	write("acme/broken/1.0.0", "id: acme:other\n")
+	index := &BricksIndex{platform: platform.Platform{BoardName: "unoq"}}
+	index.WithInstalledBricks(bricksDir)
+
+	tests := []struct {
+		name, id, version string
+		want              string // name@version of the brick found, empty if not found
+	}{
+		{"unpinned is the latest installed that supports the board", "acme:camera", "", "Camera 1.2@1.2.0"},
+		{"pinned is that version", "acme:camera", "1.0.0", "Camera 1.0@1.0.0"},
+		{"the version is compared as semver", "acme:camera", "1.2", "Camera 1.2@1.2.0"},
+		{"a pinned version that is not installed does not fall back", "acme:camera", "1.1.0", ""},
+		{"a pinned version that does not support the board", "acme:camera", "2.0.0", ""},
+		{"an invalid installed brick", "acme:broken", "1.0.0", ""},
+		{"a brick that is not installed", "acme:audio", "1.0.0", ""},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			brick, found := index.FindBrick(test.id, test.version)
+			if test.want == "" {
+				require.False(t, found)
+				return
+			}
+			require.True(t, found)
+			require.Equal(t, test.want, brick.Name+"@"+brick.Version)
+		})
+	}
+}

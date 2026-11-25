@@ -103,8 +103,6 @@ Bricks outside the `arduino` namespace (e.g., `acme:weather`) are third-party Br
 - a pinned reference, such as `acme:weather (1.2.0)`, uses that version;
 - an unpinned reference, such as `acme:weather`, uses the latest installed version or, if none is installed, the latest version in the bricks index.
 
-An installed version that the bricks index no longer lists cannot be used: uninstall it and, if it is pinned, pin a version available in the index.
-
 ### Brick config options
 
 This section describes the structure of a single item within the bricks list in `app.yaml`.
