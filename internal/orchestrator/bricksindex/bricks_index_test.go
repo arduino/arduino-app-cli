@@ -7,6 +7,7 @@ package bricksindex
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -475,6 +476,22 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 		require.Equal(t, paths.New("testdata/0.4.8/compose/arduino/a-good-brick-by-platform/brick_compose.ventunoq.yaml"), compose)
 
 	})
+}
+
+func TestWriteBricksListVersion(t *testing.T) {
+	dir := paths.New(t.TempDir())
+	require.NoError(t, WriteBricksList(dir, []Brick{{ID: "arduino:web_ui", Name: "Web UI"}, {ID: "acme:hello", Name: "Hello", Version: "1.2.0"}}))
+
+	data, err := dir.Join(bricksListFileName).ReadFile()
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "version: 1.2.0", "a release lists the version of a third-party brick")
+	assert.Equal(t, 1, strings.Count(string(data), "version:"), "a built-in brick has no version")
+
+	index, err := Load(platform.Platform{}, dir)
+	require.NoError(t, err)
+	brick, found := index.FindBrickByID("acme:hello")
+	require.True(t, found)
+	assert.Empty(t, brick.Version, "the frozen definition is not an installed brick")
 }
 
 func TestListBricksSupportedBoard(t *testing.T) {

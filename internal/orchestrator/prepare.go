@@ -9,6 +9,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
@@ -22,8 +23,8 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
-// PrepareRelease downloads what an installed release needs to run: the containers its
-// frozen compose file names and the models it is wired with.
+// PrepareRelease downloads what an installed release needs to run: the third-party bricks it is
+// pinned to, the containers its frozen compose file names and the models it is wired with.
 func PrepareRelease(
 	ctx context.Context,
 	docker command.Cli,
@@ -40,7 +41,13 @@ func PrepareRelease(
 		return fmt.Errorf("%w: %q is not installed from a release", ErrBadRequest, arduinoApp.Name)
 	}
 
-	// The containers first: a failure here is not worth waiting for a model to find out.
+	// The third-party bricks first: the release does not ship them, and their containers are
+	// named by the frozen compose file, pulled with the others.
+	if err := installReleaseBricks(ctx, arduinoApp, cfg, plat, cb); err != nil {
+		return err
+	}
+
+	// Then the containers: a failure here is not worth waiting for a model to find out.
 	cb(StreamMessage{data: "downloading the containers"})
 	cb(StreamMessage{progress: &Progress{Name: "containers", Progress: 0.0}})
 	if err := dockerhelper.PullImages(ctx, docker.Client(), dockerhelper.ComposeImages(prj),
@@ -75,6 +82,31 @@ func PrepareRelease(
 	}
 
 	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
+	return nil
+}
+
+// installReleaseBricks installs the versions of the third-party bricks a release is pinned to,
+// when they are missing on the board.
+func installReleaseBricks(ctx context.Context, arduinoApp app.ArduinoApp, cfg config.Configuration, plat platform.Platform, cb func(StreamMessage)) error {
+	refs := slices.DeleteFunc(arduinoApp.BrickReferences(), func(ref bricksindex.Reference) bool { return !bricksindex.IsThirdParty(ref.ID) })
+	if len(refs) == 0 {
+		return nil
+	}
+	board, err := bricksindex.Load(plat, cfg.AssetDir())
+	if err != nil {
+		return fmt.Errorf("failed to load the bricks index: %w", err)
+	}
+	board = board.WithInstalledBricks(cfg.BricksDir()).WithRemoteIndex(cfg.BricksIndexDir())
+	downloadConfig := bricksindex.DownloadConfig(bricksUserAgent)
+	install := func(brick *bricksindex.RemoteBrick, release *bricksindex.RemoteRelease) error {
+		_, err := bricksindex.Install(ctx, downloadConfig, cfg.BricksDir(), brick, release, plat, nil, nil)
+		return err
+	}
+	if err := board.InstallReferences(ctx, downloadConfig, cfg.BricksIndexURL, refs, install, func(msg string) {
+		cb(StreamMessage{data: msg})
+	}); err != nil {
+		return fmt.Errorf("failed to install the bricks of the release: %w", err)
+	}
 	return nil
 }
 

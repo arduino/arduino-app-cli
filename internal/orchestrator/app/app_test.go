@@ -10,12 +10,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
 func TestLoad(t *testing.T) {
@@ -441,4 +444,32 @@ func TestIsValidFolderName(t *testing.T) {
 			require.Equal(t, test.expected, result, "Input: %s", test.input)
 		})
 	}
+}
+
+func TestReleaseBricksNeedTheirThirdPartyBricks(t *testing.T) {
+	appDir := paths.New(t.TempDir())
+	require.NoError(t, appDir.Join(".cache").MkdirAll())
+	require.NoError(t, appDir.Join(".cache", "bricks-list.yaml").WriteFile([]byte("bricks:\n  - id: arduino:web_ui\n    name: Web UI\n")))
+	releaseApp := ArduinoApp{
+		FullPath:   appDir,
+		Descriptor: AppDescriptor{Bricks: []Brick{{ID: "arduino:web_ui"}, {ID: "acme:hello", Version: "1.0.0"}}},
+		release:    &Release{},
+	}
+	indexDir := paths.New(t.TempDir())
+	index := `{"bricks": [{"id": "acme:hello", "namespace": "acme", "releases": [{"version": "1.0.0", "url": "https://example.com/1.0.0.zip", "hash": "` + strings.Repeat("0", 64) + `", "size": 1}]}]}`
+	require.NoError(t, indexDir.Join(bricksindex.RemoteIndexFileName).WriteFile([]byte(index)))
+	bricksDir := paths.New(t.TempDir())
+	board := (&bricksindex.BricksIndex{}).WithInstalledBricks(bricksDir).WithRemoteIndex(indexDir)
+
+	// The release runs the brick from the board, which has not installed it yet.
+	bricks, err := releaseApp.Bricks(board)
+	require.ErrorIs(t, err, bricksindex.ErrNotInstalled)
+	_, found := bricks.FindBrickByID("arduino:web_ui")
+	assert.True(t, found, "the bricks the release ships are still read")
+
+	brickDir := bricksDir.Join("acme", "hello", "1.0.0", "src", "hello")
+	require.NoError(t, brickDir.MkdirAll())
+	require.NoError(t, brickDir.Join("brick_config.yaml").WriteFile([]byte("id: acme:hello\nname: Hello\n")))
+	_, err = releaseApp.Bricks(board)
+	require.NoError(t, err)
 }

@@ -317,9 +317,20 @@ func unmarshalBricksIndex(content io.Reader) (*YamlBricksIndex, error) {
 
 const bricksListFileName = "bricks-list.yaml"
 
-// WriteBricksList writes the bricks into dir as the index Load reads back.
+// WriteBricksList writes the bricks into dir as the index Load reads back. The version of an
+// installed third-party brick is written for who lists what a release uses: Load does not read it.
 func WriteBricksList(dir *paths.Path, bricks []Brick) error {
-	data, err := yaml.Marshal(YamlBricksIndex{Bricks: bricks})
+	type listedBrick struct {
+		Brick   `yaml:",inline"`
+		Version string `yaml:"version,omitempty"`
+	}
+	list := struct {
+		Bricks []listedBrick `yaml:"bricks"`
+	}{Bricks: make([]listedBrick, 0, len(bricks))}
+	for _, brick := range bricks {
+		list.Bricks = append(list.Bricks, listedBrick{Brick: brick, Version: brick.Version})
+	}
+	data, err := yaml.Marshal(list)
 	if err != nil {
 		return err
 	}
