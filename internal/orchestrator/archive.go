@@ -33,8 +33,10 @@ func ExportAppZip(
 	appTarget app.ArduinoApp,
 	includeData bool,
 ) ([]byte, string, error) {
-
-	bricksIndex = bricksIndex.WithAppBricks(appTarget.LocalBricks)
+	bricksIndex, err := appTarget.ResolveBricks(bricksIndex)
+	if err != nil {
+		return nil, "", err
+	}
 
 	appName := strings.ToLower(strings.ReplaceAll(appTarget.Name, " ", "-"))
 	if appName == "" {

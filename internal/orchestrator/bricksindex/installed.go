@@ -111,6 +111,23 @@ func (b *BricksIndex) findInstalledBrick(id string) (Brick, bool) {
 	return Brick{}, false
 }
 
+// ListInstalledVersions returns all the versions of the brick installed in bricksDir,
+// or the given version only, if version is not nil.
+func ListInstalledVersions(bricksDir *paths.Path, id string, version *semver.Version) ([]*semver.Version, error) {
+	namespace, name, err := splitBrickID(id)
+	if err != nil {
+		return nil, err
+	}
+	versions, err := installedVersions(bricksDir.Join(namespace, name))
+	if err != nil {
+		return nil, err
+	}
+	if version != nil {
+		versions = slices.DeleteFunc(versions, func(v *semver.Version) bool { return !v.Equal(version) })
+	}
+	return versions, nil
+}
+
 // installedVersions returns the versions installed in the folder of a brick, sorted from the oldest.
 // Folders that install could not have created are skipped.
 func installedVersions(nameDir *paths.Path) ([]*semver.Version, error) {

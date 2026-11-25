@@ -9,15 +9,18 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 
 	emoji "github.com/Andrew-M-C/go.emoji"
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
 	"github.com/goccy/go-yaml/ast"
+	semver "go.bug.st/relaxed-semver"
 )
 
 type Brick struct {
 	ID        string            `yaml:"-"` // Ignores this field, to be handled manually
+	Version   string            `yaml:"-"`
 	Model     string            `yaml:"model,omitempty"`
 	Variables map[string]string `yaml:"variables,omitempty"`
 	Devices   []string          `yaml:"devices,omitempty"`
@@ -47,7 +50,7 @@ func (d AppDescriptor) MarshalYAML() (any, error) {
 
 	bricks := make([]map[string]Brick, len(d.Bricks))
 	for i, brick := range d.Bricks {
-		bricks[i] = map[string]Brick{brick.ID: brick}
+		bricks[i] = map[string]Brick{brick.Reference(): brick}
 	}
 	return &raw{
 		Name:            d.Name,
@@ -59,10 +62,36 @@ func (d AppDescriptor) MarshalYAML() (any, error) {
 	}, nil
 }
 
+var pinnedBrickRegexp = regexp.MustCompile(`^(.+) \((.*)\)$`)
+
+// parseBrickReference splits a brick reference of the app.yaml, in the form "ID" or
+// "ID (VERSION)", into the id and the version, which is empty when not pinned.
+func parseBrickReference(ref string) (id, version string, err error) {
+	match := pinnedBrickRegexp.FindStringSubmatch(ref)
+	if match == nil {
+		return ref, "", nil
+	}
+	id, version = match[1], match[2]
+	if _, err := semver.Parse(version); version == "" || err != nil {
+		return "", "", fmt.Errorf("invalid version %q for brick %q", version, id)
+	}
+	return id, version, nil
+}
+
+// Reference is how the brick is written in the app.yaml: the id, followed by the version
+// in parentheses when it is pinned.
+func (md Brick) Reference() string {
+	if md.Version == "" {
+		return md.ID
+	}
+	return md.ID + " (" + md.Version + ")"
+}
+
 func (md *Brick) UnmarshalYAML(node ast.Node) error {
+	var ref string
 	switch node.Type() {
 	case ast.StringType: // String type brick (i.e. "- arduino:brickname").
-		md.ID = node.(*ast.StringNode).Value
+		ref = node.(*ast.StringNode).Value
 	case ast.MappingType: // Map type brick (name followed by a ':' and, optionally, some fields).
 		content := node.(*ast.MappingNode).Values
 		if len(content) == 0 {
@@ -88,7 +117,7 @@ func (md *Brick) UnmarshalYAML(node ast.Node) error {
 				valueNode.String(), keyNode.String())
 		}
 		if keyNode.Type() == ast.StringType {
-			md.ID = keyNode.(*ast.StringNode).Value
+			ref = keyNode.(*ast.StringNode).Value
 		}
 
 	default:
@@ -96,6 +125,11 @@ func (md *Brick) UnmarshalYAML(node ast.Node) error {
 		return fmt.Errorf("expected scalar or mapping node for dependency item, got %v", node.String())
 	}
 
+	id, version, err := parseBrickReference(ref)
+	if err != nil {
+		return err
+	}
+	md.ID, md.Version = id, version
 	return nil
 }
 

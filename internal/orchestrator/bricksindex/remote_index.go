@@ -27,6 +27,8 @@ import (
 
 const RemoteIndexFileName = "brick-index-contrib.json"
 
+const RemoteIndexMaxAge = time.Hour
+
 var ErrIndexNotFound = errors.New("bricks index not found, run 'arduino-app-cli brick update-index' to download it")
 
 var validBrickIDPart = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)

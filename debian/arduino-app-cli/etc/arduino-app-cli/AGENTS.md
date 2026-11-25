@@ -142,6 +142,11 @@ cat /var/lib/arduino-app-cli/assets/*/docs/arduino/<brick>/README.md
   `arduino:video_object_detection`.
 - Some Bricks are **board-specific** — `brick list` on the current board is the
   authoritative list of what's available there. Trust it over docs folders or memory.
+- **Third-party Bricks** (IDs outside the `arduino:` namespace) come from the
+  online bricks index: find them with `brick search` (after `brick update-index`).
+  Use them only when the user asks for them. Declare them in `app.yaml` like any
+  other Brick; pin a version as `- acme:weather (1.2.0)`, or with
+  `app new -b acme:weather@1.2.0`. `app start` installs the missing ones.
 - **Secrets** (API keys, bot tokens, device IDs) go in **Brick Configuration**
   (env vars set in App Lab), **never** in `app.yaml` or source.
 

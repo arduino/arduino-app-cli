@@ -9,9 +9,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
+	"github.com/moby/moby/api/types/container"
 	dockerClient "github.com/moby/moby/client"
 	"go.bug.st/downloader/v3"
 	"go.bug.st/f"
@@ -115,20 +118,15 @@ func UninstallBrick(
 	version *semver.Version,
 	warn func(string),
 ) (bricksindex.UninstallResult, error) {
-	// Read before the files are removed. The images of the required services are ours, and
-	// the system cleanup removes them once nothing needs them.
-	imagesByVersion := map[string][]string{}
-	for _, brick := range bricksIndex.AllInstalledBricks() {
-		if brick.ID != id || (version != nil && brick.Version != version.String()) {
-			continue
-		}
-		images, err := brickComposeImages(brick)
-		if err != nil {
-			warn(fmt.Sprintf("the images of %s@%s are not removed: %v", id, brick.Version, err))
-			continue
-		}
-		imagesByVersion[brick.Version] = images
+	installed, err := bricksindex.ListInstalledVersions(cfg.BricksDir(), id, version)
+	if err != nil || len(installed) == 0 {
+		return bricksindex.UninstallResult{}, err
 	}
+	if err := checkBrickNotInUse(ctx, docker.Client(), cfg.BricksDir(), id, version); err != nil {
+		return bricksindex.UninstallResult{}, err
+	}
+
+	imagesByVersion := installedBrickVersionsImages(bricksIndex, id, installed, warn)
 
 	res, err := bricksindex.Uninstall(cfg.BricksDir(), id, version)
 	var images []string
@@ -139,6 +137,66 @@ func UninstallBrick(
 		removeUnusedImages(ctx, docker.Client(), cfg, bricksIndex, servicesIndex, modelsIndex, f.Uniq(images), warn)
 	}
 	return res, err
+}
+
+// installedBrickVersionsImages returns the images of the compose files of the given installed
+// versions of the brick, by version. The images of the required services are ours, and the
+// system cleanup removes them once nothing needs them.
+func installedBrickVersionsImages(bricksIndex *bricksindex.BricksIndex, id string, versions []*semver.Version, warn func(string)) map[string][]string {
+	// The versions are the names of the folders of the installed versions, as the installed bricks report them.
+	wanted := map[string]bool{}
+	for _, v := range versions {
+		wanted[v.String()] = true
+	}
+	res := map[string][]string{}
+	for _, brick := range bricksIndex.AllInstalledBricks() {
+		if brick.ID != id || !wanted[brick.Version] {
+			continue
+		}
+		images, err := brickComposeImages(brick)
+		if err != nil {
+			warn(fmt.Sprintf("the images of %s@%s are not removed: %v", id, brick.Version, err))
+			continue
+		}
+		res[brick.Version] = images
+	}
+	return res
+}
+
+// checkBrickNotInUse returns an error if a running app mounts the given version of the brick or,
+// if version is nil, any of its versions. The mounts tell the version an app started with, which
+// an unpinned brick may no longer resolve to.
+func checkBrickNotInUse(ctx context.Context, docker dockerClient.APIClient, bricksDir *paths.Path, id string, version *semver.Version) error {
+	namespace, name, ok := strings.Cut(id, ":")
+	if !ok {
+		// Uninstall reports the invalid id.
+		return nil
+	}
+	brickDir := bricksDir.Join(namespace, name).String() + string(filepath.Separator)
+	containers, err := dockerhelper.Containers(ctx, docker, DockerAppLabel+"=true")
+	if err != nil {
+		return fmt.Errorf("checking the apps that use the brick %s: %w", id, err)
+	}
+	for _, c := range containers {
+		if c.State != container.StateRunning && c.State != container.StateRestarting && c.State != container.StatePaused {
+			continue
+		}
+		for _, m := range c.Mounts {
+			rel, found := strings.CutPrefix(m.Source, brickDir)
+			if !found {
+				continue
+			}
+			mounted, _, _ := strings.Cut(rel, string(filepath.Separator))
+			// Compared as semver: the version 1.2 is the one installed in the folder 1.2.0.
+			if version != nil {
+				if v, err := semver.Parse(mounted); err != nil || !v.Equal(version) {
+					continue
+				}
+			}
+			return fmt.Errorf("the brick %s@%s is used by the app at %s: stop the app first", id, mounted, c.Labels[DockerAppPathLabel])
+		}
+	}
+	return nil
 }
 
 // removeUnusedImages removes the images that nothing on the board may run.

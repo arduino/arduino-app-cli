@@ -22,6 +22,16 @@ not BuildKit: BuildKit-only Dockerfile syntax, such as `RUN --mount` or heredocs
 A release build refuses an app with such a brick. A start with `--no-prepare` does not
 build: it uses the image of the last build, and fails if there is none.
 
+## Third-party Bricks in Apps
+
+An App can use third-party Bricks from the bricks index, as described in the [App specification](app-specification.md#third-party-bricks). Add them when creating the App with `arduino-app-cli app new my-app --bricks acme:weather` or, to pin a version, `--bricks acme:weather@1.2.0`.
+
+- `app start` downloads the bricks index when it is missing from the board or older than one hour, and installs the Bricks that are not installed yet. If an old index cannot be updated, the saved one is used, so the App still starts offline.
+- `app start --no-prepare` never accesses the network: it fails if the bricks index or a Brick is missing.
+- The Python code of the App imports a third-party Brick by its name, e.g. `import weather`: `app start` mounts the Python package of each Brick in the App container.
+- `brick uninstall` refuses to remove a Brick version that a running App uses: stop the App first.
+- Releases do not support third-party Bricks yet: building a release of an App that uses them fails.
+
 ## Environment Variables
 
 The following environment variables are used to configure Arduino App CLI:

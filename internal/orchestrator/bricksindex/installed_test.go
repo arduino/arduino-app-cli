@@ -10,6 +10,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
+	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -128,4 +129,34 @@ func TestBricksIndexWithInstalledBricks(t *testing.T) {
 		require.False(t, ok)
 		require.Empty(t, index.ListBricks())
 	})
+}
+
+func TestListInstalledVersions(t *testing.T) {
+	bricksDir := installedBricks(t, "acme/camera/1.10.0", "acme/camera/1.2.0", "acme/camera/notes", "acme/camera2/1.0.0")
+	names := func(versions []*semver.Version) []string {
+		res := make([]string, 0, len(versions))
+		for _, v := range versions {
+			res = append(res, v.String())
+		}
+		return res
+	}
+
+	versions, err := ListInstalledVersions(bricksDir, "acme:camera", nil)
+	require.NoError(t, err)
+	require.Equal(t, []string{"1.2.0", "1.10.0"}, names(versions))
+
+	versions, err = ListInstalledVersions(bricksDir, "acme:camera", semver.MustParse("1.2"))
+	require.NoError(t, err)
+	require.Equal(t, []string{"1.2.0"}, names(versions))
+
+	versions, err = ListInstalledVersions(bricksDir, "acme:camera", semver.MustParse("2.0.0"))
+	require.NoError(t, err)
+	require.Empty(t, versions)
+
+	versions, err = ListInstalledVersions(paths.New(t.TempDir(), "missing"), "acme:camera", nil)
+	require.NoError(t, err)
+	require.Empty(t, versions)
+
+	_, err = ListInstalledVersions(bricksDir, "camera", nil)
+	require.ErrorContains(t, err, "invalid brick id")
 }
