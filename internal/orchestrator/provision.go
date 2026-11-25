@@ -156,7 +156,8 @@ func (p *Provision) resolve(
 		}
 	}
 
-	return generateComposeTemplate(arduinoApp, genPath, bricksIndex, servicesIndex, p.pythonImage, cfg, appEnv, platform, launcher)}
+	return generateComposeTemplate(arduinoApp, genPath, bricksIndex, servicesIndex, p.pythonImage, cfg, appEnv, platform, launcher)
+}
 
 // Render evaluates the templates against the board the app is being started on and
 // writes the single compose file docker is given.
