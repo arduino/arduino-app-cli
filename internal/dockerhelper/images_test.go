@@ -316,26 +316,22 @@ func TestImageName(t *testing.T) {
 
 func TestListImagesAlreadyPulled(t *testing.T) {
 	docker := getDockerCli(t).Client()
+	const image = "busybox:latest"
 
-	r, err := docker.ImagePull(t.Context(), "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8", dockerClient.ImagePullOptions{})
-	require.NoError(t, err)
-	_, _ = io.Copy(io.Discard, r)
-	r.Close()
+	require.NoError(t, PullImages(t.Context(), docker, []string{image}, nil, nil))
 
 	images, err := ListImages(t.Context(), docker)
 	require.NoError(t, err)
-	require.Contains(t, images, "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8")
+	require.Contains(t, images, image)
 }
 
 func TestRemoveImage(t *testing.T) {
 	docker := getDockerCli(t).Client()
+	const image = "alpine:3.20"
 
-	r, err := docker.ImagePull(t.Context(), "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8", dockerClient.ImagePullOptions{})
-	require.NoError(t, err)
-	_, _ = io.Copy(io.Discard, r)
-	r.Close()
+	require.NoError(t, PullImages(t.Context(), docker, []string{image}, nil, nil))
 
-	size, err := RemoveImage(t.Context(), docker, "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8")
+	size, err := RemoveImage(t.Context(), docker, image)
 	require.NoError(t, err)
 	require.Greater(t, size, int64(1024))
 }
