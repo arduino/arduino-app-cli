@@ -38,14 +38,11 @@ func updateIndexHandler(ctx context.Context, cfg config.Configuration, version s
 // loadRemoteIndex returns the bricks index, as bricksindex.LoadOrUpdateRemoteIndex does.
 func loadRemoteIndex(ctx context.Context, cfg config.Configuration, version string) *bricksindex.RemoteIndex {
 	out, _, _ := feedback.OutputStreams()
-	index, warning, err := bricksindex.LoadOrUpdateRemoteIndex(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksIndexURL, cfg.BricksIndexDir(), func() {
+	index, err := bricksindex.LoadOrUpdateRemoteIndex(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksIndexURL, cfg.BricksIndexDir(), func() {
 		fmt.Fprintln(out, "Updating the bricks index...")
-	})
+	}, func(msg string) { feedback.Warnf("%s", msg) })
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
-	}
-	if warning != nil {
-		feedback.Warnf("Cannot update the bricks index, using the saved one: %v", warning)
 	}
 	return index
 }

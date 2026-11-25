@@ -244,15 +244,23 @@ func TestLoadOrUpdateRemoteIndex(t *testing.T) {
 			u := mustParseURL(t, serveFile(t, status, body, false))
 
 			updated := false
-			index, warning, err := LoadOrUpdateRemoteIndex(t.Context(), DownloadConfig("test"), u, dir, func() { updated = true })
+			var warnings []string
+			index, err := LoadOrUpdateRemoteIndex(t.Context(), DownloadConfig("test"), u, dir, func() { updated = true },
+				func(msg string) { warnings = append(warnings, msg) })
 			require.Equal(t, tt.wantUpdate, updated)
 			if tt.wantErr {
 				require.Error(t, err)
 				require.Nil(t, index)
+				require.Empty(t, warnings)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.wantWarning, warning != nil, "warning: %v", warning)
+			if tt.wantWarning {
+				require.Len(t, warnings, 1)
+				require.Contains(t, warnings[0], "cannot update the bricks index, using the saved one")
+			} else {
+				require.Empty(t, warnings)
+			}
 			require.Equal(t, tt.wantID, index.Bricks[0].ID)
 		})
 	}

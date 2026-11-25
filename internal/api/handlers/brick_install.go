@@ -51,7 +51,10 @@ func HandleInstallBrick(dockerClient command.Cli, cfg config.Configuration, serv
 		}
 
 		// A release that cannot be installed has to be a status, so it is looked up before the stream opens.
-		index, warning, err := bricksindex.LoadOrUpdateRemoteIndex(r.Context(), downloadConfig, cfg.BricksIndexURL, cfg.BricksIndexDir(), nil)
+		// The warning is sent once the stream opens.
+		var warning string
+		index, err := bricksindex.LoadOrUpdateRemoteIndex(r.Context(), downloadConfig, cfg.BricksIndexURL, cfg.BricksIndexDir(), nil,
+			func(msg string) { warning = msg })
 		if err != nil {
 			slog.Error("bricks index not available", "error", err)
 			render.EncodeResponse(w, http.StatusServiceUnavailable, models.ErrorResponse{Details: fmt.Sprintf("bricks index not available: %v", err)})
@@ -80,8 +83,8 @@ func HandleInstallBrick(dockerClient command.Cli, cfg config.Configuration, serv
 
 		ref := id + "@" + release.Version.String()
 		stream := &brickInstallStream{sse: sseStream}
-		if warning != nil {
-			stream.message(fmt.Sprintf("cannot update the bricks index, using the saved one: %v", warning))
+		if warning != "" {
+			stream.message(warning)
 		}
 		installed, err := orchestrator.InstallBrick(r.Context(), dockerClient, downloadConfig, cfg.BricksDir(), servicesIndex, brick, release, plat,
 			func(downloaded, total int64) { stream.progress(ref, downloaded, total) }, stream.message, stream.progress)
