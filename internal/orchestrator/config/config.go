@@ -24,6 +24,9 @@ import (
 // runnerVersion do not edit, this is generate with `task bump:runner-version`
 var RunnerVersion = "0.13.2"
 
+// examplesVersion do not edit, this is generate with `task bump:example-version`
+var ExamplesVersion = "0.13.2"
+
 type Configuration struct {
 	appsDir                          *paths.Path
 	dataDir                          *paths.Path

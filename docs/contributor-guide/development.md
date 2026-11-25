@@ -37,6 +37,12 @@ The python runner assets are no longer tracked in the repo; they're downloaded o
 
 `build-deb` and `test:internal` download the runner assets on their own (via `download-runner-assets`) and cache them by version.
 
+## Updating the examples version
+
+1. Bump `EXAMPLE_VERSION` in `Taskfile.yml`.
+2. Run `go tool task bump:example-version`. It updates `ExamplesVersion` in `internal/orchestrator/config/config.go` to match.
+3. Commit the changes to `Taskfile.yml` and `internal/orchestrator/config/config.go`.
+
 ## Running Checks
 
 > [!NOTE]

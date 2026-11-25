@@ -281,6 +281,17 @@ tasks:
       - cmd: sed -i '' "{{.sed_replacement}}" internal/orchestrator/config/config.go
         platforms: [darwin]
 
+  bump:example-version:
+    desc: Update the ExamplesVersion constant in config.go to match EXAMPLE_VERSION.
+    vars:
+      sed_replacement: s#ExamplesVersion = \".*#ExamplesVersion = \"{{.EXAMPLE_VERSION}}\"#
+    cmds:
+      - cmd: echo "Updating the ExamplesVersion in config.go to '{{.EXAMPLE_VERSION}}'"
+      - cmd: sed -i "{{.sed_replacement}}" internal/orchestrator/config/config.go
+        platforms: [linux, windows]
+      - cmd: sed -i '' "{{.sed_replacement}}" internal/orchestrator/config/config.go
+        platforms: [darwin]
+
   # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-dependencies-task/Taskfile.yml
   general:cache-dep-licenses:
     desc: Cache dependency license metadata
