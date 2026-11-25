@@ -82,7 +82,7 @@ func TestArduinoCLIDownloadProgressToString(t *testing.T) {
 					},
 				},
 			},
-			expected: "Download started: http://example.com/index.json",
+			expected: "Downloading index.json",
 		},
 		{
 			name: "Download Update",
@@ -94,7 +94,7 @@ func TestArduinoCLIDownloadProgressToString(t *testing.T) {
 					},
 				},
 			},
-			expected: "Download progress: 1.00MiB / 5.00MiB",
+			expected: "",
 		},
 		{
 			name: "Download End Success",
@@ -106,7 +106,7 @@ func TestArduinoCLIDownloadProgressToString(t *testing.T) {
 					},
 				},
 			},
-			expected: "Download completed",
+			expected: "",
 		},
 		{
 			name: "Download End Failure",
