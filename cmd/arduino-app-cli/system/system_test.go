@@ -20,7 +20,7 @@ func TestNewInitEventCallback(t *testing.T) {
 	var got []feedback.Result
 	cb := newInitEventCallback(func(res feedback.Result) {
 		got = append(got, res)
-	})
+	}, nil)
 
 	cb(orchestrator.InitEvent{Type: orchestrator.InitLogEvent, Message: "pulling image"})
 	cb(orchestrator.InitEvent{

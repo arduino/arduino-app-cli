@@ -9,11 +9,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/app"
@@ -42,6 +44,7 @@ var logLevelStr string
 func run(configuration cfg.Configuration) error {
 	servicelocator.Init(configuration)
 	defer func() { _ = servicelocator.CloseDockerClient() }()
+	var verbose bool
 	rootCmd := &cobra.Command{
 		Use:   "arduino-app-cli",
 		Short: "A CLI to manage Arduino Apps",
@@ -51,11 +54,15 @@ func run(configuration cfg.Configuration) error {
 				feedback.Fatal(i18n.Tr("Invalid output format: %s", format), feedback.ErrBadArgument)
 			}
 			feedback.SetFormat(format)
+			feedback.SetVerbose(verbose)
 
 			logLevel, err := ParseLogLevel(logLevelStr)
 			if err != nil {
 				feedback.FatalError(err, feedback.ErrBadArgument)
 			}
+			// arduino-cli logs through logrus: its lines are debug logs of the cli.
+			logrus.SetOutput(io.Discard)
+			logrus.AddHook(logrusToSlog{})
 			slog.SetLogLoggerLevel(logLevel)
 		},
 		SilenceUsage:  true,
@@ -64,6 +71,7 @@ func run(configuration cfg.Configuration) error {
 
 	rootCmd.PersistentFlags().StringVar(&format, "format", "text", "Output format (text, json, json-lines)")
 	rootCmd.PersistentFlags().StringVar(&logLevelStr, "log-level", "error", "Set the log level (debug, info, warn, error)")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Show the full output of the tools the command runs")
 
 	rootCmd.AddCommand(
 		app.NewAppCmd(configuration),
@@ -132,4 +140,18 @@ func ParseLogLevel(level string) (slog.Level, error) {
 		return 0, fmt.Errorf("invalid log level: %w", err)
 	}
 	return l, nil
+}
+
+// logrusToSlog sends each logrus entry to slog at the debug level.
+type logrusToSlog struct{}
+
+func (logrusToSlog) Levels() []logrus.Level { return logrus.AllLevels }
+
+func (logrusToSlog) Fire(entry *logrus.Entry) error {
+	attrs := make([]any, 0, 2*len(entry.Data))
+	for key, value := range entry.Data {
+		attrs = append(attrs, key, value)
+	}
+	slog.Debug(entry.Message, attrs...)
+	return nil
 }

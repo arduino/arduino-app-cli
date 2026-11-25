@@ -81,8 +81,9 @@ install it without being asked.`,
 }
 
 func installHandler(ctx context.Context, cfg config.Configuration, archive *paths.Path, prepare bool) {
-	out, _, getResult := feedback.OutputStreams()
+	_, _, getResult := feedback.OutputStreams()
 
+	progress, done := newProgress()
 	result, err := orchestrator.InstallRelease(
 		ctx,
 		servicelocator.GetDockerClient(),
@@ -92,15 +93,9 @@ func installHandler(ctx context.Context, cfg config.Configuration, archive *path
 		cfg,
 		servicelocator.GetPlatform(),
 		prepare,
-		func(message orchestrator.StreamMessage) {
-			switch message.GetType() {
-			case orchestrator.ProgressType:
-				fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)
-			case orchestrator.InfoType:
-				fmt.Fprintln(out, "[INFO]", message.GetData())
-			}
-		},
+		progress,
 	)
+	done()
 	switch {
 	case errors.Is(err, orchestrator.ErrAppAlreadyExists):
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)

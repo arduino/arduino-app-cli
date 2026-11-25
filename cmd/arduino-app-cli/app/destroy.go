@@ -41,16 +41,12 @@ func newDestroyCmd(cfg config.Configuration) *cobra.Command {
 }
 
 func destroyHandler(ctx context.Context, app app.ArduinoApp, cfg config.Configuration) error {
-	out, _, getResult := feedback.OutputStreams()
+	_, _, getResult := feedback.OutputStreams()
 
-	if err := orchestrator.StopAndDestroyApp(ctx, servicelocator.GetDockerClient(), servicelocator.GetPlatform(), app, cfg, func(message orchestrator.StreamMessage) {
-		switch message.GetType() {
-		case orchestrator.ProgressType:
-			fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)
-		case orchestrator.InfoType:
-			fmt.Fprintln(out, "[INFO]", message.GetData())
-		}
-	}); err != nil {
+	progress, done := newProgress()
+	err := orchestrator.StopAndDestroyApp(ctx, servicelocator.GetDockerClient(), servicelocator.GetPlatform(), app, cfg, progress)
+	done()
+	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
 	outputResult := getResult()

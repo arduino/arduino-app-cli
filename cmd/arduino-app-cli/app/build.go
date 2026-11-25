@@ -33,7 +33,6 @@ func newBuildCmd(cfg config.Configuration) *cobra.Command {
 		output       string
 		includeData  bool
 		overwrite    bool
-		verbose      bool
 	)
 
 	cmd := &cobra.Command{
@@ -58,7 +57,7 @@ and the target board, which defaults to the one running the build.`,
 				Target:       target,
 				ReleaseLabel: releaseLabel,
 				IncludeData:  includeData,
-				Verbose:      verbose,
+				Verbose:      feedback.Verbose(),
 			}
 			if notes != "" {
 				req.Notes = readReleaseNotes(notes)
@@ -86,7 +85,6 @@ and the target board, which defaults to the one running the build.`,
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output archive, which names the release folder as well, or the directory to write it in")
 	cmd.Flags().BoolVar(&includeData, "include-data", false, "Include data directory in the archive")
 	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "Overwrite the output archive if it exists")
-	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 
 	return cmd
 }
@@ -95,7 +93,7 @@ func buildHandler(ctx context.Context, cfg config.Configuration, appToBuild app.
 	// First: creating it is what fills the asset dir the indexes are read from.
 	provisioner := servicelocator.GetProvisioner()
 
-	out, _, getResult := feedback.OutputStreams()
+	_, _, getResult := feedback.OutputStreams()
 
 	var archivePath *paths.Path
 	if output != nil && !output.IsDir() {
@@ -107,6 +105,8 @@ func buildHandler(ctx context.Context, cfg config.Configuration, appToBuild app.
 		req.ReleaseName = strings.TrimSuffix(resolved.Base(), resolved.Ext())
 	}
 
+	// The build reports its progress until the archive is saved.
+	progress, done := newProgress()
 	result, reader, err := orchestrator.BuildRelease(
 		ctx,
 		servicelocator.GetDockerClient(),
@@ -114,20 +114,14 @@ func buildHandler(ctx context.Context, cfg config.Configuration, appToBuild app.
 		appToBuild,
 		req,
 		cfg,
-		func(message orchestrator.StreamMessage) {
-			switch message.GetType() {
-			case orchestrator.ProgressType:
-				fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)
-			case orchestrator.InfoType:
-				fmt.Fprintln(out, "[INFO]", message.GetData())
-			}
-		},
+		progress,
 	)
 	if err != nil {
+		done()
 		if errors.Is(err, orchestrator.ErrBadRequest) {
 			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 		}
-		feedback.Fatal(fmt.Sprintf("[ERROR] %s", err), feedback.ErrGeneric)
+		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
 
 	// A dir or nothing passed to the --output flag leaves the naming to the build, so the
@@ -136,13 +130,16 @@ func buildHandler(ctx context.Context, cfg config.Configuration, appToBuild app.
 		resolved, err := releasebuild.ResolveArchivePath(result.FileName, output, overwrite)
 		if err != nil {
 			_ = reader.Close()
+			done()
 			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 		}
 		archivePath = resolved
 	}
 
-	if err := saveReleaseArchive(reader, archivePath); err != nil {
-		feedback.Fatal(fmt.Sprintf("[ERROR] %s", err), feedback.ErrGeneric)
+	err = saveReleaseArchive(reader, archivePath)
+	done()
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
 
 	feedback.PrintResult(buildAppResult{

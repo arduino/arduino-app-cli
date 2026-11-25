@@ -8,7 +8,6 @@ package brick
 import (
 	"context"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -58,14 +57,26 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 		resolved = append(resolved, resolvedRelease{brick, release})
 	}
 
-	out, _, _ := feedback.OutputStreams()
 	var res installResult
 	for _, r := range resolved {
 		brick, release := r.brick, r.release
-		progress := downloadProgress(out, brick.ID+"@"+release.Version.String())
+		ref := brick.ID + "@" + release.Version.String()
+		// The download of a brick is the first half of its progress, the pull of its images the second.
+		progress := feedback.NewProgress()
 		installed, err := orchestrator.InstallBrick(ctx, servicelocator.GetDockerClient(), bricksindex.DownloadConfig(userAgent(version)), cfg.BricksDir(),
-			servicelocator.GetServicesIndex(), brick, release, platform, progress,
-			func(line string) { fmt.Fprintln(out, line) }, pullProgress(out))
+			servicelocator.GetServicesIndex(), brick, release, platform,
+			func(downloaded, total int64) {
+				if total > 0 {
+					progress.Update("Downloading "+ref, float32(downloaded*50/total))
+				}
+			},
+			progress.Println,
+			func(label string, curr, total int64) {
+				if total > 0 {
+					progress.Update(label, 50+float32(curr*50/total))
+				}
+			})
+		progress.Done()
 		if err != nil {
 			if len(res.Bricks) > 0 {
 				feedback.PrintResult(res)
@@ -80,27 +91,6 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 		})
 	}
 	feedback.PrintResult(res)
-}
-
-// downloadProgress prints the progress of the download of a brick, once per percent.
-func downloadProgress(out io.Writer, ref string) func(downloaded, total int64) {
-	last := -1
-	return func(downloaded, total int64) {
-		percent := int(downloaded * 100 / total)
-		if percent != last {
-			last = percent
-			fmt.Fprintf(out, "Downloading %s: %d%%\n", ref, percent)
-		}
-	}
-}
-
-// pullProgress prints the progress of the pull of the images of a brick.
-func pullProgress(out io.Writer) func(label string, curr, total int64) {
-	return func(label string, curr, total int64) {
-		if total > 0 {
-			fmt.Fprintf(out, "%s: %d%%\n", label, curr*100/total)
-		}
-	}
 }
 
 type brickReference struct {
