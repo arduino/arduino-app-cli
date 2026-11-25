@@ -4,8 +4,10 @@ go 1.27.3
 
 require (
 	github.com/Andrew-M-C/go.emoji v1.1.4
+	github.com/ProtonMail/go-crypto v1.5.2
 	github.com/arduino/arduino-cli v1.5.2-0.20261104130119-d82681ff36a6
 	github.com/arduino/go-paths-helper v1.14.0
+	github.com/codeclysm/extract/v4 v4.0.2
 	github.com/compose-spec/compose-go/v2 v2.15.0
 	github.com/containerd/errdefs v1.0.0
 	github.com/docker/cli v29.8.0+incompatible
@@ -20,6 +22,7 @@ require (
 	github.com/gosimple/slug v1.15.0
 	github.com/jedib0t/go-pretty/v6 v6.6.8
 	github.com/jub0bs/cors v0.7.0
+	github.com/klauspost/compress v1.20.3
 	github.com/leonelquinteros/gotext v1.8.0
 	github.com/mattn/go-isatty v0.0.24
 	github.com/moby/moby/api v1.56.0
@@ -65,7 +68,6 @@ require (
 	github.com/Ladicle/tabwriter v1.0.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Microsoft/go-winio v0.6.4 // indirect
-	github.com/ProtonMail/go-crypto v1.5.2 // indirect
 	github.com/a8m/envsubst v1.4.3 // indirect
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
@@ -116,7 +118,6 @@ require (
 	github.com/cloudflare/circl v1.6.5 // indirect
 	github.com/cmaglie/pb v1.0.27 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
-	github.com/codeclysm/extract/v4 v4.0.2 // indirect
 	github.com/containerd/console v1.0.5 // indirect
 	github.com/containerd/containerd/api v1.11.1 // indirect
 	github.com/containerd/containerd/v2 v2.3.4 // indirect
@@ -198,7 +199,6 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/juju/errors v1.0.0 // indirect
 	github.com/kevinburke/ssh_config v1.6.0 // indirect
-	github.com/klauspost/compress v1.20.3 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect

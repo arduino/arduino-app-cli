@@ -6,6 +6,7 @@
 package bricksindex
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -14,15 +15,18 @@ import (
 	"fmt"
 	"io/fs"
 	"net/url"
+	"path"
 	"regexp"
 	"time"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/codeclysm/extract/v4"
 	"go.bug.st/downloader/v3"
 	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/platform"
+	"github.com/arduino/arduino-app-cli/internal/security"
 )
 
 const RemoteIndexFileName = "brick-index-contrib.json"
@@ -142,34 +146,146 @@ func RemoteIndexIsRecent(dir *paths.Path, maxAge time.Duration) bool {
 	return err == nil && time.Since(info.ModTime()) < maxAge
 }
 
-// UpdateRemoteIndex downloads the index from indexURL and saves it in dir.
-func UpdateRemoteIndex(ctx context.Context, config downloader.Config, indexURL *url.URL, dir *paths.Path) (*RemoteIndex, error) {
-	indexPath := dir.Join(RemoteIndexFileName)
-	if indexURL == nil {
+// IndexResource is a reference to a bricks index, published as a zstd-compressed tar archive that
+// contains the index (RemoteIndexFileName) and, optionally, its detached GPG signature
+// (RemoteIndexSignatureFileName). Other files in the archive are ignored.
+type IndexResource struct {
+	URL *url.URL
+	// EnforceSignatureVerification accepts the index only if the archive contains its signature and
+	// the signature is valid and made with the Arduino key. When false, the signature is ignored.
+	EnforceSignatureVerification bool
+
+	// publicKey replaces the Arduino key in the tests.
+	publicKey []byte
+}
+
+// RemoteIndexSignatureFileName is the name of the detached signature of the index, in the archive
+// and in the directory where the index is saved.
+const RemoteIndexSignatureFileName = RemoteIndexFileName + ".sig"
+
+// NewSignedIndexResource returns the resource of the index archive at archiveURL, which must contain
+// the signature of the index made by Arduino.
+func NewSignedIndexResource(archiveURL *url.URL) *IndexResource {
+	return &IndexResource{URL: archiveURL, EnforceSignatureVerification: true}
+}
+
+func (res *IndexResource) verifySignature(target, signature *paths.Path) (bool, error) {
+	if res.publicKey != nil {
+		valid, _, err := security.VerifySignature(target, signature, bytes.NewReader(res.publicKey))
+		return valid, err
+	}
+	valid, _, err := security.VerifyArduinoDetachedSignature(target, signature)
+	return valid, err
+}
+
+// extractIndexArchive extracts the index and its signature from the archive into dir, ignoring the
+// other files. It returns the paths of the index and of the signature; the signature is nil if the
+// archive does not contain it.
+func extractIndexArchive(ctx context.Context, archive, dir *paths.Path) (*paths.Path, *paths.Path, error) {
+	if err := dir.MkdirAll(); err != nil {
+		return nil, nil, err
+	}
+	f, err := archive.Open()
+	if err != nil {
+		return nil, nil, err
+	}
+	defer f.Close()
+	wanted := func(name string) string {
+		if name = path.Clean(name); name == RemoteIndexFileName || name == RemoteIndexSignatureFileName {
+			return name
+		}
+		return ""
+	}
+	if err := extract.Zstd(ctx, f, dir.String(), wanted); err != nil {
+		return nil, nil, fmt.Errorf("extracting the bricks index archive: %w", err)
+	}
+
+	// isFile reports whether dir contains the regular file name: a link in the archive is not accepted.
+	isFile := func(name string) (bool, error) {
+		info, err := dir.Join(name).Lstat()
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			return false, nil
+		case err != nil:
+			return false, err
+		case !info.Mode().IsRegular():
+			return false, fmt.Errorf("%s in the bricks index archive is not a regular file", name)
+		}
+		return true, nil
+	}
+	if found, err := isFile(RemoteIndexFileName); err != nil {
+		return nil, nil, err
+	} else if !found {
+		return nil, nil, fmt.Errorf("%s not found in the bricks index archive", RemoteIndexFileName)
+	}
+	var signaturePath *paths.Path
+	if found, err := isFile(RemoteIndexSignatureFileName); err != nil {
+		return nil, nil, err
+	} else if found {
+		signaturePath = dir.Join(RemoteIndexSignatureFileName)
+	}
+	return dir.Join(RemoteIndexFileName), signaturePath, nil
+}
+
+// UpdateRemoteIndex downloads the index archive from res and saves the index in dir, with its signature
+// when it is verified. The index is saved only if it is valid and, when required by res, if its
+// signature is valid.
+func UpdateRemoteIndex(ctx context.Context, config downloader.Config, res *IndexResource, dir *paths.Path) (*RemoteIndex, error) {
+	if res == nil || res.URL == nil {
 		return nil, errors.New("bricks index URL not configured, set ARDUINO_APP_CLI__BRICKS_INDEX_URL")
 	}
+	indexPath := dir.Join(RemoteIndexFileName)
+	signaturePath := dir.Join(RemoteIndexSignatureFileName)
 	if err := dir.MkdirAll(); err != nil {
 		return nil, fmt.Errorf("creating bricks index directory: %w", err)
 	}
-	// Each update downloads to its own file, so concurrent updates do not need a lock.
-	tempFile, err := paths.WriteToTempFile(nil, dir, "."+RemoteIndexFileName+"-")
+	// Each update downloads to its own files, so concurrent updates do not need a lock.
+	tmp, err := paths.MkTempDir(dir.String(), "."+RemoteIndexFileName+"-")
 	if err != nil {
-		return nil, fmt.Errorf("creating temporary file: %w", err)
+		return nil, fmt.Errorf("creating temporary directory: %w", err)
 	}
-	defer func() { _ = tempFile.Remove() }()
+	defer func() { _ = tmp.RemoveAll() }()
 
-	if err := downloadFile(ctx, config, indexURL.String(), tempFile.String(), 0, 0, nil); err != nil {
+	tmpArchivePath := tmp.Join("index.tar.zst")
+	if err := downloadFile(ctx, config, res.URL.String(), tmpArchivePath.String(), 0, 0, nil); err != nil {
 		return nil, fmt.Errorf("updating bricks index: %w", err)
 	}
-	data, err := tempFile.ReadFile()
+	tmpIndexPath, tmpSignaturePath, err := extractIndexArchive(ctx, tmpArchivePath, tmp.Join("extracted"))
 	if err != nil {
 		return nil, fmt.Errorf("updating bricks index: %w", err)
 	}
 
-	// TODO: verify the signature of the index before trusting it.
+	var signature []byte
+	if res.EnforceSignatureVerification {
+		if tmpSignaturePath == nil {
+			return nil, fmt.Errorf("verifying the signature of the bricks index: missing signature")
+		}
+		if valid, err := res.verifySignature(tmpIndexPath, tmpSignaturePath); err != nil {
+			return nil, fmt.Errorf("verifying the signature of the bricks index: %w", err)
+		} else if !valid {
+			return nil, fmt.Errorf("the signature of the bricks index %s is not valid", res.URL)
+		}
+		if signature, err = tmpSignaturePath.ReadFile(); err != nil {
+			return nil, fmt.Errorf("updating bricks index signature: %w", err)
+		}
+	}
+
+	data, err := tmpIndexPath.ReadFile()
+	if err != nil {
+		return nil, fmt.Errorf("updating bricks index: %w", err)
+	}
 	index, err := parseRemoteIndex(data)
 	if err != nil {
 		return nil, err
+	}
+
+	// The saved signature is kept for reference: the index is not verified again when it is loaded.
+	if signature != nil {
+		if err := fatomic.WriteFile(signaturePath.String(), signature, 0o644); err != nil {
+			return nil, fmt.Errorf("saving bricks index signature: %w", err)
+		}
+	} else if err := signaturePath.Remove(); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("removing old bricks index signature: %w", err)
 	}
 	if err := fatomic.WriteFile(indexPath.String(), data, 0o644); err != nil {
 		return nil, fmt.Errorf("saving bricks index: %w", err)

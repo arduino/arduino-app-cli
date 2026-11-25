@@ -32,7 +32,7 @@ func newUpdateIndexCmd(cfg config.Configuration, version string) *cobra.Command 
 const remoteIndexMaxAge = 24 * time.Hour
 
 func updateIndexHandler(ctx context.Context, cfg config.Configuration, version string) {
-	_, err := bricksindex.UpdateRemoteIndex(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksIndexURL, cfg.BricksIndexDir())
+	_, err := bricksindex.UpdateRemoteIndex(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksIndex, cfg.BricksIndexDir())
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
@@ -50,7 +50,7 @@ func loadRemoteIndex(ctx context.Context, cfg config.Configuration, version stri
 	}
 	out, _, _ := feedback.OutputStreams()
 	fmt.Fprintln(out, "Updating the bricks index...")
-	index, err := bricksindex.UpdateRemoteIndex(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksIndexURL, dir)
+	index, err := bricksindex.UpdateRemoteIndex(ctx, bricksindex.DownloadConfig(userAgent(version)), cfg.BricksIndex, dir)
 	if err == nil {
 		return index
 	}

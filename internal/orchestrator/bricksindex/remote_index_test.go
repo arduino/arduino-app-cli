@@ -6,6 +6,8 @@
 package bricksindex
 
 import (
+	"archive/tar"
+	"bytes"
 	"encoding/json"
 	"maps"
 	"net/http"
@@ -18,6 +20,7 @@ import (
 	"time"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -119,6 +122,47 @@ func serveFile(t *testing.T, status int, body []byte, chunked bool) string {
 	return srv.URL + "/file"
 }
 
+// archiveEntry is a file of a tar archive. A non-empty link makes it a symbolic link.
+type archiveEntry struct {
+	name, content, link string
+}
+
+// makeTarZst returns a zstd-compressed tar archive with the entries.
+func makeTarZst(t *testing.T, entries ...archiveEntry) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw, err := zstd.NewWriter(&buf)
+	require.NoError(t, err)
+	tw := tar.NewWriter(zw)
+	for _, e := range entries {
+		if e.link != "" {
+			require.NoError(t, tw.WriteHeader(&tar.Header{Name: e.name, Typeflag: tar.TypeSymlink, Linkname: e.link, Mode: 0o777}))
+			continue
+		}
+		require.NoError(t, tw.WriteHeader(&tar.Header{Name: e.name, Typeflag: tar.TypeReg, Mode: 0o644, Size: int64(len(e.content))}))
+		_, err := tw.Write([]byte(e.content))
+		require.NoError(t, err)
+	}
+	require.NoError(t, tw.Close())
+	require.NoError(t, zw.Close())
+	return buf.Bytes()
+}
+
+// makeIndexArchive returns the archive of index, with its signature if not nil.
+func makeIndexArchive(t *testing.T, index string, signature []byte) []byte {
+	t.Helper()
+	entries := []archiveEntry{{name: RemoteIndexFileName, content: index}}
+	if signature != nil {
+		entries = append(entries, archiveEntry{name: RemoteIndexSignatureFileName, content: string(signature)})
+	}
+	return makeTarZst(t, entries...)
+}
+
+// unsigned returns the resource of an index without a signature.
+func unsigned(u *url.URL) *IndexResource {
+	return &IndexResource{URL: u}
+}
+
 func mustParseURL(t *testing.T, s string) *url.URL {
 	t.Helper()
 	u, err := url.Parse(s)
@@ -131,13 +175,13 @@ func TestUpdate(t *testing.T) {
 	body := validIndex
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "test-agent", r.Header.Get("User-Agent"))
-		_, _ = w.Write([]byte(body))
+		_, _ = w.Write(makeIndexArchive(t, body, nil))
 	}))
 	t.Cleanup(srv.Close)
 	u := mustParseURL(t, srv.URL)
 	config := DownloadConfig("test-agent")
 
-	index, err := UpdateRemoteIndex(t.Context(), config, u, dir)
+	index, err := UpdateRemoteIndex(t.Context(), config, unsigned(u), dir)
 	require.NoError(t, err)
 	require.Equal(t, "acme:camera", index.Bricks[0].ID)
 	saved, err := dir.Join(RemoteIndexFileName).ReadFile()
@@ -146,9 +190,28 @@ func TestUpdate(t *testing.T) {
 
 	// A saved index is replaced.
 	body = strings.ReplaceAll(validIndex, "acme:camera", "acme:audio")
-	index, err = UpdateRemoteIndex(t.Context(), config, u, dir)
+	index, err = UpdateRemoteIndex(t.Context(), config, unsigned(u), dir)
 	require.NoError(t, err)
 	require.Equal(t, "acme:audio", index.Bricks[0].ID)
+}
+
+func TestUpdateIgnoresExtraFiles(t *testing.T) {
+	dir := paths.New(t.TempDir())
+	archive := makeTarZst(t,
+		archiveEntry{name: "README.md", content: "readme"},
+		archiveEntry{name: "./" + RemoteIndexFileName, content: validIndex},
+		archiveEntry{name: "extra/data.json", content: "{}"},
+		archiveEntry{name: "link", link: "/etc/passwd"},
+	)
+	index, err := UpdateRemoteIndex(t.Context(), DownloadConfig("test"), unsigned(mustParseURL(t, serveFile(t, http.StatusOK, archive, false))), dir)
+	require.NoError(t, err)
+	require.Equal(t, "acme:camera", index.Bricks[0].ID)
+
+	// Only the index is saved.
+	entries, err := dir.ReadDir()
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.Equal(t, RemoteIndexFileName, entries[0].Base())
 }
 
 func TestRemoteIndexIsRecent(t *testing.T) {
@@ -173,18 +236,32 @@ func TestUpdateKeepsPreviousIndexOnFailure(t *testing.T) {
 			return serveFile(t, http.StatusInternalServerError, nil, false)
 		}, "500"},
 		{"malformed json", func(t *testing.T) string {
-			return serveFile(t, http.StatusOK, []byte("{"), false)
+			return serveFile(t, http.StatusOK, makeIndexArchive(t, "{", nil), false)
 		}, "decoding bricks index"},
 		{"invalid index", func(t *testing.T) string {
-			return serveFile(t, http.StatusOK, []byte(`{"bricks": [{"id": "camera", "namespace": "acme"}]}`), false)
+			return serveFile(t, http.StatusOK, makeIndexArchive(t, `{"bricks": [{"id": "camera", "namespace": "acme"}]}`, nil), false)
 		}, "invalid brick id"},
+		{"not an archive", func(t *testing.T) string {
+			return serveFile(t, http.StatusOK, []byte(validIndex), false)
+		}, "extracting the bricks index archive"},
+		{"archive without the index", func(t *testing.T) string {
+			return serveFile(t, http.StatusOK, makeTarZst(t, archiveEntry{name: "other.json", content: validIndex}), false)
+		}, RemoteIndexFileName + " not found in the bricks index archive"},
+		{"index in a subdirectory", func(t *testing.T) string {
+			return serveFile(t, http.StatusOK, makeTarZst(t, archiveEntry{name: "dir/" + RemoteIndexFileName, content: validIndex}), false)
+		}, RemoteIndexFileName + " not found in the bricks index archive"},
+		{"index is a symlink", func(t *testing.T) string {
+			return serveFile(t, http.StatusOK, makeTarZst(t,
+				archiveEntry{name: "other.json", content: validIndex},
+				archiveEntry{name: RemoteIndexFileName, link: "other.json"}), false)
+		}, "is not a regular file"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := paths.New(t.TempDir())
 			require.NoError(t, dir.Join(RemoteIndexFileName).WriteFile([]byte(validIndex)))
 
-			_, err := UpdateRemoteIndex(t.Context(), DownloadConfig("test"), mustParseURL(t, tt.url(t)), dir)
+			_, err := UpdateRemoteIndex(t.Context(), DownloadConfig("test"), unsigned(mustParseURL(t, tt.url(t))), dir)
 			require.ErrorContains(t, err, tt.wantErr)
 
 			saved, err := dir.Join(RemoteIndexFileName).ReadFile()
@@ -206,6 +283,6 @@ func TestUpdateInactivityTimeout(t *testing.T) {
 	config := DownloadConfig("test")
 	config.InactivityTimeout = 100 * time.Millisecond
 
-	_, err := UpdateRemoteIndex(t.Context(), config, mustParseURL(t, srv.URL), paths.New(t.TempDir()))
+	_, err := UpdateRemoteIndex(t.Context(), config, unsigned(mustParseURL(t, srv.URL)), paths.New(t.TempDir()))
 	require.Error(t, err)
 }
