@@ -184,19 +184,13 @@ func (c *Configuration) EnsureFolders() error {
 	if err := c.ModelsDir().MkdirAll(); err != nil {
 		return err
 	}
-	if err := c.AssetDir().MkdirAll(); err != nil {
-		return err
-	}
-	if err := chmodSharedDir(c.AssetDir()); err != nil {
+	if err := mkSharedDirAll(c.AssetDir()); err != nil {
 		return err
 	}
 	if err := c.CustomModelsDir().MkdirAll(); err != nil {
 		return err
 	}
-	if err := c.ReleasesDir().MkdirAll(); err != nil {
-		return err
-	}
-	if err := chmodSharedDir(c.ReleasesDir()); err != nil {
+	if err := mkSharedDirAll(c.ReleasesDir()); err != nil {
 		return err
 	}
 
@@ -274,6 +268,18 @@ func (c *Configuration) MkTempAssetDir() (*paths.Path, error) {
 		return nil, err
 	}
 	return dir, nil
+}
+
+// mkSharedDirAll creates the dir and makes it shared. A dir that already exists is left as
+// it is: it may be owned by another user, who is the only one allowed to chmod it.
+func mkSharedDirAll(dir *paths.Path) error {
+	if dir.Exist() {
+		return nil
+	}
+	if err := dir.MkdirAll(); err != nil {
+		return err
+	}
+	return chmodSharedDir(dir)
 }
 
 // chmodSharedDir sets 0775 plus the setgid bit, so that what is created inside inherits
