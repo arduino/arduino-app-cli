@@ -41,8 +41,9 @@ var (
 // stays as it is.
 //
 // The reload is done only when the app folder still describes what runs: the project it
-// renders now is the one compose brought up, and each of its containers is running. In
-// any other case nothing is done and the error is ErrRestartNeeded, or ErrAppNotRunning.
+// renders now is the one compose brought up, its bricks name the same models, and each of
+// its containers is running. In any other case nothing is done and the error is
+// ErrRestartNeeded, or ErrAppNotRunning.
 func ReloadApp(
 	ctx context.Context,
 	docker command.Cli,
@@ -99,8 +100,8 @@ func ReloadApp(
 	if err != nil {
 		return fmt.Errorf("failed to render the app compose file: %w", err)
 	}
-	if !pythonFingerprint(appToReload).matches(hashOf(rendered)) {
-		return refused(ErrRestartNeeded, "its bricks or its configuration changed since it was started")
+	if !pythonFingerprint(appToReload).matches(pythonHashOf(rendered, appToReload.Descriptor.Bricks, bricksIndex)) {
+		return refused(ErrRestartNeeded, "its bricks, its models or its configuration changed since it was started")
 	}
 	if !projectServicesRunning(prj, containers) {
 		return refused(ErrRestartNeeded, "one of its containers is not running")

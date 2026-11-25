@@ -278,14 +278,15 @@ func StartApp(
 				return fmt.Errorf("failed to create the app runtime folder: %w", err)
 			}
 
-			// The fingerprint of the project compose is about to bring up. It is dropped
-			// before compose changes any container and saved once all are up: a start that
-			// fails leaves no record of a project that does not run.
+			// The fingerprint of the project compose is about to bring up, with the models
+			// of its bricks. It is dropped before compose changes any container and saved
+			// once all are up: a start that fails leaves no record of a project that does
+			// not run.
 			rendered, err := appToStart.AppComposeFilePath().ReadFile()
 			if err != nil {
 				return fmt.Errorf("failed to read the app compose file: %w", err)
 			}
-			pythonHash = hashOf(rendered)
+			pythonHash = pythonHashOf(rendered, appToStart.Descriptor.Bricks, bricksIndex)
 			if err := python.forget(); err != nil {
 				return err
 			}
