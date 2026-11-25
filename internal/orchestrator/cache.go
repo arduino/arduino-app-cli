@@ -52,8 +52,8 @@ func CleanAppCache(
 		_ = StopAndDestroyApp(ctx, docker, platform, app, cfg, func(StreamMessage) {})
 	}
 
-	if err := removeSketchBuildDir(ctx, app); err != nil {
-		slog.Warn("unable to remove the sketch build dir", slog.String("error", err.Error()))
+	if err := removeArduinoCliBuildCache(ctx); err != nil {
+		slog.Warn("unable to remove the arduino-cli build cache", slog.String("error", err.Error()))
 	}
 	return app.ProvisioningStateDir().RemoveAll()
 }

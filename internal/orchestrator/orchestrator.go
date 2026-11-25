@@ -8,8 +8,6 @@ package orchestrator
 import (
 	"bytes"
 	"context"
-	"crypto/md5" //nolint:gosec // arduino-cli names the build dir with it
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -406,8 +404,8 @@ func cleanAppCacheFiles(ctx context.Context, app app.ArduinoApp, cb func(StreamM
 		return nil
 	}
 
-	if err := removeSketchBuildDir(ctx, app); err != nil {
-		slog.Warn("unable to remove the sketch build dir", slog.String("error", err.Error()))
+	if err := removeArduinoCliBuildCache(ctx); err != nil {
+		slog.Warn("unable to remove the arduino-cli build cache", slog.String("error", err.Error()))
 	}
 
 	cachePath := app.FullPath.Join(".cache")
@@ -965,9 +963,6 @@ func DeleteApp(ctx context.Context, dockerClient command.Cli, platform platform.
 	// We try to remove docker related resources at best effort
 	_ = StopAndDestroyApp(ctx, dockerClient, platform, app, cfg, func(StreamMessage) {})
 	// TODO: Shall we report stop error?
-	if err := removeSketchBuildDir(ctx, app); err != nil {
-		slog.Warn("unable to remove the sketch build dir", slog.String("error", err.Error()))
-	}
 
 	if err := app.FullPath.RemoveAll(); err != nil {
 		return err
@@ -1054,7 +1049,7 @@ func EditApp(
 	}
 
 	if req.Name != nil || req.Icon != nil || req.Description != nil {
-		if err := editAppFolder(ctx, req, editApp, cfg); err != nil {
+		if err := editAppFolder(req, editApp, cfg); err != nil {
 			return err
 		}
 	}
@@ -1067,7 +1062,7 @@ func EditApp(
 	return nil
 }
 
-func editAppFolder(ctx context.Context, req AppEditRequest, editApp *app.ArduinoApp, cfg config.Configuration) error {
+func editAppFolder(req AppEditRequest, editApp *app.ArduinoApp, cfg config.Configuration) error {
 	editable, err := editApp.GetAsEditable()
 	if err != nil {
 		return err
@@ -1094,10 +1089,6 @@ func editAppFolder(ctx context.Context, req AppEditRequest, editApp *app.Arduino
 		}
 		if !newPath.EqualsTo(editable.FullPath) {
 			oldPath := editable.FullPath
-			// The build dir is named after the sketch path, which the rename changes.
-			if err := removeSketchBuildDir(ctx, *editApp); err != nil {
-				slog.Warn("unable to remove the sketch build dir", slog.String("error", err.Error()))
-			}
 			if err := editable.FullPath.Rename(newPath); err != nil {
 				return fmt.Errorf("failed to rename app path: %w", err)
 			}
@@ -1499,14 +1490,8 @@ func GetOrchestratorConfig(cfg config.Configuration) ConfigResponse {
 	}
 }
 
-// removeSketchBuildDir removes the default build dir of arduino-cli for the app sketch.
-// WORKAROUND: it copies sketch.Hash() of arduino-cli, which has no API for the path.
-func removeSketchBuildDir(ctx context.Context, app app.ArduinoApp) error {
-	sketchPath, ok := app.GetSketchPath()
-	if !ok {
-		return nil
-	}
-
+// removeArduinoCliBuildCache removes the build cache of arduino-cli: every sketch and core it compiled.
+func removeArduinoCliBuildCache(ctx context.Context) error {
 	srv := commands.NewArduinoCoreServer()
 	if err := SetArduinoCliConfig(ctx, srv); err != nil {
 		return err
@@ -1519,8 +1504,6 @@ func removeSketchBuildDir(ctx context.Context, app app.ArduinoApp) error {
 	if err := json.Unmarshal([]byte(resp.GetEncodedValue()), &buildCachePath); err != nil {
 		return err
 	}
-	hash := md5.Sum([]byte(sketchPath.Canonical().String())) //nolint:gosec
-	buildPath := paths.New(buildCachePath, "sketches", strings.ToUpper(hex.EncodeToString(hash[:])))
-	slog.Debug("removing sketch build dir", slog.String("path", buildPath.String()))
-	return buildPath.RemoveAll()
+	slog.Debug("removing the arduino-cli build cache", slog.String("path", buildCachePath))
+	return paths.New(buildCachePath).RemoveAll()
 }
