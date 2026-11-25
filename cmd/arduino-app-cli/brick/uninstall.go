@@ -15,6 +15,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -34,6 +35,10 @@ func newUninstallCmd(cfg config.Configuration) *cobra.Command {
 func uninstallHandler(ctx context.Context, args []string, cfg config.Configuration) {
 	var res uninstallResult
 	for _, ref := range parseBrickReferences(args) {
+		if !bricksindex.IsThirdParty(ref.id) {
+			feedback.Warnf("%s is a built-in brick and cannot be uninstalled", ref.id)
+			continue
+		}
 		uninstalled, err := orchestrator.UninstallBrick(ctx, servicelocator.GetDockerClient(), cfg,
 			servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetModelsIndex(),
 			ref.id, ref.version, func(msg string) { feedback.Warnf("%s", msg) })
