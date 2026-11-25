@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/shirou/gopsutil/v4/mem"
 
 	"github.com/arduino/arduino-app-cli/internal/micro"
 	"github.com/arduino/arduino-app-cli/pkg/x/devicetree"
@@ -23,10 +24,11 @@ type GpioPin struct {
 }
 
 type Platform struct {
-	BoardName   string `json:"board_name"`
-	FQBN        string `json:"fqbn"`
-	PlatformID  string `json:"-"`
-	CompileJobs int32  `json:"-"`
+	BoardName  string `json:"board_name"`
+	FQBN       string `json:"fqbn"`
+	PlatformID string `json:"-"`
+	// CompileJobs is the number of parallel jobs a sketch build runs on this board: 0 is every core.
+	CompileJobs int32 `json:"-"`
 	Linux       struct {
 		BoardLeds paths.PathList
 	} `json:"-"`
@@ -70,7 +72,6 @@ func ForBoard(boardName string) (Platform, bool) {
 			Linux: struct{ BoardLeds paths.PathList }{
 				BoardLeds: GetUnoQBoardLeds(),
 			},
-			CompileJobs: 2,
 			Micro: struct{ ResetPin GpioPin }{
 				ResetPin: GpioPin{Chip: "gpiochip1", Number: 38},
 			},
@@ -83,7 +84,6 @@ func ForBoard(boardName string) (Platform, bool) {
 			Linux: struct{ BoardLeds paths.PathList }{
 				BoardLeds: GetVentunoQBoardLeds(),
 			},
-			CompileJobs: 0, // unlimited
 			Micro: struct{ ResetPin GpioPin }{
 				ResetPin: GpioPin{Chip: "gpiochip2", Number: 78},
 			},
@@ -117,6 +117,8 @@ func GetPlatform(dir *paths.Path) Platform {
 			}
 		}
 	}
+
+	platform.CompileJobs = compileJobs(totalMemory())
 
 	slog.Info("using platform config", "platform", platform)
 	return platform
@@ -158,6 +160,28 @@ func (p Platform) PackageAndArchitecture() (string, string, error) {
 		return "", "", fmt.Errorf("invalid platform id '%s': expected the form '<package>:<architecture>'", p.PlatformID)
 	}
 	return pkg, architecture, nil
+}
+
+// totalMemory is the memory of the board in bytes, 0 when it cannot be read.
+func totalMemory() uint64 {
+	memory, err := mem.VirtualMemory()
+	if err != nil {
+		slog.Warn("unable to read the memory of the board", slog.String("error", err.Error()))
+		return 0
+	}
+	return memory.Total
+}
+
+// minMemoryForEveryCore is the memory a board needs to run a compiler on every core.
+const minMemoryForEveryCore = 3 << 30
+
+// compileJobs is the job count for a board with totalMemory bytes of memory: every core, two
+// on a board whose memory does not hold a compiler per core.
+func compileJobs(totalMemory uint64) int32 {
+	if totalMemory < minMemoryForEveryCore {
+		return 2
+	}
+	return 0
 }
 
 func (p Platform) SupportFlashToRam() bool {

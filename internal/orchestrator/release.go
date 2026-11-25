@@ -361,6 +361,8 @@ func targetIndexes(cfg config.Configuration, docker command.Cli, target string) 
 		if !ok {
 			return platform.Platform{}, nil, nil, nil, fmt.Errorf("%w: unknown target board %q: expected one of %s", ErrBadRequest, target, strings.Join(platform.SupportedBoards(), ", "))
 		}
+		// The sketch of the release is compiled on this board, whatever its target
+		targetPlatform.CompileJobs = plat.CompileJobs
 		plat = targetPlatform
 	}
 
