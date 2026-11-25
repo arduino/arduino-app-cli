@@ -112,13 +112,19 @@ func StartApp(
 
 	modelsIndex = appToStart.Models(modelsIndex, docker, cfg, platform)
 
+	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex); err != nil {
+		return err
+	}
+
+	// The models the bricks need, asked of the downloader once for both the preparation
+	// and the check.
+	models := modelsIndex.NewLookup()
 	if prepare && !appToStart.IsRelease() {
-		if err := prepareModels(ctx, docker, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex, platform, cb); err != nil {
+		if err := prepareModels(ctx, docker, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex, models, platform, cb); err != nil {
 			return err
 		}
 	}
-
-	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex, true); err != nil {
+	if err := checkModelsInstalled(ctx, appToStart.Descriptor.Bricks, bricksIndex, models); err != nil {
 		return err
 	}
 

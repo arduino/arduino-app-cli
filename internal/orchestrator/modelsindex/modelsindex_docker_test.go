@@ -455,6 +455,35 @@ func TestLookupRunsOneListing(t *testing.T) {
 		assert.Zero(t, listings.Load())
 	})
 
+	t.Run("finding a declared model needs no listing, its install status does", func(t *testing.T) {
+		listings.Store(0)
+		lookup := newIndex(t).NewLookup()
+
+		model, err := lookup.Find(t.Context(), "ei:efficientnet-b4")
+		require.NoError(t, err)
+		require.NotNil(t, model)
+		assert.Zero(t, listings.Load())
+
+		model, err = lookup.ByID(t.Context(), "ei:efficientnet-b4")
+		require.NoError(t, err)
+		require.NotNil(t, model)
+		assert.Equal(t, InstalledStatus, model.Status)
+		assert.Equal(t, int64(1), listings.Load())
+	})
+
+	t.Run("a refreshed Lookup lists again", func(t *testing.T) {
+		listings.Store(0)
+		lookup := newIndex(t).NewLookup()
+
+		_, err := lookup.ByID(t.Context(), "ei:efficientnet-b4")
+		require.NoError(t, err)
+		lookup.Refresh()
+		_, err = lookup.ByID(t.Context(), "ei:efficientnet-b4")
+		require.NoError(t, err)
+
+		assert.Equal(t, int64(2), listings.Load())
+	})
+
 	t.Run("each new Lookup takes its own listing", func(t *testing.T) {
 		listings.Store(0)
 		idx := newIndex(t)

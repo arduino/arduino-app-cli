@@ -142,7 +142,7 @@ func TestPrepareModelsSkipsWhatItShould(t *testing.T) {
 		}
 	}
 
-	err := prepareModels(t.Context(), nil, appBricks, bricksIndex, modelIndex, platform.Platform{}, cb)
+	err := prepareModels(t.Context(), nil, appBricks, bricksIndex, modelIndex, modelIndex.NewLookup(), platform.Platform{}, cb)
 	require.NoError(t, err)
 
 	// The installed and the unresolved models are downloaded nothing about: only the
