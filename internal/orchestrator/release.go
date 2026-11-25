@@ -520,7 +520,7 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 		ctx, srv, inst,
 		sketchPath, buildPath,
 		platform, fqbn,
-		verbose, output,
+		verbose, output, nil,
 	); err != nil {
 		return err
 	}
