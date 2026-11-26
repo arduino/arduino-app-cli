@@ -199,6 +199,10 @@ func installEIModels(shippedDir *paths.Path, eiModelsDir *paths.Path) error {
 		if err := modelDir.CopyDirTo(installPath); err != nil {
 			return fmt.Errorf("failed to install the model %q of the release: %w", modelDir.Base(), err)
 		}
+		// The archive ships every file outside prebuild as not executable.
+		if err := makeEIMsExecutable(installPath); err != nil {
+			return fmt.Errorf("failed to make the model %q of the release executable: %w", modelDir.Base(), err)
+		}
 	}
 	// The app folder is what the staging dir becomes, and the models are not part of it.
 	return shippedDir.RemoveAll()

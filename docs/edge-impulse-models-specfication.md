@@ -76,6 +76,7 @@ The compatible bricks are determined by the **project category** set in Edge Imp
 | ----------------------------------------------- | ------------------------------------- | -------------------------------------- |
 | Object detection                                | `arduino:object_detection`            | `EI_OBJ_DETECTION_MODEL`               |
 | Object detection                                | `arduino:video_object_detection`      | `EI_V_OBJ_DETECTION_MODEL`             |
+| Object detection[<sup>2</sup>](#tracking-note)  | `arduino:video_object_tracking`       | `EI_V_OBJ_TRACKING_MODEL`              |
 | Images                                          | `arduino:image_classification`        | `EI_CLASSIFICATION_MODEL`              |
 | Images                                          | `arduino:video_image_classification`  | `EI_V_CLASSIFICATION_MODEL`            |
 | Images[<sup>1</sup>](#v-anomaly-detection-note) | `arduino:visual_anomaly_detection`    | `EI_V_ANOMALY_DETECTION_MODEL`         |
@@ -86,6 +87,8 @@ The compatible bricks are determined by the **project category** set in Edge Imp
 | Accelerometer                                   | `arduino:vibration_anomaly_detection` | `EI_VIBRATION_ANOMALY_DETECTION_MODEL` |
 
 > <a id="v-anomaly-detection-note"></a> <sup>1</sup> **Note on Visual Anomaly Detection**: The `arduino:visual_anomaly_detection` brick is only compatible with impulses that include a `KerasVisualAnomaly` learn block. Generic image classification impulses from the `Images` category are not compatible with this brick.
+
+> <a id="tracking-note"></a> <sup>2</sup> The `arduino:video_object_tracking` brick is only compatible with impulses that include an object tracking post-processing block (`object-tracking` or `sort-object-tracking`), and only on the boards that support the brick.
 
 ### Complete Example - Object Detection Model (`model.yaml`)
 

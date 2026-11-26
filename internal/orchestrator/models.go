@@ -264,7 +264,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 		return modelsindex.AIModel{}, err
 	}
 
-	bricks, err := buildBrickConfigForEIModel(bricksIndex, project.Details.Category, impulse.LearnBlocks, edgeModelsDir, blobModelsDir)
+	bricks, err := buildBrickConfigForEIModel(bricksIndex, project.Details.Category, impulse.LearnBlocks, impulse.PostProcessingBlocks, edgeModelsDir, blobModelsDir)
 	if err != nil {
 		return modelsindex.AIModel{}, err
 	}
@@ -293,6 +293,9 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 		}
 		return modelsindex.AIModel{}, err
 	}
+	if err := makeEIMsExecutable(edgeModelsDir); err != nil {
+		return modelsindex.AIModel{}, fmt.Errorf("failed to make the model executable: %w", err)
+	}
 
 	return modelsindex.AIModel{
 		ID:          aimodel.ModelDescriptor.ID,
@@ -308,16 +311,35 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 	}, nil
 }
 
-func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *edgeimpulse.ProjectCategory, impulse []edgeimpulse.ImpulseLearnBlock, edgeModelsDir *paths.Path, blobModelsDir *paths.Path) ([]custommodel.BrickConfig, error) {
+// makeEIMsExecutable gives the execute permission to the .eim files of a model folder,
+// because a runner starts an .eim as a program.
+func makeEIMsExecutable(modelDir *paths.Path) error {
+	eims, err := modelDir.ReadDir(paths.FilterSuffixes(".eim"))
+	if err != nil {
+		return err
+	}
+	for _, eim := range eims {
+		if err := eim.Chmod(0755); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *edgeimpulse.ProjectCategory, learnBlocks []edgeimpulse.ImpulseLearnBlock, postProcessingBlocks []edgeimpulse.ImpulsePostProcessingBlock, edgeModelsDir *paths.Path, blobModelsDir *paths.Path) ([]custommodel.BrickConfig, error) {
 	if category == nil {
 		return []custommodel.BrickConfig{}, nil
 	}
 
-	bricksIds := mapCategoryToBricks(*category, impulse)
+	bricksIds := mapCategoryToBricks(*category, learnBlocks, postProcessingBlocks)
 
 	bricksConfig := make([]custommodel.BrickConfig, 0)
 	for _, b := range bricksIds {
 		brick, ok := bricksIndex.FindBrickByID(b)
+		if !ok && b == videoObjectTrackingBrickID {
+			slog.Debug("the object tracking brick is not available on this board, the model is installed without it", "id", b)
+			continue
+		}
 		if !ok {
 			slog.Warn("cannot load brick", "id", b, "category", category)
 			return nil, fmt.Errorf("brick with id %q not found for category %q", b, *category)
@@ -348,10 +370,20 @@ func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *
 	return bricksConfig, nil
 }
 
-func mapCategoryToBricks(eiCategory edgeimpulse.ProjectCategory, lb []edgeimpulse.ImpulseLearnBlock) []string {
+const videoObjectTrackingBrickID = "arduino:video_object_tracking"
+
+var objectTrackingBlockTypes = []string{"object-tracking", "sort-object-tracking"}
+
+func mapCategoryToBricks(eiCategory edgeimpulse.ProjectCategory, lb []edgeimpulse.ImpulseLearnBlock, ppb []edgeimpulse.ImpulsePostProcessingBlock) []string {
 	switch eiCategory {
 	case edgeimpulse.ProjectCategoryObjectDetection:
-		return []string{"arduino:object_detection", "arduino:video_object_detection"}
+		bricks := []string{"arduino:object_detection", "arduino:video_object_detection"}
+		if slices.ContainsFunc(ppb, func(block edgeimpulse.ImpulsePostProcessingBlock) bool {
+			return slices.Contains(objectTrackingBlockTypes, block.Type)
+		}) {
+			bricks = append(bricks, videoObjectTrackingBrickID)
+		}
+		return bricks
 	case edgeimpulse.ProjectCategoryImages:
 		if slices.ContainsFunc(lb, func(block edgeimpulse.ImpulseLearnBlock) bool {
 			return block.Type == edgeimpulse.KerasVisualAnomaly

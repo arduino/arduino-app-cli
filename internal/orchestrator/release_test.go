@@ -155,6 +155,26 @@ func TestAppLayout(t *testing.T) {
 	}
 }
 
+func TestInstallEIModelsMakesTheModelExecutable(t *testing.T) {
+	shippedDir := paths.New(t.TempDir()).Join(releaseCustomEIDir)
+	shippedModelDir := shippedDir.Join("ei-model-1-2")
+	require.NoError(t, shippedModelDir.MkdirAll())
+	// As the extraction leaves them: the archive ships every file outside prebuild as not executable.
+	require.NoError(t, shippedModelDir.Join("model.eim").WriteFile([]byte("the impulse")))
+	require.NoError(t, shippedModelDir.Join("model.yaml").WriteFile([]byte("id: ei-model-1-2\n")))
+	eiModelsDir := paths.New(t.TempDir())
+
+	require.NoError(t, installEIModels(shippedDir, eiModelsDir))
+
+	modelFileInfo, err := eiModelsDir.Join("ei-model-1-2", "model.eim").Stat()
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0755), modelFileInfo.Mode().Perm())
+	descriptorInfo, err := eiModelsDir.Join("ei-model-1-2", "model.yaml").Stat()
+	require.NoError(t, err)
+	assert.Zero(t, descriptorInfo.Mode().Perm()&0111, "only the .eim is made executable")
+	assert.NoDirExists(t, shippedDir.String())
+}
+
 func TestStageReleaseIndexes(t *testing.T) {
 	t.Setenv("DOCKER_REGISTRY_BASE", "build.example/")
 	cfg := setTestOrchestratorConfig(t)
