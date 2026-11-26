@@ -698,6 +698,12 @@ type GetAppLogsParams struct {
 	Nofollow *bool   `form:"nofollow,omitempty" json:"nofollow,omitempty"`
 }
 
+// RestartAppParams defines parameters for RestartApp.
+type RestartAppParams struct {
+	// Verbose Return a verbose output. Default is false.
+	Verbose *bool `form:"verbose,omitempty" json:"verbose,omitempty"`
+}
+
 // StartAppParams defines parameters for StartApp.
 type StartAppParams struct {
 	// Verbose Return a verbose output. Default is false.
@@ -976,6 +982,9 @@ type ClientInterface interface {
 
 	// PrepareAppRelease request
 	PrepareAppRelease(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RestartApp request
+	RestartApp(ctx context.Context, id string, params *RestartAppParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StartApp request
 	StartApp(ctx context.Context, id string, params *StartAppParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1472,6 +1481,18 @@ func (c *Client) GetAppLogs(ctx context.Context, id string, params *GetAppLogsPa
 
 func (c *Client) PrepareAppRelease(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPrepareAppReleaseRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RestartApp(ctx context.Context, id string, params *RestartAppParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRestartAppRequest(c.Server, id, params)
 	if err != nil {
 		return nil, err
 	}
@@ -3067,6 +3088,67 @@ func NewPrepareAppReleaseRequest(server string, id string) (*http.Request, error
 	return req, nil
 }
 
+// NewRestartAppRequest generates requests for RestartApp
+func NewRestartAppRequest(server string, id string, params *RestartAppParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/restart", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Verbose != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "verbose", *params.Verbose, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewStartAppRequest generates requests for StartApp
 func NewStartAppRequest(server string, id string, params *StartAppParams) (*http.Request, error) {
 	var err error
@@ -4146,6 +4228,9 @@ type ClientWithResponsesInterface interface {
 	// PrepareAppReleaseWithResponse request
 	PrepareAppReleaseWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*PrepareAppReleaseResp, error)
 
+	// RestartAppWithResponse request
+	RestartAppWithResponse(ctx context.Context, id string, params *RestartAppParams, reqEditors ...RequestEditorFn) (*RestartAppResp, error)
+
 	// StartAppWithResponse request
 	StartAppWithResponse(ctx context.Context, id string, params *StartAppParams, reqEditors ...RequestEditorFn) (*StartAppResp, error)
 
@@ -5056,6 +5141,37 @@ func (r PrepareAppReleaseResp) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PrepareAppReleaseResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RestartAppResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r RestartAppResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RestartAppResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RestartAppResp) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -6073,6 +6189,15 @@ func (c *ClientWithResponses) PrepareAppReleaseWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParsePrepareAppReleaseResp(rsp)
+}
+
+// RestartAppWithResponse request returning *RestartAppResp
+func (c *ClientWithResponses) RestartAppWithResponse(ctx context.Context, id string, params *RestartAppParams, reqEditors ...RequestEditorFn) (*RestartAppResp, error) {
+	rsp, err := c.RestartApp(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRestartAppResp(rsp)
 }
 
 // StartAppWithResponse request returning *StartAppResp
@@ -7377,6 +7502,39 @@ func ParsePrepareAppReleaseResp(rsp *http.Response) (*PrepareAppReleaseResp, err
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRestartAppResp parses an HTTP response from a RestartAppWithResponse call
+func ParseRestartAppResp(rsp *http.Response) (*RestartAppResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RestartAppResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
 		var dest PreconditionFailed
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
