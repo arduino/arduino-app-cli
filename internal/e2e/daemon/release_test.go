@@ -236,7 +236,10 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
 	}
 
-	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithBoardName("unoq"))
+	cli := e2e.CreateEnvForDaemon(t, e2e.WithBoardName("unoq"))
+	daemonAddr := cli.DaemonAddr
+	httpClient, err := client.NewClientWithResponses(daemonAddr)
+	require.NoError(t, err)
 
 	const (
 		appName = "release-install-app"
@@ -334,6 +337,21 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 		content, err := paths.New(*detailsResp.JSON200.Path, "data", "keep.txt").ReadFile()
 		require.NoError(t, err)
 		assert.Equal(t, "state\n", string(content))
+	})
+
+	t.Run("a restart stops and starts the release", func(t *testing.T) {
+		detailsResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), releaseID)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, detailsResp.StatusCode())
+		require.NotNil(t, detailsResp.JSON200.Path)
+		releaseDir := paths.New(*detailsResp.JSON200.Path)
+
+		startApp(t, httpClient, releaseID)
+		before := mainContainer(t, releaseDir)
+		stdout := restartApp(t, cli, releaseDir)
+		require.Contains(t, stdout, "Stopping app")
+		require.NotContains(t, stdout, "Reloading the app in its container")
+		require.NotEqual(t, before, mainContainer(t, releaseDir))
 	})
 
 	t.Run("clone into an editable app", func(t *testing.T) {

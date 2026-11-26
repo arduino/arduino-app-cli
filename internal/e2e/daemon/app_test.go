@@ -909,26 +909,7 @@ func TestAppStartBuildsLocalBrick(t *testing.T) {
 	startAndExpect := func(message string) {
 		require.NoError(t, brickDir.Join("message.txt").WriteFile([]byte(message+"\n")))
 		startApp(t, httpClient, appID)
-
-		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
-		defer cancel()
-		logsResp, err := httpClient.GetAppLogs(ctx, appID, &client.GetAppLogsParams{Filter: new("bricks")})
-		require.NoError(t, err)
-		defer logsResp.Body.Close()
-		require.Equal(t, http.StatusOK, logsResp.StatusCode)
-		logEvents := make(chan Event)
-		go loop(logsResp.Body, logEvents)
-		for event := range logEvents {
-			if event.Event != "message" {
-				continue
-			}
-			var payload handlers.ResponseLogs
-			require.NoError(t, json.Unmarshal(event.Data, &payload))
-			if strings.Contains(payload.Message, message) {
-				return
-			}
-		}
-		t.Fatalf("the brick container did not print %q", message)
+		waitForLog(t, httpClient, appID, "bricks", message)
 	}
 
 	t.Run("FirstStartBuilds", func(t *testing.T) {
@@ -960,6 +941,68 @@ func TestAppStartBuildsLocalBrick(t *testing.T) {
 		assert.Equal(t, "error", failure.Event)
 		assert.Equal(t, "BAD_REQUEST", failure.Code)
 		assert.Contains(t, failure.Details, `the brick "hello-build" builds its container from a Dockerfile`)
+	})
+}
+
+func TestAppRestartInPlace(t *testing.T) {
+	// The app runs in the runner image, which cannot be pulled on amd64.
+	if runtime.GOARCH != ARM64Arch {
+		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
+	}
+
+	cli := e2e.CreateEnvForDaemon(t)
+	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
+	require.NoError(t, err)
+
+	appName := "app-restart-in-place"
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: new(true)},
+		client.CreateAppRequest{Icon: new("🔁"), Name: appName},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	appID := *createResp.JSON201.Id
+	appDir := cli.AppsDir().Join(appName)
+
+	writeMain := func(message string) {
+		main := "import time\nprint(" + strconv.Quote(message) + ", flush=True)\nwhile True:\n    time.sleep(1)\n"
+		require.NoError(t, appDir.Join("python", "main.py").WriteFile([]byte(main)))
+	}
+	// Each restart runs a new main.py, which must print its message
+	restart := func(t *testing.T, message string) string {
+		writeMain(message)
+		stdout := restartApp(t, cli, appDir)
+		waitForLog(t, httpClient, appID, "main", message)
+		return stdout
+	}
+
+	writeMain("hello from run 1")
+	startApp(t, httpClient, appID)
+	waitForLog(t, httpClient, appID, "main", "hello from run 1")
+	before := mainContainer(t, appDir)
+
+	t.Run("PythonEditReloadsInTheSameContainer", func(t *testing.T) {
+		stdout := restart(t, "hello from run 2")
+		require.Contains(t, stdout, "The containers of the app are up to date")
+		require.Contains(t, stdout, "Reloading the app in its container")
+		require.Equal(t, before, mainContainer(t, appDir))
+	})
+
+	t.Run("RequirementsChangeRestartsTheContainer", func(t *testing.T) {
+		// A comment changes what the launcher prepared and installs nothing
+		require.NoError(t, appDir.Join("python", "requirements.txt").WriteFile([]byte("# no package\n")))
+		stdout := restart(t, "hello from run 3")
+		require.Contains(t, stdout, "restarting the container")
+		after := mainContainer(t, appDir)
+		require.Equal(t, before.ID, after.ID)
+		require.NotEqual(t, before.StartedAt, after.StartedAt)
+	})
+
+	t.Run("NewPortReplacesTheContainer", func(t *testing.T) {
+		require.NoError(t, appDir.Join("app.yaml").WriteFile([]byte("name: "+appName+"\nports:\n- 7123\n")))
+		restart(t, "hello from run 4")
+		require.NotEqual(t, before.ID, mainContainer(t, appDir).ID)
 	})
 }
 

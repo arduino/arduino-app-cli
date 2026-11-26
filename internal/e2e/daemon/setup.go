@@ -7,19 +7,25 @@ package daemon
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
 
+	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 )
 
 // SSE event type and the error code the stream teardown always emits.
@@ -120,6 +126,60 @@ func startApp(t *testing.T, httpClient *client.ClientWithResponses, appID string
 		}
 		t.Fatalf("app failed to start: code=%s message=%s", errData.Code, errData.Message)
 	}
+}
+
+// waitForLog fails the test when the containers of the app, main or bricks, do not print
+// message within 30 seconds.
+func waitForLog(t *testing.T, httpClient *client.ClientWithResponses, appID, filter, message string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	logsResp, err := httpClient.GetAppLogs(ctx, appID, &client.GetAppLogsParams{Filter: new(filter)})
+	require.NoError(t, err)
+	defer logsResp.Body.Close()
+	require.Equal(t, http.StatusOK, logsResp.StatusCode)
+	logEvents := make(chan Event)
+	go loop(logsResp.Body, logEvents)
+	for event := range logEvents {
+		if event.Event != "message" {
+			continue
+		}
+		var payload handlers.ResponseLogs
+		require.NoError(t, json.Unmarshal(event.Data, &payload))
+		if strings.Contains(payload.Message, message) {
+			return
+		}
+	}
+	t.Fatalf("the %s containers did not print %q", filter, message)
+}
+
+// restartApp restarts the app through the cli and returns what it printed.
+func restartApp(t *testing.T, cli *e2e.ArduinoAppCLI, appDir *paths.Path) string {
+	t.Helper()
+	stdout, stderr, err := cli.Run(t.Context(), "app", "restart", appDir.String())
+	require.NoError(t, err, "stdout: %s\nstderr: %s", stdout, stderr)
+	return stdout
+}
+
+type appContainer struct {
+	ID        string
+	StartedAt string
+}
+
+// mainContainer is the running main container of the app at appDir.
+func mainContainer(t *testing.T, appDir *paths.Path) appContainer {
+	t.Helper()
+	id, err := exec.CommandContext(t.Context(), "docker", "ps", "-q", //nolint:gosec
+		"--filter", "label="+orchestrator.DockerAppMainLabel+"=true",
+		"--filter", "label="+orchestrator.DockerAppPathLabel+"="+appDir.String(),
+	).Output()
+	require.NoError(t, err)
+	require.NotEmpty(t, strings.TrimSpace(string(id)))
+	out, err := exec.CommandContext(t.Context(), "docker", "inspect", "-f", "{{.Id}} {{.State.StartedAt}}", strings.TrimSpace(string(id))).Output() //nolint:gosec
+	require.NoError(t, err)
+	fields := strings.Fields(string(out))
+	require.Len(t, fields, 2)
+	return appContainer{ID: fields[0], StartedAt: fields[1]}
 }
 
 // skipWithoutModelsImage skips a test that reads what the models-downloader container
