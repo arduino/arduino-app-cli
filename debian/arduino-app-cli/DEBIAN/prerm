@@ -1,4 +1,5 @@
 #!/bin/sh
 
 systemctl disable arduino-app-cli
+systemctl disable arduino-app-cli-default-app.service
 systemctl disable arduino-avahi-serial.service
