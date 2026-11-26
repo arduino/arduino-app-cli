@@ -25,11 +25,15 @@ import (
 // TODO: add the version of the cli, as brick install and update-index do.
 const bricksUserAgent = "arduino-app-cli"
 
-// missingBricks returns the third-party bricks of the app that are not installed in the
-// version the app pins or, for an unpinned brick, in any version. index is the one of the app.
+// missingBricks returns the bricks of the app that are neither local nor built-in, and are not
+// installed in the version the app pins or, for an unpinned brick, in any version. index is the
+// one of the app.
 func missingBricks(a app.ArduinoApp, index *bricksindex.BricksIndex) []app.Brick {
 	var missing []app.Brick
-	for _, brick := range a.ThirdPartyBricks() {
+	for _, brick := range a.Descriptor.Bricks {
+		if index.IsLocal(brick.ID) || index.IsBuiltIn(brick.ID) {
+			continue
+		}
 		if _, found := index.FindBrick(brick.ID, brick.Version); !found {
 			missing = append(missing, brick)
 		}
@@ -37,7 +41,7 @@ func missingBricks(a app.ArduinoApp, index *bricksindex.BricksIndex) []app.Brick
 	return missing
 }
 
-// installBricks installs the given third-party bricks from the bricks index, in the version
+// installBricks installs the given bricks from the bricks index, in the version
 // they are pinned to or, if they are not pinned, in the latest version that supports the board.
 func installBricks(
 	ctx context.Context,

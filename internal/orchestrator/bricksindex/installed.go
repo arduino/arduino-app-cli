@@ -113,10 +113,14 @@ func (b *BricksIndex) findInstalledBrick(id string) (Brick, bool) {
 
 // FindBrick returns the brick with the given id in the given version. Without a version, it is
 // FindBrickByID; with a version, the brick is looked up only among the installed ones, and it is
-// found only if that version is installed and supports the board.
+// found only if that version is installed and supports the board. The bricks of the app and the
+// built-in ones come first and have a single version: an installed copy never takes their place.
 func (b *BricksIndex) FindBrick(id, version string) (*Brick, bool) {
 	if version == "" {
 		return b.FindBrickByID(id)
+	}
+	if b.IsLocal(id) || b.IsBuiltIn(id) {
+		return nil, false
 	}
 	namespace, name, err := splitBrickID(id)
 	if b.installedDir == nil || err != nil {

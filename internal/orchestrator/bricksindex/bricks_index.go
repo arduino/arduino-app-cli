@@ -61,6 +61,16 @@ func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
 	return nil, false
 }
 
+// IsLocal reports whether the brick is one of the app.
+func (b *BricksIndex) IsLocal(id string) bool {
+	return slices.ContainsFunc(b.AppBricks, func(brick Brick) bool { return brick.ID == id })
+}
+
+// IsBuiltIn reports whether the brick ships with the cli.
+func (b *BricksIndex) IsBuiltIn(id string) bool {
+	return slices.ContainsFunc(b.BuiltInBricks, func(brick Brick) bool { return brick.ID == id })
+}
+
 // TODO: use iterator instead of returning a slice
 func (b *BricksIndex) ListBricks() []Brick {
 	bricks := slices.Concat(b.AppBricks, b.BuiltInBricks)
@@ -408,14 +418,6 @@ func supportsBoard(supportedBoards []string, platform platform.Platform) bool {
 	return platform.BoardName == "" ||
 		len(supportedBoards) == 0 ||
 		slices.Contains(supportedBoards, platform.BoardName)
-}
-
-const BuiltInNamespace = "arduino"
-
-// IsThirdParty reports whether the brick is not built-in.
-func IsThirdParty(id string) bool {
-	namespace, _, err := ParseBrickID(id)
-	return err == nil && namespace != "" && namespace != BuiltInNamespace
 }
 
 func ParseBrickID(brickID string) (namespace, name string, err error) {

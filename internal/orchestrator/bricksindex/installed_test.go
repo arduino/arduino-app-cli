@@ -168,7 +168,13 @@ func TestFindBrick(t *testing.T) {
 	write("acme/camera/1.2.0", "id: acme:camera\nname: Camera 1.2\n")
 	write("acme/camera/2.0.0", "id: acme:camera\nname: Camera 2.0\nsupported_boards: [other]\n")
 	write("acme/broken/1.0.0", "id: acme:other\n")
-	index := &BricksIndex{platform: platform.Platform{BoardName: "unoq"}}
+	write("acme/local/1.0.0", "id: acme:local\nname: Installed local\n")
+	write("arduino/builtin/1.0.0", "id: arduino:builtin\nname: Installed built-in\n")
+	index := &BricksIndex{
+		platform:      platform.Platform{BoardName: "unoq"},
+		AppBricks:     []Brick{{ID: "acme:local", Name: "Local"}},
+		BuiltInBricks: []Brick{{ID: "arduino:builtin", Name: "Built-in"}},
+	}
 	index.WithInstalledBricks(bricksDir)
 
 	tests := []struct {
@@ -182,6 +188,11 @@ func TestFindBrick(t *testing.T) {
 		{"a pinned version that does not support the board", "acme:camera", "2.0.0", ""},
 		{"an invalid installed brick", "acme:broken", "1.0.0", ""},
 		{"a brick that is not installed", "acme:audio", "1.0.0", ""},
+		// local > built-in > installed: a pinned version never reaches an installed copy.
+		{"an unpinned local brick", "acme:local", "", "Local@"},
+		{"a pinned local brick", "acme:local", "1.0.0", ""},
+		{"an unpinned built-in brick", "arduino:builtin", "", "Built-in@"},
+		{"a pinned built-in brick", "arduino:builtin", "1.0.0", ""},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

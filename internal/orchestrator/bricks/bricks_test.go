@@ -143,7 +143,7 @@ func TestBrickCreate(t *testing.T) {
 		thirdPartyBricks := func() []app.Brick {
 			after, err := app.Load(appDir)
 			require.NoError(t, err)
-			return slices.DeleteFunc(after.Descriptor.Bricks, func(b app.Brick) bool { return !bricksindex.IsThirdParty(b.ID) })
+			return slices.DeleteFunc(after.Descriptor.Bricks, func(b app.Brick) bool { return thirdPartyIndex.IsBuiltIn(b.ID) })
 		}
 
 		t.Run("a brick that is not installed is added without checking its variables", func(t *testing.T) {

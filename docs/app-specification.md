@@ -98,7 +98,7 @@ The `app.yaml` file (also referred to as the **App Descriptor**) is the manifest
 
 ### Third-party Bricks
 
-Bricks outside the `arduino` namespace (e.g., `acme:weather`) are third-party Bricks, published in the online bricks index and installed on the board with `arduino-app-cli brick install`. Each reference resolves to a single version:
+Bricks that do not ship with `arduino-app-cli` and are not local to the App are third-party Bricks, published in the online bricks index and installed on the board with `arduino-app-cli brick install`. Built-in Bricks have a single version and cannot be pinned. Each reference to a third-party Brick resolves to a single version:
 
 - a pinned reference, such as `acme:weather (1.2.0)`, uses that version;
 - an unpinned reference, such as `acme:weather`, uses the latest installed version or, if none is installed, the latest version in the bricks index.

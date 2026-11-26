@@ -53,6 +53,16 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 	var allErrors error
 	models := modelIndex.NewLookup()
 	for _, appBrick := range bricks {
+		if appBrick.Version != "" {
+			switch {
+			case index.IsLocal(appBrick.ID):
+				allErrors = errors.Join(allErrors, fmt.Errorf("brick %q is local to the app and cannot be pinned to a version", appBrick.ID))
+				continue
+			case index.IsBuiltIn(appBrick.ID):
+				allErrors = errors.Join(allErrors, fmt.Errorf("brick %q is built-in and cannot be pinned to a version", appBrick.ID))
+				continue
+			}
+		}
 		indexBrick, found := index.FindBrick(appBrick.ID, appBrick.Version)
 		if !found {
 			allErrors = errors.Join(allErrors, fmt.Errorf("brick %q not found", appBrick.ID))

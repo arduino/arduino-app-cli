@@ -315,32 +315,24 @@ func (a *ArduinoApp) FindBrick(index *bricksindex.BricksIndex, id string) (*bric
 	return index.FindBrick(id, version)
 }
 
-// ThirdPartyBricks returns the third-party bricks the app uses, apart from the ones local to it.
-func (a *ArduinoApp) ThirdPartyBricks() []Brick {
-	var res []Brick
-	for _, brick := range a.Descriptor.Bricks {
-		if !bricksindex.IsThirdParty(brick.ID) || slices.ContainsFunc(a.LocalBricks, func(local bricksindex.Brick) bool { return local.ID == brick.ID }) {
-			continue
-		}
-		res = append(res, brick)
-	}
-	return res
-}
-
 // LookupBrick parses a brick about to be added to an app, given as ID[@VERSION], and returns
-// it with its definition. A third-party brick that is not installed must be listed in the bricks
-// index saved in remoteIndexDir: it is installed when the app starts, and its variables cannot be
-// checked until then (definition is nil).
+// it with its definition. A brick of the app or a built-in one has a single version and cannot
+// be pinned. Any other brick that is not installed must be listed in the bricks index saved in
+// remoteIndexDir: it is installed when the app starts, and its variables cannot be checked until
+// then (definition is nil).
 func LookupBrick(index *bricksindex.BricksIndex, remoteIndexDir *paths.Path, ref string) (Brick, *bricksindex.Brick, error) {
-	if !bricksindex.IsThirdParty(ref) {
-		if strings.Contains(ref, "@") {
-			return Brick{}, nil, fmt.Errorf("brick %q cannot be pinned to a version: only third-party bricks can", ref)
+	id, _, pinned := strings.Cut(ref, "@")
+	// local > built-in > installed > remote
+	if index.IsLocal(id) || index.IsBuiltIn(id) {
+		if pinned {
+			return Brick{}, nil, fmt.Errorf("brick %q cannot be pinned to a version: only the bricks installed from the bricks index can", id)
 		}
-		definition, found := index.FindBrickByID(ref)
-		if !found {
-			return Brick{}, nil, fmt.Errorf("brick %q not found", ref)
-		}
-		return Brick{ID: ref}, definition, nil
+		definition, _ := index.FindBrickByID(id)
+		return Brick{ID: id}, definition, nil
+	}
+	// Only a brick of the app can go without a namespace.
+	if !strings.Contains(id, ":") {
+		return Brick{}, nil, fmt.Errorf("brick %q not found", id)
 	}
 
 	id, version, err := bricksindex.ParseBrickReference(ref)

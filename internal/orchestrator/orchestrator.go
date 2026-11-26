@@ -112,7 +112,7 @@ func StartApp(
 
 	if missing := missingBricks(appToStart, bricksIndex); len(missing) > 0 {
 		if !prepare {
-			return fmt.Errorf("%w: the third-party brick %q is not installed", ErrNotPrepared, missing[0].Reference())
+			return fmt.Errorf("%w: the brick %q is not installed", ErrNotPrepared, missing[0].Reference())
 		}
 		if err := installBricks(ctx, docker, cfg, servicesIndex, platform, missing, cb); err != nil {
 			return fmt.Errorf("failed to install the bricks of the app: %w", err)

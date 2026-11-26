@@ -64,7 +64,7 @@ func TestCreateAppWithThirdPartyBricks(t *testing.T) {
 		require.Equal(t, []app.Brick{{ID: "arduino:camera"}, {ID: "acme:hello", Version: "1.0.0"}}, a.Descriptor.Bricks)
 	})
 
-	for _, ref := range []string{"acme:other", "acme:hello@2.0.0", "arduino:camera@1.0.0"} {
+	for _, ref := range []string{"acme:other", "arduino:other", "acme:hello@2.0.0", "arduino:camera@1.0.0"} {
 		t.Run("rejects "+ref, func(t *testing.T) {
 			_, err := CreateApp(CreateAppRequest{Name: "rejected", Bricks: []string{ref}}, bricksIndex, idProvider, cfg)
 			require.ErrorIs(t, err, ErrBadRequest)

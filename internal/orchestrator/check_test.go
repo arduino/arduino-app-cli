@@ -309,6 +309,28 @@ func TestCheckBricksReturnsMissingRequiredVariableError(t *testing.T) {
 	assert.Equal(t, "arduino:cloud", missing.BrickID)
 }
 
+func TestCheckBricksRejectsPinnedLocalAndBuiltInBricks(t *testing.T) {
+	index := &bricksindex.BricksIndex{
+		BuiltInBricks: []bricksindex.Brick{{ID: "arduino:cloud"}, {ID: "arduino:shadowed"}},
+		// A local brick takes the place of the built-in one with the same id.
+		AppBricks: []bricksindex.Brick{{ID: "my-brick"}, {ID: "arduino:shadowed"}},
+	}
+	err := checkBricks(
+		t.Context(),
+		[]app.Brick{
+			{ID: "arduino:cloud", Version: "1.0.0"},
+			{ID: "my-brick", Version: "1.0.0"},
+			{ID: "arduino:shadowed", Version: "1.0.0"},
+		},
+		index,
+		&modelsindex.ModelsIndex{},
+		true,
+	)
+	require.EqualError(t, err, `brick "arduino:cloud" is built-in and cannot be pinned to a version`+"\n"+
+		`brick "my-brick" is local to the app and cannot be pinned to a version`+"\n"+
+		`brick "arduino:shadowed" is local to the app and cannot be pinned to a version`)
+}
+
 func TestValidateVirtualDevice(t *testing.T) {
 	// fail if a camera device is not detected and one of two brick require a physical camera
 

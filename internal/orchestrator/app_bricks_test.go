@@ -24,6 +24,7 @@ func TestMissingBricks(t *testing.T) {
 	a := app.ArduinoApp{
 		Descriptor: app.AppDescriptor{Bricks: []app.Brick{
 			{ID: "arduino:web_ui"},
+			{ID: "arduino:published"},
 			{ID: "acme:local"},
 			{ID: "acme:camera"},
 			{ID: "acme:camera", Version: "1.0.0"},
@@ -32,11 +33,13 @@ func TestMissingBricks(t *testing.T) {
 		}},
 		LocalBricks: []bricksindex.Brick{{ID: "acme:local"}},
 	}
-	index := (&bricksindex.BricksIndex{}).WithInstalledBricks(bricksDir)
+	index := (&bricksindex.BricksIndex{BuiltInBricks: []bricksindex.Brick{{ID: "arduino:web_ui"}}}).WithInstalledBricks(bricksDir)
 
 	// The built-in and the local bricks are never missing, an unpinned brick is missing only
-	// when no version is installed, and a pinned one when its version is not installed.
+	// when no version is installed, and a pinned one when its version is not installed. The
+	// namespace does not matter: a brick that does not ship with the cli is installed.
 	require.Equal(t, []app.Brick{
+		{ID: "arduino:published"},
 		{ID: "acme:camera", Version: "2.0.0"},
 		{ID: "acme:audio"},
 	}, missingBricks(a, a.Bricks(index)))
