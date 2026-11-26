@@ -8,31 +8,35 @@ package helpers
 import (
 	"fmt"
 	"net"
+	"path"
 	"strconv"
 
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 )
 
+// ArduinoCLIDownloadProgressToString states the file a download gets, and its failure.
+// The chunks and a success are empty.
 func ArduinoCLIDownloadProgressToString(progress *rpc.DownloadProgress) string {
 	switch {
 	case progress.GetStart() != nil:
-		return fmt.Sprintf("Download started: %s", progress.GetStart().GetUrl())
+		return "Downloading " + path.Base(progress.GetStart().GetUrl())
 	case progress.GetUpdate() != nil:
-		update := progress.GetUpdate()
-		downloaded := ToHumanMiB(update.GetDownloaded())
-		total := ToHumanMiB(update.GetTotalSize())
-		return fmt.Sprintf("Download progress: %s / %s", downloaded, total)
+		return ""
 	case progress.GetEnd() != nil:
 		end := progress.GetEnd()
 		if !end.GetSuccess() {
 			return fmt.Sprintf("Download failed: %s", end.GetMessage())
 		}
-		return "Download completed"
+		return ""
 	}
 	return progress.String()
 }
 
+// ArduinoCLITaskProgressToString states a task; a task with no name is empty.
 func ArduinoCLITaskProgressToString(progress *rpc.TaskProgress) string {
+	if progress.GetName() == "" && progress.GetMessage() == "" {
+		return ""
+	}
 	name := progress.GetName()
 	if msg := progress.GetMessage(); msg != "" {
 		name += fmt.Sprintf(" (%s)", msg)

@@ -21,7 +21,6 @@ import (
 )
 
 func newStartCmd(cfg config.Configuration) *cobra.Command {
-	var verbose bool
 	var noPrepare bool
 	cmd := &cobra.Command{
 		Use:   "start app_path",
@@ -35,7 +34,7 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return startHandler(cmd.Context(), cfg, app, verbose, !noPrepare)
+			return startHandler(cmd.Context(), cfg, app, feedback.Verbose(), !noPrepare)
 		},
 		ValidArgsFunction: completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
 			return apps.Status != orchestrator.StatusStarting &&
@@ -43,23 +42,15 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 		}),
 	}
 
-	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	cmd.Flags().BoolVar(&noPrepare, "no-prepare", false, "Start the app without preparing it first, failing if its containers or models are not already on the board")
 
 	return cmd
 }
 
 func startHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, verbose bool, prepare bool) error {
-	out, _, getResult := feedback.OutputStreams()
+	_, _, getResult := feedback.OutputStreams()
 
-	streamCb := func(message orchestrator.StreamMessage) {
-		switch message.GetType() {
-		case orchestrator.ProgressType:
-			fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)
-		case orchestrator.InfoType:
-			fmt.Fprintln(out, "[INFO]", message.GetData())
-		}
-	}
+	streamCb, done := newProgress()
 
 	// A release is prepared apart, by the wrapper of a prepare, before it is started.
 	// An editable app is prepared by its own start instead.
@@ -73,7 +64,8 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 			servicelocator.GetPlatform(),
 			streamCb,
 		); err != nil {
-			feedback.Fatal(fmt.Sprintf("[ERROR] %s", err.Error()), feedback.ErrGeneric)
+			done()
+			feedback.Fatal(err.Error(), feedback.ErrGeneric)
 		}
 	}
 
@@ -91,6 +83,7 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 		prepare,
 		streamCb,
 	)
+	done()
 	if err != nil {
 		feedback.Fatal(decorateErrorMessage(err, app.FullPath.String()), feedback.ErrGeneric)
 	}
@@ -108,7 +101,7 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 func decorateErrorMessage(err error, appPath string) string {
 	suggestions := missingVariableSuggestions(err, appPath)
 	messages := make([]string, 0, len(suggestions)+1)
-	messages = append(messages, fmt.Sprintf("[ERROR] %s", err))
+	messages = append(messages, err.Error())
 	messages = append(messages, suggestions...)
 	return strings.Join(messages, "\n")
 }

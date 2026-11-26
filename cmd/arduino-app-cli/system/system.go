@@ -8,8 +8,11 @@ package system
 import (
 	"fmt"
 	"slices"
+	"strings"
+	"text/tabwriter"
 
 	"github.com/docker/cli/cli/command"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/cmdutil"
@@ -58,6 +61,12 @@ func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 				return err
 			}
 
+			// The JSON formats keep the stream of the events.
+			var progress *feedback.Progress
+			if feedback.GetFormat() == feedback.Text {
+				progress = feedback.NewProgress()
+				defer progress.Done()
+			}
 			return orchestrator.SystemInit(
 				cmd.Context(),
 				cfg,
@@ -70,7 +79,7 @@ func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 					OnlyDockerImages:    onlyImages,
 					OnlyPlatformAndLibs: onlyPlatformAndLibraries,
 				},
-				newInitEventCallback(printEvent),
+				newInitEventCallback(printEvent, progress),
 			)
 		},
 	}
@@ -101,22 +110,32 @@ func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 				arduino.NewArduinoPlatformUpdater(servicelocator.GetPlatform(), cfg.ArduinoPlatformVersionConstraint),
 			)
 
+			stopSpinner := feedback.Spin("Checking for updates")
 			pkgs, err := updater.ListUpgradablePackages(cmd.Context(), filterFunc)
+			stopSpinner()
 			if err != nil {
 				return err
 			}
 			if len(pkgs) == 0 {
-				feedback.Printf("No upgradable packages found.")
+				feedback.Print(color.GreenString("✓") + " Everything is up to date")
 				return nil
 			}
 
-			feedback.Printf("Found %d upgradable packages:", len(pkgs))
-			for _, pkg := range pkgs {
-				feedback.Printf("Package: %s, From: %s, To: %s", pkg.Name, pkg.FromVersion, pkg.ToVersion)
+			header := fmt.Sprintf("▸ %d packages to upgrade", len(pkgs))
+			if len(pkgs) == 1 {
+				header = "▸ 1 package to upgrade"
 			}
+			feedback.Print(feedback.Teal.Sprint(header))
+			var table strings.Builder
+			columns := tabwriter.NewWriter(&table, 0, 0, 2, ' ', 0)
+			for _, pkg := range pkgs {
+				fmt.Fprintf(columns, "  %s\t%s\t→ %s\n", pkg.Name, pkg.FromVersion, pkg.ToVersion)
+			}
+			_ = columns.Flush()
+			feedback.Print(strings.TrimSuffix(table.String(), "\n"))
 
 			if !forceYes {
-				yes, err := feedback.Confirm("Do you want to upgrade these packages? (yes/no)")
+				yes, err := feedback.Confirm("Upgrade these packages? [y/N]")
 				if err != nil {
 					return err
 				}
@@ -130,17 +149,27 @@ func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 			}
 
 			events := updater.Subscribe()
+			progress := feedback.NewProgress()
+			defer progress.Done()
+			// The steps that print the apt output.
+			aptSteps := map[string]bool{"apt upgrade": true, "apt cache cleanup": true, "board package install": true}
+			step := ""
 			for event := range events {
 				switch event.Type {
 				case update.ErrorEvent:
-					// TODO: add colors to error messages
 					err := event.GetError()
-					feedback.Printf("Error: %s [%s]", err.Error(), update.GetUpdateErrorCode(err))
+					progress.Println(fmt.Sprintf("Error: %s [%s]", err.Error(), update.GetUpdateErrorCode(err)))
 				case update.ProgressEvent:
-					progress := event.GetProgress()
-					feedback.Printf("[%s] %s %.0f%%", event.Type.String(), progress.Step, progress.Progress)
+					step = event.GetProgress().Step
+					progress.Update(step, event.GetProgress().Progress)
+				case update.StartEvent:
+					// The next step names what starts.
 				default:
-					feedback.Printf("[%s] %s", event.Type.String(), event.GetData())
+					if event.Type == update.UpgradeLineEvent && aptSteps[step] && !aptAlert(event.GetData()) {
+						progress.Detail(event.GetData())
+						continue
+					}
+					progress.Println(event.GetData())
 				}
 
 				if event.Type == update.DoneEvent {

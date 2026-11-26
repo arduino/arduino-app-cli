@@ -48,17 +48,18 @@ declare.`,
 }
 
 func modelInstallHandler(ctx context.Context, idOrURL, mmprojURL string) {
-	out, _, getResult := feedback.OutputStreams()
+	_, _, getResult := feedback.OutputStreams()
 
 	// Info and done messages hold the file name and URL; only --log-level debug shows them.
+	progress := feedback.NewProgress()
 	publish := func(m modelsindex.StreamMessage) {
 		switch m.GetType() {
 		case modelsindex.ProgressType:
-			fmt.Fprintf(out, "Downloading model: %.0f%%\n", m.GetProgress().Progress)
+			progress.Update("Downloading the model", m.GetProgress().Progress)
 		case modelsindex.InfoType:
 			slog.Debug("model install", "model", idOrURL, "message", m.GetData())
 		case modelsindex.ErrorType:
-			fmt.Fprintln(out, "[ERROR]", m.GetError())
+			progress.Println(m.GetError())
 		case modelsindex.DoneType:
 			slog.Debug("model install", "model", idOrURL, "message", m.GetDone())
 		}
@@ -74,6 +75,7 @@ func modelInstallHandler(ctx context.Context, idOrURL, mmprojURL string) {
 		installed, err = orchestrator.AIModelInstall(ctx, servicelocator.GetDockerClient(), modelsIndex,
 			servicelocator.GetPlatform(), idOrURL, publish)
 	}
+	progress.Done()
 	switch {
 	case errors.Is(err, modelsindex.ErrUnknownModel):
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)

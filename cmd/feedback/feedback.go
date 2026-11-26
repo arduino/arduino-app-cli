@@ -13,6 +13,10 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
+
+	"charm.land/lipgloss/v2"
+	"github.com/fatih/color"
 
 	"github.com/arduino/arduino-app-cli/cmd/i18n"
 )
@@ -138,6 +142,18 @@ func GetFormat() OutputFormat {
 	return format
 }
 
+var verbose bool
+
+// SetVerbose sets whether a command shows the full output of the tools it runs.
+func SetVerbose(v bool) {
+	verbose = v
+}
+
+// Verbose reports whether a command shows the full output of the tools it runs.
+func Verbose() bool {
+	return verbose
+}
+
 // Printf behaves like fmt.Printf but writes on the out writer and adds a newline.
 func Printf(format string, v ...any) {
 	Print(fmt.Sprintf(format, v...))
@@ -170,10 +186,27 @@ func FatalResult(res ErrorResult, exitCode ExitCode) {
 	os.Exit(int(exitCode))
 }
 
+// The Arduino #00979D as color 30 of the 256 palette. Teal colors a plain print, and turns
+// off without a terminal; tealColor and tealStyle color the live row of a progress.
+var (
+	Teal      = color.New(38, 5, 30, color.Bold)
+	tealColor = lipgloss.Color("30")
+	tealStyle = lipgloss.NewStyle().Foreground(tealColor).Bold(true)
+)
+
 // Fatal outputs the errorMsg and exits with status exitCode.
 func Fatal(errorMsg string, exitCode ExitCode) {
 	if format == Text {
-		fmt.Fprintln(stdErr, errorMsg)
+		// Only the error is red, and only on a terminal: the hints on the next lines stay plain.
+		first, rest, _ := strings.Cut(errorMsg, "\n")
+		first = "✗ " + first
+		if isTerminal(stdErr) {
+			first = color.RedString("%s", first)
+		}
+		fmt.Fprintln(stdErr, first)
+		if rest != "" {
+			fmt.Fprintln(stdErr, rest)
+		}
 		os.Exit(int(exitCode))
 	}
 
@@ -240,6 +273,10 @@ func PrintResult(res Result) {
 		data = string(d)
 	case Text:
 		data = res.String()
+		// The check mark of a success is green.
+		if text, ok := strings.CutPrefix(data, "✓"); ok {
+			data = color.GreenString("✓") + text
+		}
 		if resErr, ok := res.(ErrorResult); ok {
 			dataErr = resErr.ErrorString()
 		}

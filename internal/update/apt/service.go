@@ -114,14 +114,35 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	// download starts. The arduino one is per file, out of an unknown number of
 	// them, so it is only logged.
 	lastImagesProgress := imagesDownloadProgress
+	lastLabel := ""
+	// Each source of a system init result is a step.
+	steps := map[orchestrator.InitEventSource]string{
+		orchestrator.InitSourceDeb:     "board package install",
+		orchestrator.InitSourceArduino: "platforms and libraries download",
+		orchestrator.InitSourceDocker:  "docker images download",
+	}
+	lastSource := orchestrator.InitSourceDocker
 	handleInitResult := func(result orchestrator.InitResult) {
-		if result.Type == orchestrator.InitResultProgress && result.Source == orchestrator.InitSourceDocker {
+		if step, ok := steps[result.Source]; ok && result.Source != lastSource {
+			lastSource = result.Source
+			eventCB(update.NewProgressEvent(step, lastImagesProgress))
+		}
+		if result.Type != orchestrator.InitResultProgress {
+			eventCB(update.NewDataEvent(update.UpgradeLineEvent, result.String()))
+			return
+		}
+		if result.Source == orchestrator.InitSourceDocker {
 			if value := imagesDownloadBand(result.Percent); value > lastImagesProgress {
 				lastImagesProgress = value
 				eventCB(update.NewProgressEvent("docker images download", value))
 			}
 		}
-		eventCB(update.NewDataEvent(update.UpgradeLineEvent, result.String()))
+		// What a download is about is logged once, its percent only moves the progress; a
+		// docker pull has its own line already.
+		if result.Source != orchestrator.InitSourceDocker && result.Label != lastLabel {
+			lastLabel = result.Label
+			eventCB(update.NewDataEvent(update.UpgradeLineEvent, result.Label))
+		}
 	}
 
 	for result, err := range runSystemInit(ctx) {

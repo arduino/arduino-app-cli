@@ -6,9 +6,11 @@
 package arduino
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"github.com/arduino/arduino-cli/commands"
@@ -174,10 +176,14 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 	)
 
 	downloadProgressCB := func(curr *rpc.DownloadProgress) {
-		eventCB(update.NewDataEvent(update.UpgradeLineEvent, helpers.ArduinoCLIDownloadProgressToString(curr)))
+		if line := helpers.ArduinoCLIDownloadProgressToString(curr); line != "" {
+			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+		}
 	}
 	taskProgressCB := func(msg *rpc.TaskProgress) {
-		eventCB(update.NewDataEvent(update.UpgradeLineEvent, helpers.ArduinoCLITaskProgressToString(msg)))
+		if line := helpers.ArduinoCLITaskProgressToString(msg); line != "" {
+			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+		}
 	}
 
 	eventCB(update.NewDataEvent(update.StartEvent, "Upgrade is starting"))
@@ -233,10 +239,8 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 	}
 	fatomic.Sync()
 
-	cbw := orchestrator.NewCallbackWriter(func(line string) {
-		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
-	})
-
+	// The log of the burn is sent only when the burn fails.
+	var burnLog bytes.Buffer
 	eventCB(update.NewProgressEvent("burn bootloader", bootloaderProgress))
 	err = srv.BurnBootloader(
 		&rpc.BurnBootloaderRequest{
@@ -244,9 +248,12 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 			Fqbn:       a.platform.FQBN,
 			Programmer: "jlink",
 		},
-		commands.BurnBootloaderToServerStreams(ctx, cbw, cbw),
+		commands.BurnBootloaderToServerStreams(ctx, &burnLog, &burnLog),
 	)
 	if err != nil {
+		for line := range strings.Lines(burnLog.String()) {
+			eventCB(update.NewDataEvent(update.UpgradeLineEvent, strings.TrimRight(line, "\r\n")))
+		}
 		return fmt.Errorf("error burning bootloader: %w", err)
 	}
 	eventCB(update.NewProgressEvent("platform upgrade completed", completedProgress))

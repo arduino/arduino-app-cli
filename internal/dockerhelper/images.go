@@ -86,10 +86,18 @@ func PullImages(ctx context.Context, docker dockerClient.APIClient, images []str
 	var reported helpers.LastPercent
 	var lastLabel string
 	for i, image := range imagesToPull {
-		line(fmt.Sprintf("Pulling container image %s ...", image))
 		// The percentage stays global (across all images); the label tells the
 		// user which image is currently being pulled.
 		lastLabel = fmt.Sprintf("Pulling image %d/%d (%s)", i+1, len(imagesToPull), imageName(image))
+		// The label of an image goes before its line.
+		if totalBytes > 0 {
+			var downloaded int64
+			for _, layer := range layerProgress {
+				downloaded += layer
+			}
+			progress(lastLabel, min(downloaded, totalBytes), totalBytes)
+		}
+		line(fmt.Sprintf("Pulling container image %s ...", image))
 		if err := pullImage(ctx, docker, image, layerProgress, totalBytes, &reported, func(downloaded int64) {
 			progress(lastLabel, downloaded, totalBytes)
 		}); err != nil {

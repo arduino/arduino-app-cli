@@ -68,6 +68,7 @@ const (
 
 type StreamMessage struct {
 	data     string
+	tool     bool // the data is the output of a tool the app-cli runs
 	progress *Progress
 }
 
@@ -77,6 +78,7 @@ type Progress struct {
 }
 
 func (p *StreamMessage) IsData() bool           { return p.data != "" }
+func (p *StreamMessage) IsTool() bool           { return p.tool }
 func (p *StreamMessage) IsProgress() bool       { return p.progress != nil }
 func (p *StreamMessage) GetData() string        { return p.data }
 func (p *StreamMessage) GetProgress() *Progress { return p.progress }
@@ -176,7 +178,9 @@ func StartApp(
 		}
 	}
 
-	cb(StreamMessage{data: fmt.Sprintf("Starting app %q", appToStart.Name)})
+	starting := fmt.Sprintf("Starting app %q", appToStart.Name)
+	cb(StreamMessage{progress: &Progress{Name: starting, Progress: 0.0}})
+	cb(StreamMessage{data: starting})
 
 	// An app installed from a release holds in .cache what a start generates: the
 	// compose files and the python env, frozen for the board it was built for.
@@ -195,10 +199,8 @@ func StartApp(
 	}
 
 	sketchCallbackWriter := NewCallbackWriter(func(line string) {
-		cb(StreamMessage{data: line})
+		cb(StreamMessage{data: line, tool: true})
 	})
-
-	cb(StreamMessage{progress: &Progress{Name: "preparing", Progress: 0.0}})
 
 	if _, ok := appToStart.GetSketchPath(); ok {
 		if isRelease {
@@ -220,24 +222,29 @@ func StartApp(
 				}
 			}
 
-			if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter); err != nil {
+			// The compile is from 0% to 30% of the start of an app, the upload up to 40%.
+			compiled := func(percent float32) {
+				cb(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: percent * 30 / 100}})
+			}
+			if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter, compiled); err != nil {
 				return err
 			}
 		}
 
-		cb(StreamMessage{progress: &Progress{Name: "sketch updated", Progress: 10.0}})
+		cb(StreamMessage{data: "Sketch uploaded to the microcontroller"})
+		cb(StreamMessage{progress: &Progress{Name: "sketch updated", Progress: 40.0}})
 	}
 
 	if appToStart.MainPythonFile != nil {
 		appEnv := appEnvironment(ctx, appToStart, bricksIndex, modelsIndex, platform)
 
-		cb(StreamMessage{data: "python provisioning"})
 		provisionStartProgress := float32(0.0)
 		if _, ok := appToStart.GetSketchPath(); ok {
-			provisionStartProgress = 10.0
+			provisionStartProgress = 40.0
 		}
 
 		cb(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}})
+		cb(StreamMessage{data: "python provisioning"})
 
 		// The compose files of a release are the ones the build resolved for the
 		// target board: resolving them again here would replace them.
@@ -282,14 +289,15 @@ func StartApp(
 		if err := dockerhelper.PullImages(ctx, docker.Client(), dockerhelper.ComposeImages(prj),
 			func(line string) { cb(StreamMessage{data: line}) },
 			func(label string, curr, total int64) {
-				// Downloading the images is from 20% to 80% of the start of an app.
-				cb(StreamMessage{progress: &Progress{Name: label, Progress: 20 + float32(curr*60/total)}})
+				// Downloading the images is from 40% to 80% of the start of an app.
+				cb(StreamMessage{progress: &Progress{Name: label, Progress: 40 + float32(curr*40/total)}})
 			}); err != nil {
 			return err
 		}
 
 		slog.Debug("starting app", slog.String("project", prj.Name))
-		line := func(line string) { cb(StreamMessage{data: line}) }
+		cb(StreamMessage{progress: &Progress{Name: "starting containers", Progress: 80.0}})
+		line := containerProgress(cb, "starting containers", 80, 100, len(prj.Services), "Started")
 		err = dockerhelper.ComposeUp(ctx, docker, prj, line)
 		if errors.Is(err, dockerhelper.ErrNetwork) {
 			// The board is likely out of subnets: the apps give up the networks they
@@ -323,7 +331,7 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 	case "stop":
 		cb(StreamMessage{data: fmt.Sprintf("Stopping app %q", app.Name)})
 	case "down":
-		cb(StreamMessage{data: fmt.Sprintf("Destroying  app %q", app.Name)})
+		cb(StreamMessage{data: fmt.Sprintf("Destroying app %q", app.Name)})
 	}
 
 	if err := restoreLedsState(platform); err != nil {
@@ -358,13 +366,18 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 		// can remove, and finds what an older cli started just the same.
 		projectName := composeProjectName(app.FullPath, cfg.AppsDir())
 		prj := startedProject(ctx, &app, projectName)
-		line := func(line string) { cb(StreamMessage{data: line}) }
+		containers := 0
+		if prj != nil {
+			containers = len(prj.Services)
+		}
 		var err error
 		switch cmd {
 		case "down":
-			err = dockerhelper.ComposeDown(ctx, docker, projectName, prj, line)
+			cb(StreamMessage{progress: &Progress{Name: "removing containers", Progress: 0.0}})
+			err = dockerhelper.ComposeDown(ctx, docker, projectName, prj, containerProgress(cb, "removing containers", 0, 100, containers, "Removed"))
 		default:
-			err = dockerhelper.ComposeStop(ctx, docker, projectName, prj, line)
+			cb(StreamMessage{progress: &Progress{Name: "stopping containers", Progress: 0.0}})
+			err = dockerhelper.ComposeStop(ctx, docker, projectName, prj, containerProgress(cb, "stopping containers", 0, 100, containers, "Stopped"))
 		}
 		if err != nil {
 			return err
@@ -441,12 +454,41 @@ func RestartApp(
 			return fmt.Errorf("another app %q is running", runningApp.Name)
 		}
 
-		if err := StopApp(ctx, docker, platform, *runningApp, cfg, cb); err != nil {
+		// The stop is the first half of the progress of a restart, the start the second.
+		if err := StopApp(ctx, docker, platform, *runningApp, cfg, scaledProgress(cb, 0, 50)); err != nil {
 			return err
 		}
+		cb = scaledProgress(cb, 50, 100)
 	}
 
 	return StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, !appToStart.IsRelease(), cb)
+}
+
+// scaledProgress maps the progress of a part of an operation to the range from..to of the whole.
+func scaledProgress(cb func(StreamMessage), from, to float32) func(StreamMessage) {
+	return func(message StreamMessage) {
+		if message.progress != nil {
+			progress := *message.progress
+			progress.Progress = from + (to-from)*progress.Progress/100
+			message.progress = &progress
+		}
+		cb(message)
+	}
+}
+
+// containerProgress sends each compose line, and a progress from..to as the containers reach state.
+func containerProgress(cb func(StreamMessage), step string, from, to float32, containers int, state string) func(string) {
+	reached := map[string]bool{}
+	return func(line string) {
+		cb(StreamMessage{data: line})
+		container, ok := strings.CutSuffix(line, " "+state)
+		if !ok || containers == 0 || reached[container] {
+			return
+		}
+		reached[container] = true
+		done := float32(min(len(reached), containers)) / float32(containers)
+		cb(StreamMessage{progress: &Progress{Name: step, Progress: from + (to-from)*done}})
+	}
 }
 
 func StartDefaultApp(
@@ -1159,7 +1201,15 @@ func compileUploadSketch(
 	platform platform.Platform,
 	arduinoApp app.ArduinoApp,
 	w io.Writer,
-) error {
+	progress func(percent float32),
+) (err error) {
+	out, replay := flashOutput(verbose, w)
+	defer func() {
+		if err != nil {
+			replay()
+		}
+	}()
+
 	sketchPath, ok := arduinoApp.GetSketchPath()
 	if !ok {
 		return fmt.Errorf("no sketch path found in the Arduino app")
@@ -1193,7 +1243,7 @@ func compileUploadSketch(
 		ctx, srv, inst,
 		sketchPath, buildPath,
 		platform, fqbn,
-		verbose, w,
+		verbose, w, progress,
 	); err != nil {
 		return err
 	}
@@ -1203,7 +1253,7 @@ func compileUploadSketch(
 		ctx, srv, inst,
 		sketchPath, buildPath,
 		useLegacyFlashToRam,
-		fqbn, w,
+		fqbn, out,
 	); err != nil {
 		return err
 	}
@@ -1211,12 +1261,29 @@ func compileUploadSketch(
 	return nil
 }
 
+// flashOutput is where the log of a flash goes: w with verbose, else a buffer that replay
+// writes to w, for a flash that failed.
+func flashOutput(verbose bool, w io.Writer) (out io.Writer, replay func()) {
+	if verbose {
+		return w, func() {}
+	}
+	toolLog := &bytes.Buffer{}
+	return toolLog, func() { _, _ = io.Copy(w, toolLog) }
+}
+
 func uploadFirmwareFile(
 	ctx context.Context,
 	verbose bool,
 	fwFile *paths.Path,
 	w io.Writer,
-) error {
+) (err error) {
+	out, replay := flashOutput(verbose, w)
+	defer func() {
+		if err != nil {
+			replay()
+		}
+	}()
+
 	srv, inst, err := initializeArduinoCli(ctx, nil, w)
 	if err != nil {
 		return err
@@ -1226,7 +1293,7 @@ func uploadFirmwareFile(
 	}()
 
 	// Upload the sketch
-	uploadServ, _ := commands.UploadFirmwareFileToServerStreams(ctx, w, w)
+	uploadServ, _ := commands.UploadFirmwareFileToServerStreams(ctx, out, out)
 	if err := srv.UploadFirmwareFile(&rpc.UploadFirmwareFileRequest{
 		Instance:     inst,
 		FirmwareFile: fwFile.String(),
@@ -1295,6 +1362,9 @@ func initializeArduinoCli(ctx context.Context, sketchPath *paths.Path, w io.Writ
 					msg.Profile.GetPort(),
 				)
 			}
+			if response == "" {
+				return nil
+			}
 			if _, err := w.Write([]byte(response + "\n")); err != nil {
 				return err
 			}
@@ -1316,11 +1386,16 @@ func compileSketch(
 	fqbn string,
 	verbose bool,
 	w io.Writer,
+	progress func(percent float32),
 ) error {
 	// build the sketch
 	slog.Debug("compile sketch", slog.String("fqbn", fqbn))
 
-	server, getCompileResult := commands.CompilerServerToStreams(ctx, w, w, nil)
+	var taskProgress rpc.TaskProgressCB
+	if progress != nil {
+		taskProgress = func(p *rpc.TaskProgress) { progress(p.GetPercent()) }
+	}
+	server, getCompileResult := commands.CompilerServerToStreams(ctx, w, w, taskProgress)
 	compileReq := rpc.CompileRequest{
 		Instance:   inst,
 		Fqbn:       fqbn,

@@ -20,7 +20,6 @@ import (
 )
 
 func newRestartCmd(cfg config.Configuration) *cobra.Command {
-	var verbose bool
 	cmd := &cobra.Command{
 		Use:   "restart app_path",
 		Short: "Restart or Start an Arduino App",
@@ -33,19 +32,18 @@ func newRestartCmd(cfg config.Configuration) *cobra.Command {
 			if err != nil {
 				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 			}
-			return restartHandler(cmd.Context(), cfg, appToStart, verbose)
+			return restartHandler(cmd.Context(), cfg, appToStart, feedback.Verbose())
 		},
 		ValidArgsFunction: completion.ApplicationNames(cfg),
 	}
-
-	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 
 	return cmd
 }
 
 func restartHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, verbose bool) error {
-	out, _, getResult := feedback.OutputStreams()
+	_, _, getResult := feedback.OutputStreams()
 
+	progress, done := newProgress()
 	err := orchestrator.RestartApp(
 		ctx,
 		servicelocator.GetDockerClient(),
@@ -57,17 +55,11 @@ func restartHandler(ctx context.Context, cfg config.Configuration, app app.Ardui
 		cfg,
 		servicelocator.GetPlatform(),
 		verbose,
-		func(message orchestrator.StreamMessage) {
-			switch message.GetType() {
-			case orchestrator.ProgressType:
-				fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)
-			case orchestrator.InfoType:
-				fmt.Fprintln(out, "[INFO]", message.GetData())
-			}
-		},
+		progress,
 	)
+	done()
 	if err != nil {
-		feedback.Fatal(fmt.Sprintf("[ERROR] %s", err.Error()), feedback.ErrGeneric)
+		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
 
 	outputResult := getResult()
