@@ -16,10 +16,12 @@ import (
 	"time"
 
 	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/containerd/errdefs"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v5/pkg/api"
 	"github.com/docker/compose/v5/pkg/compose"
+	"github.com/moby/moby/api/types/container"
 	dockerClient "github.com/moby/moby/client"
 )
 
@@ -75,6 +77,37 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 		return fmt.Errorf("%w: %w", ErrNetwork, reported.networkError)
 	}
 	return err
+}
+
+// ComposeUpToDate tells whether an up would keep every container of the project as it is: each
+// service has one running container with the hash compose gave it and its image, and none builds.
+func ComposeUpToDate(ctx context.Context, docker dockerClient.APIClient, prj *types.Project) (bool, error) {
+	containers, err := Containers(ctx, docker, api.ProjectLabel+"="+prj.Name)
+	if err != nil || len(containers) != len(prj.Services) {
+		return false, err
+	}
+	seen := make(map[string]bool, len(containers))
+	for _, c := range containers {
+		name := c.Labels[api.ServiceLabel]
+		service, ok := prj.Services[name]
+		if !ok || seen[name] || service.Build != nil || c.State != container.StateRunning {
+			return false, nil
+		}
+		seen[name] = true
+		hash, err := compose.ServiceHash(service)
+		if err != nil || c.Labels[api.ConfigHashLabel] != hash {
+			return false, err
+		}
+		// The tag may name another image since the container was created
+		img, err := docker.ImageInspect(ctx, service.Image)
+		if errors.Is(err, errdefs.ErrNotFound) {
+			return false, nil
+		}
+		if err != nil || img.ID != c.ImageID {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 // ErrNetwork states that the network of the app was not created. A pool with no
