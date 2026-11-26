@@ -47,7 +47,7 @@ func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 		if !ok {
 			continue
 		}
-		isMain := c.Labels[DockerAppMainLabel] == "true"
+		isMain := c.Labels[DockerAppMainLabel] == "true" //nolint:goconst
 		appsStatusMap[appPath] = append(appsStatusMap[appPath], StatusFromDockerState(c.State, c.Status, isMain))
 	}
 
