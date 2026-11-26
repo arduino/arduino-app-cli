@@ -96,6 +96,71 @@ func TestComposeStopRunsPreStopHooks(t *testing.T) {
 	require.True(t, hooksDir.Join("pre-stop").Exist())
 }
 
+func TestComposeUpToDate(t *testing.T) {
+	docker := getDockerCli(t)
+	const projectName = "arduino-app-cli-up-to-date"
+	// A tag of the test, which a case can point at another image
+	const image = "arduino-app-cli-up-to-date:test"
+	require.NoError(t, PullImages(t.Context(), docker.Client(), []string{"busybox:latest"}, nil, nil))
+	t.Cleanup(func() {
+		_, _ = docker.Client().ImageRemove(context.Background(), image, dockerClient.ImageRemoveOptions{Force: true})
+	})
+
+	tests := []struct {
+		name   string
+		change func(t *testing.T, prj *types.Project, main container.Summary)
+		want   bool
+	}{
+		{name: "an unchanged project", change: func(*testing.T, *types.Project, container.Summary) {}, want: true},
+		{name: "a changed service", want: false, change: func(_ *testing.T, prj *types.Project, _ container.Summary) {
+			main := prj.Services["main"]
+			main.Command = types.ShellCommand{"sleep", "601"}
+			prj.Services["main"] = main
+		}},
+		{name: "a new service", want: false, change: func(_ *testing.T, prj *types.Project, _ container.Summary) {
+			prj.Services["other"] = types.ServiceConfig{Name: "other", Image: image, Command: types.ShellCommand{"sleep", "600"}}
+		}},
+		{name: "a stopped container", want: false, change: func(t *testing.T, _ *types.Project, main container.Summary) {
+			_, err := docker.Client().ContainerStop(t.Context(), main.ID, dockerClient.ContainerStopOptions{})
+			require.NoError(t, err)
+			// The list can show the container running for a while after its stop
+			require.NoError(t, waitStopped(t.Context(), docker.Client(), api.ProjectLabel+"="+projectName, stopTimeout))
+		}},
+		{name: "a tag naming another image", want: false, change: func(t *testing.T, _ *types.Project, main container.Summary) {
+			committed, err := docker.Client().ContainerCommit(t.Context(), main.ID, dockerClient.ContainerCommitOptions{Reference: image})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, _ = docker.Client().ImageRemove(context.Background(), committed.ID, dockerClient.ImageRemoveOptions{Force: true})
+			})
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := docker.Client().ImageTag(t.Context(), dockerClient.ImageTagOptions{Source: "busybox:latest", Target: image})
+			require.NoError(t, err)
+			prj := &types.Project{
+				Name:       projectName,
+				WorkingDir: t.TempDir(),
+				Services: types.Services{
+					"main": types.ServiceConfig{Name: "main", Image: image, Command: types.ShellCommand{"sleep", "600"}},
+				},
+			}
+			t.Cleanup(func() {
+				_ = ComposeDown(context.Background(), docker, projectName, nil, nil)
+			})
+			require.NoError(t, ComposeUp(t.Context(), docker, prj, nil))
+			containers, err := Containers(t.Context(), docker.Client(), api.ProjectLabel+"="+projectName)
+			require.NoError(t, err)
+			require.Len(t, containers, 1)
+
+			tt.change(t, prj, containers[0])
+			upToDate, err := ComposeUpToDate(t.Context(), docker.Client(), prj)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, upToDate)
+		})
+	}
+}
+
 // TestComposeUpPrunesReplacedBuilds rebuilds a service after a change to its context: the
 // image it replaces must not stay on the board.
 func TestComposeUpPrunesReplacedBuilds(t *testing.T) {

@@ -170,6 +170,20 @@ func getAppServicesFromContainers(ctx context.Context, docker dockerClient.APICl
 	return services, nil
 }
 
+// mainContainer is the main container of the app, nil when it has none.
+func mainContainer(ctx context.Context, docker dockerClient.APIClient, appPath *paths.Path) (*container.Summary, error) {
+	containers, err := dockerhelper.Containers(ctx, docker, DockerAppMainLabel+"=true")
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range containers {
+		if c.Labels[DockerAppPathLabel] == appPath.String() {
+			return &c, nil
+		}
+	}
+	return nil, nil
+}
+
 // composeProjectName is the docker project an app installed at appPath runs as. An app
 // of the board is named after the apps dir, anything else after the path it is at.
 func composeProjectName(appPath *paths.Path, appsDir *paths.Path) string {

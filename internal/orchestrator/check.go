@@ -21,6 +21,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 // TODO: group these in one function, called by both the app start and the app build.
@@ -260,4 +261,22 @@ func checkRequiredDevices(requiredClasses []peripherals.DeviceClass, availableDe
 	}
 
 	return allErrors
+}
+
+// checkDevices fails when the board lacks a device the app bricks require.
+func checkDevices(ctx context.Context, platform platform.Platform, bricksIndex *bricksindex.BricksIndex, appBricks []app.Brick) error {
+	requiredClasses, err := requiredDeviceClasses(bricksIndex, appBricks)
+	if err != nil {
+		return err
+	}
+
+	// Detect the board peripherals only when the app needs them.
+	if len(requiredClasses) == 0 {
+		return nil
+	}
+	devices, err := peripherals.Detect(ctx, platform)
+	if err != nil {
+		return err
+	}
+	return checkRequiredDevices(requiredClasses, devices)
 }

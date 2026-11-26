@@ -25,6 +25,8 @@ import (
 	"github.com/docker/cli/cli/command"
 	"github.com/goccy/go-yaml"
 	"github.com/gosimple/slug"
+	"github.com/moby/moby/api/types/container"
+	dockerClient "github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
 	semver "go.bug.st/relaxed-semver"
@@ -37,8 +39,8 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/launcher"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -126,22 +128,8 @@ func StartApp(
 		return err
 	}
 
-	requiredClasses, err := requiredDeviceClasses(bricksIndex, appToStart.Descriptor.Bricks)
-	if err != nil {
+	if err := checkDevices(ctx, platform, bricksIndex, appToStart.Descriptor.Bricks); err != nil {
 		return err
-	}
-
-	// Detect the board peripherals only when the app needs them.
-	var devices peripherals.AvailableDevices
-	if len(requiredClasses) > 0 {
-		devices, err = peripherals.Detect(ctx, platform)
-		if err != nil {
-			return err
-		}
-
-		if err := checkRequiredDevices(requiredClasses, devices); err != nil {
-			return err
-		}
 	}
 
 	appsStatus, err := getAppsStatus(ctx, docker.Client())
@@ -194,97 +182,15 @@ func StartApp(
 		slog.Debug("unable to set status leds", slog.String("error", err.Error()))
 	}
 
-	sketchCallbackWriter := NewCallbackWriter(func(line string) {
-		cb(StreamMessage{data: line})
-	})
-
 	cb(StreamMessage{progress: &Progress{Name: "preparing", Progress: 0.0}})
 
-	if _, ok := appToStart.GetSketchPath(); ok {
-		if isRelease {
-			cb(StreamMessage{progress: &Progress{Name: "uploading sketch", Progress: 0.0}})
-
-			// The firmware of a release is the one the build compiled: a start only uploads it.
-			fwFile := appToStart.ProvisioningStateDir().Join(ReleaseFirmwareFileName)
-			if err := uploadFirmwareFile(ctx, verbose, fwFile, sketchCallbackWriter); err != nil {
-				return err
-			}
-		} else {
-			cb(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}})
-
-			if editable, err := appToStart.GetAsEditable(); err == nil {
-				if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, editable); err != nil {
-					cb(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()})
-				} else if ok {
-					cb(StreamMessage{data: "Applied app migration for platform arduino:zephyr >0.54.1. Arduino_RouterBridge is now part of the platform and shouldn't be explicitly specified"})
-				}
-			}
-
-			if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter); err != nil {
-				return err
-			}
-		}
-
-		cb(StreamMessage{progress: &Progress{Name: "sketch updated", Progress: 10.0}})
+	if err := updateSketch(ctx, verbose, platform, appToStart, cb); err != nil {
+		return err
 	}
 
 	if appToStart.MainPythonFile != nil {
-		appEnv := appEnvironment(ctx, appToStart, bricksIndex, modelsIndex, platform)
-
-		cb(StreamMessage{data: "python provisioning"})
-		provisionStartProgress := float32(0.0)
-		if _, ok := appToStart.GetSketchPath(); ok {
-			provisionStartProgress = 10.0
-		}
-
-		cb(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}})
-
-		// The compose files of a release are the ones the build resolved for the
-		// target board: resolving them again here would replace them.
-		if !isRelease {
-			// An app is provisioned every time it is started: it is editable, so its
-			// bricks, model or ports may have changed since the last run.
-			if err := provisioner.Resolve(&appToStart, appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, cfg, appEnv, platform); err != nil {
-				return err
-			}
-		}
-
-		// What the template references, answered on this board. The app half is in
-		// the template already, frozen, when the app comes from a release.
-		env := hostEnvironment(ctx, appToStart.FullPath, cfg).Merge(appEnv)
-		prj, err := provisioner.Render(ctx, &appToStart, env, appToStart.Secrets(bricksIndex))
+		prj, err := provisionApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, prepare, cb)
 		if err != nil {
-			return err
-		}
-
-		// Without a prepare, a start never fetches nor builds an image: it fails on a
-		// missing one and asks for a prepare first.
-		if !prepare {
-			if err := checkImages(ctx, docker, prj); err != nil {
-				return err
-			}
-			for name, service := range prj.Services {
-				service.PullPolicy = types.PullPolicyNever
-				prj.Services[name] = service
-			}
-		}
-
-		// The folder the launcher binds its socket in, created by the daemon so that the
-		// app user owns it: docker would create a missing bind source as root.
-		if launcherServed(prj) {
-			if err := appRuntimeDir(cfg, appToStart.FullPath).MkdirAll(); err != nil {
-				return fmt.Errorf("failed to create the app runtime folder: %w", err)
-			}
-		}
-
-		cb(StreamMessage{data: "python downloading"})
-
-		if err := dockerhelper.PullImages(ctx, docker.Client(), dockerhelper.ComposeImages(prj),
-			func(line string) { cb(StreamMessage{data: line}) },
-			func(label string, curr, total int64) {
-				// Downloading the images is from 20% to 80% of the start of an app.
-				cb(StreamMessage{progress: &Progress{Name: label, Progress: 20 + float32(curr*60/total)}})
-			}); err != nil {
 			return err
 		}
 
@@ -431,6 +337,10 @@ func RestartApp(
 	verbose bool,
 	cb func(StreamMessage),
 ) error {
+	if cb == nil {
+		cb = func(StreamMessage) {}
+	}
+
 	runningApp, err := getRunningApp(ctx, docker.Client())
 	if err != nil {
 		return err
@@ -439,6 +349,15 @@ func RestartApp(
 	if runningApp != nil {
 		if runningApp.FullPath.String() != appToStart.FullPath.String() {
 			return fmt.Errorf("another app %q is running", runningApp.Name)
+		}
+
+		// A release is stopped and started
+		if !appToStart.IsRelease() {
+			err := restartInPlace(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, cb)
+			if !errors.Is(err, errReload) || ctx.Err() != nil {
+				return err
+			}
+			cb(StreamMessage{data: err.Error() + ", restarting it"})
 		}
 
 		if err := StopApp(ctx, docker, platform, *runningApp, cfg, cb); err != nil {
@@ -1151,6 +1070,222 @@ func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configu
 		}
 	}
 	return nil
+}
+
+var errReload = errors.New("the app could not be reloaded in its container")
+
+// restartInPlace updates a running editable app without stopping it: compose recreates what
+// changed, and a main container it keeps runs the app again.
+func restartInPlace(
+	ctx context.Context,
+	docker command.Cli,
+	provisioner *Provision,
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+	servicesIndex *servicesindex.ServicesIndex,
+	appToStart app.ArduinoApp,
+	cfg config.Configuration,
+	platform platform.Platform,
+	verbose bool,
+	cb func(StreamMessage),
+) error {
+	// Without its socket the launcher cannot reload the app, and a stop and start does the work once
+	socket := appRuntimeDir(cfg, appToStart.FullPath).Join(launcherSocketFile)
+	if !socket.Exist() {
+		return fmt.Errorf("%w: no app launcher listens on %s", errReload, socket)
+	}
+
+	bricksIndex = appToStart.Bricks(bricksIndex)
+	modelsIndex = appToStart.Models(modelsIndex, docker, cfg, platform)
+	if err := prepareModels(ctx, docker, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex, platform, cb); err != nil {
+		return err
+	}
+	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex, true); err != nil {
+		return err
+	}
+	if err := checkPortCollisions(appToStart.Descriptor, bricksIndex, servicesIndex); err != nil {
+		return err
+	}
+	if err := checkDevices(ctx, platform, bricksIndex, appToStart.Descriptor.Bricks); err != nil {
+		return err
+	}
+
+	cb(StreamMessage{data: fmt.Sprintf("Restarting app %q", appToStart.Name)})
+	cb(StreamMessage{progress: &Progress{Name: "preparing", Progress: 0.0}})
+
+	if err := updateSketch(ctx, verbose, platform, appToStart, cb); err != nil {
+		return err
+	}
+
+	if appToStart.MainPythonFile != nil {
+		prj, err := provisionApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, true, cb)
+		if err != nil {
+			return err
+		}
+		kept, err := mainContainer(ctx, docker.Client(), appToStart.FullPath)
+		if err != nil {
+			return err
+		}
+		upToDate, err := dockerhelper.ComposeUpToDate(ctx, docker.Client(), prj)
+		if err != nil {
+			return err
+		}
+		if upToDate {
+			cb(StreamMessage{data: "The containers of the app are up to date"})
+		} else if err := dockerhelper.ComposeUp(ctx, docker, prj, func(line string) { cb(StreamMessage{data: line}) }); err != nil {
+			return err
+		}
+		after, err := mainContainer(ctx, docker.Client(), appToStart.FullPath)
+		if err != nil {
+			return err
+		}
+		// A main container compose kept running gets the new app from the launcher, a new one starts it
+		if kept != nil && kept.State == container.StateRunning && after != nil && after.ID == kept.ID {
+			// FIXME: a local brick container that compose kept still runs the old code it mounts
+			for _, brick := range appToStart.LocalBricks {
+				if _, ok := brick.GetComposeFile(); ok {
+					cb(StreamMessage{data: fmt.Sprintf("Warning: the container of the local brick %q may not be restarted, stop and start the app to run its new code", brick.ID)})
+				}
+			}
+			cb(StreamMessage{data: "Reloading the app in its container"})
+			client := launcher.New(socket.String(), 15*time.Second)
+			// Only the first process of the container answers as the launcher
+			_, err = client.WithPeer(func(pid int) error {
+				inspected, err := docker.Client().ContainerInspect(ctx, after.ID, dockerClient.ContainerInspectOptions{})
+				if err != nil {
+					return err
+				}
+				if state := inspected.Container.State; state == nil || state.Pid != pid {
+					return fmt.Errorf("pid %d is not the first process of the app container", pid)
+				}
+				return nil
+			}).Start(ctx, nil)
+			// The sketch and the bricks are already updated: a restart of the container runs the new app
+			if err != nil {
+				cb(StreamMessage{data: fmt.Sprintf("the app could not be reloaded in its container: %s, restarting the container", err)})
+				if _, err := docker.Client().ContainerRestart(ctx, after.ID, dockerClient.ContainerRestartOptions{}); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
+	return nil
+}
+
+// updateSketch puts the sketch of the app on the micro: a release uploads the firmware it
+// ships, an editable app is compiled first.
+func updateSketch(ctx context.Context, verbose bool, platform platform.Platform, appToStart app.ArduinoApp, cb func(StreamMessage)) error {
+	if _, ok := appToStart.GetSketchPath(); !ok {
+		return nil
+	}
+
+	sketchCallbackWriter := NewCallbackWriter(func(line string) {
+		cb(StreamMessage{data: line})
+	})
+
+	if appToStart.IsRelease() {
+		cb(StreamMessage{progress: &Progress{Name: "uploading sketch", Progress: 0.0}})
+
+		// The firmware of a release is the one the build compiled: a start only uploads it.
+		fwFile := appToStart.ProvisioningStateDir().Join(ReleaseFirmwareFileName)
+		if err := uploadFirmwareFile(ctx, verbose, fwFile, sketchCallbackWriter); err != nil {
+			return err
+		}
+	} else {
+		cb(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}})
+
+		if editable, err := appToStart.GetAsEditable(); err == nil {
+			if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, editable); err != nil {
+				cb(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()})
+			} else if ok {
+				cb(StreamMessage{data: "Applied app migration for platform arduino:zephyr >0.54.1. Arduino_RouterBridge is now part of the platform and shouldn't be explicitly specified"})
+			}
+		}
+
+		if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter); err != nil {
+			return err
+		}
+	}
+
+	cb(StreamMessage{progress: &Progress{Name: "sketch updated", Progress: 10.0}})
+	return nil
+}
+
+// provisionApp writes and renders the compose files of the app, and fetches its images
+// when prepare is set.
+func provisionApp(
+	ctx context.Context,
+	docker command.Cli,
+	provisioner *Provision,
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+	servicesIndex *servicesindex.ServicesIndex,
+	appToStart app.ArduinoApp,
+	cfg config.Configuration,
+	platform platform.Platform,
+	prepare bool,
+	cb func(StreamMessage),
+) (*types.Project, error) {
+	appEnv := appEnvironment(ctx, appToStart, bricksIndex, modelsIndex, platform)
+
+	cb(StreamMessage{data: "python provisioning"})
+	provisionStartProgress := float32(0.0)
+	if _, ok := appToStart.GetSketchPath(); ok {
+		provisionStartProgress = 10.0
+	}
+
+	cb(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}})
+
+	// The compose files of a release are the ones the build resolved for the
+	// target board: resolving them again here would replace them.
+	if !appToStart.IsRelease() {
+		// An app is provisioned every time it is started: it is editable, so its
+		// bricks, model or ports may have changed since the last run.
+		if err := provisioner.Resolve(&appToStart, appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, cfg, appEnv, platform); err != nil {
+			return nil, err
+		}
+	}
+
+	// What the template references, answered on this board. The app half is in
+	// the template already, frozen, when the app comes from a release.
+	env := hostEnvironment(ctx, appToStart.FullPath, cfg).Merge(appEnv)
+	prj, err := provisioner.Render(ctx, &appToStart, env, appToStart.Secrets(bricksIndex))
+	if err != nil {
+		return nil, err
+	}
+
+	// Without a prepare, a start never fetches nor builds an image: it fails on a
+	// missing one and asks for a prepare first.
+	if !prepare {
+		if err := checkImages(ctx, docker, prj); err != nil {
+			return nil, err
+		}
+		for name, service := range prj.Services {
+			service.PullPolicy = types.PullPolicyNever
+			prj.Services[name] = service
+		}
+	}
+
+	// The folder the launcher binds its socket in, created by the daemon so that the
+	// app user owns it: docker would create a missing bind source as root.
+	if launcherServed(prj) {
+		if err := appRuntimeDir(cfg, appToStart.FullPath).MkdirAll(); err != nil {
+			return nil, fmt.Errorf("failed to create the app runtime folder: %w", err)
+		}
+	}
+
+	cb(StreamMessage{data: "python downloading"})
+
+	if err := dockerhelper.PullImages(ctx, docker.Client(), dockerhelper.ComposeImages(prj),
+		func(line string) { cb(StreamMessage{data: line}) },
+		func(label string, curr, total int64) {
+			// Downloading the images is from 20% to 80% of the start of an app.
+			cb(StreamMessage{progress: &Progress{Name: label, Progress: 20 + float32(curr*60/total)}})
+		}); err != nil {
+		return nil, err
+	}
+	return prj, nil
 }
 
 func compileUploadSketch(
