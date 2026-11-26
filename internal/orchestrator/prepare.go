@@ -128,18 +128,19 @@ func checkImages(
 
 // prepareModels installs the models an editable app is wired with but does not have yet, so
 // that a start downloads them in place instead of failing as not prepared. It resolves the
-// models the same way checkBricks does, and leaves to it the reporting of anything wrong:
-// an unknown or incompatible model is skipped here and fails the check that follows.
+// models the same way checkBricks does, and leaves the reporting of anything wrong to the
+// checks of the start: an unknown or incompatible model is skipped here. The lookup is the
+// one the start shares with checkModelsInstalled, refreshed after each download.
 func prepareModels(
 	ctx context.Context,
 	docker command.Cli,
 	bricks []app.Brick,
 	index *bricksindex.BricksIndex,
 	modelIndex *modelsindex.ModelsIndex,
+	models *modelsindex.Lookup,
 	plat platform.Platform,
 	cb func(StreamMessage),
 ) error {
-	models := modelIndex.NewLookup()
 	for _, appBrick := range bricks {
 		indexBrick, found := index.FindBrickByID(appBrick.ID)
 		if !found || !indexBrick.RequireModel {
@@ -149,7 +150,7 @@ func prepareModels(
 		model, err := models.ByID(ctx, selectedModel)
 		if err != nil || model == nil || model.Status == modelsindex.InstalledStatus {
 			// A model that is unknown, unreadable or already installed is not downloaded
-			// here: checkBricks reports the first two, the last is nothing to do.
+			// here: the checks of the start report the first two, the last is nothing to do.
 			continue
 		}
 		cb(StreamMessage{data: "downloading the model " + selectedModel})
@@ -160,6 +161,7 @@ func prepareModels(
 		}); err != nil {
 			return fmt.Errorf("failed to download the model %q: %w", selectedModel, err)
 		}
+		models.Refresh()
 	}
 	return nil
 }

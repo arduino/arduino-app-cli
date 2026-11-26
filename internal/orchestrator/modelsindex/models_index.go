@@ -198,6 +198,21 @@ func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {
 	return &l.models[idx], nil
 }
 
+// Find answers a model the index declares as declared, its install status unknown, and
+// asks the listing only for one it does not declare. No container runs for a declared model.
+func (l *Lookup) Find(ctx context.Context, id string) (*AIModel, error) {
+	if model, ok := l.known(id); ok {
+		return model, nil
+	}
+	return l.ByID(ctx, id)
+}
+
+// Refresh forgets what the lookup read, so the next question lists the board again: a
+// download makes the listing older than the board.
+func (l *Lookup) Refresh() {
+	*l = Lookup{idx: l.idx}
+}
+
 // known reads the index's own files once per lookup: models-list.yaml and the custom
 // models come off disk, so asking about several models walks the directory once.
 func (l *Lookup) known(id string) (*AIModel, bool) {

@@ -115,7 +115,7 @@ func appEnvironment(
 		}
 
 		if brick.Model != "" {
-			if m, err := models.ByID(ctx, brick.Model); err != nil {
+			if m, err := models.Find(ctx, brick.Model); err != nil {
 				slog.Warn("unable to get model for brick", slog.String("brickID", brick.ID), slog.String("modelID", brick.Model), slog.String("error", err.Error()))
 			} else if m != nil {
 				for _, b := range m.Bricks {
