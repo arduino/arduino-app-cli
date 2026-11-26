@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/url"
 	"regexp"
 	"time"
@@ -33,6 +34,34 @@ var validBrickIDPart = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
 type RemoteIndex struct {
 	Bricks []RemoteBrick `json:"bricks"`
+
+	// dir is the folder of the saved index, nil if the index is not read from disk. When set,
+	// the index is read on every query, so an index updated after it is created is found too.
+	dir *paths.Path
+}
+
+// NewRemoteIndex returns an index that reads the index saved in dir on every query.
+// A missing or invalid saved index has no bricks.
+func NewRemoteIndex(dir *paths.Path) *RemoteIndex {
+	return &RemoteIndex{dir: dir}
+}
+
+// bricks returns the bricks of the index, reading them from dir if it is set.
+func (idx *RemoteIndex) bricks() []RemoteBrick {
+	if idx == nil {
+		return nil
+	}
+	if idx.dir == nil {
+		return idx.Bricks
+	}
+	saved, err := LoadRemoteIndex(idx.dir)
+	if err != nil {
+		if !errors.Is(err, ErrIndexNotFound) {
+			slog.Warn("cannot read the bricks index", "error", err)
+		}
+		return nil
+	}
+	return saved.Bricks
 }
 
 // RemoteBrick is a brick in the bricks index, with its releases.

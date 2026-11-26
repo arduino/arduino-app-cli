@@ -39,6 +39,10 @@ var (
 		return f.Must(modelsindex.Load(GetPlatform(), globalConfig.AssetDir(), globalConfig.ModelsDir(), globalConfig.CustomModelsDir(), GetDockerClient().Client(), globalConfig))
 	})
 
+	GetRemoteBricksIndex = sync.OnceValue(func() *bricksindex.RemoteIndex {
+		return bricksindex.NewRemoteIndex(globalConfig.BricksIndexDir())
+	})
+
 	GetServicesIndex = sync.OnceValue(func() *servicesindex.ServicesIndex {
 		return f.Must(servicesindex.Load(GetPlatform(), globalConfig.AssetDir().Join("services")))
 	})
@@ -68,6 +72,7 @@ var (
 		return bricks.NewService(
 			GetModelsIndex(),
 			GetBricksIndex(),
+			GetRemoteBricksIndex(),
 		)
 	})
 

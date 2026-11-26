@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
@@ -38,23 +39,33 @@ var (
 type Service struct {
 	modelsIndex *modelsindex.ModelsIndex
 	bricksIndex *bricksindex.BricksIndex
+	remoteIndex *bricksindex.RemoteIndex
 }
 
 func NewService(
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
+	remoteIndex *bricksindex.RemoteIndex,
 ) *Service {
 	return &Service{
 		modelsIndex: modelsIndex,
 		bricksIndex: bricksIndex,
+		remoteIndex: remoteIndex,
 	}
 }
 
-func (s *Service) List() BrickListResult {
-	bricks := s.bricksIndex.ListBricks()
-	res := BrickListResult{Bricks: make([]BrickListItem, len(bricks))}
-	for i, brick := range bricks {
-		res.Bricks[i] = BrickListItem{
+func (s *Service) List(query string, platform platform.Platform) BrickListResult {
+	// TODO: remember deprecation for bricks that are not present
+	res := BrickListResult{Bricks: []BrickListItem{}}
+
+	bricks := s.bricksIndex.Search(query)
+	remoteBricks := s.remoteIndex.Search(query, platform)
+
+	brickIDs := make(map[string]bool, len(bricks))
+	for _, brick := range bricks {
+		brickIDs[brick.ID] = true
+
+		res.Bricks = append(res.Bricks, BrickListItem{
 			ID:           brick.ID,
 			Name:         brick.Name,
 			Author:       brick.Source,
@@ -63,8 +74,29 @@ func (s *Service) List() BrickListResult {
 			Status:       "installed",
 			RequireModel: brick.RequireModel,
 			Version:      brick.Version,
-		}
+			Namespace:    brick.Namespace,
+			// Only the bricks installed from the remote index have a version.
+			BuiltIn: brick.Version == "",
+		})
 	}
+
+	for _, brick := range remoteBricks {
+		if brickIDs[brick.ID] {
+			continue
+		}
+		res.Bricks = append(res.Bricks, BrickListItem{
+			ID:          brick.ID,
+			Name:        brick.Name,
+			Author:      brick.Author,
+			Description: brick.Description,
+			Status:      "not-installed",
+			Namespace:   brick.Namespace,
+		})
+	}
+
+	slices.SortFunc(res.Bricks, func(a, b BrickListItem) int {
+		return strings.Compare(a.Name, b.Name)
+	})
 	return res
 }
 

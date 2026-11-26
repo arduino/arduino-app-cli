@@ -76,6 +76,25 @@ func (b *BricksIndex) ListBricks() []Brick {
 	return bricks
 }
 
+func (b *BricksIndex) Search(query string) []Brick {
+
+	bricks := b.ListBricks()
+
+	res := []Brick{}
+	terms := strings.Fields(strings.ToLower(query))
+	for _, b := range bricks {
+		if b.matches(terms) {
+			res = append(res, b)
+		}
+	}
+	return res
+}
+
+// matches reports whether every term is contained in the brick, ignoring case.
+func (b Brick) matches(terms []string) bool {
+	return matchesTerms(terms, b.ID, b.Name, b.Namespace, b.Source, b.Description)
+}
+
 type BrickVariable struct {
 	Name         string `yaml:"name"`
 	DefaultValue string `yaml:"default_value"`
@@ -148,8 +167,10 @@ type Brick struct {
 	ModelConfigurationVariables []string                  `yaml:"model_configuration_variables,omitempty"`
 
 	Source string `yaml:"-"`
-	// Version is set only for the bricks installed from the bricks index.
-	Version string `yaml:"-"`
+	// Version, Namespace and Latest are set only for the bricks installed from the remote bricks index.
+	Version   string `yaml:"-"`
+	Namespace string `yaml:"namespace,omitempty"`
+	Latest    string `yaml:"latest,omitempty"`
 
 	FullPath     *paths.Path `yaml:"-"`
 	ComposeFile  *paths.Path `yaml:"-"` // brick_compose.yaml file path, optional
@@ -416,4 +437,14 @@ func ParseBrickID(brickID string) (namespace, name string, err error) {
 		return "", "", errors.New("invalid ID")
 	}
 	return namespace, brickName, nil
+}
+
+func matchesTerms(terms []string, fields ...string) bool {
+	text := strings.ToLower(strings.Join(fields, " "))
+	for _, term := range terms {
+		if !strings.Contains(text, term) {
+			return false
+		}
+	}
+	return true
 }
