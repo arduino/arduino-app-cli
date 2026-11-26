@@ -315,43 +315,6 @@ func (a *ArduinoApp) FindBrick(index *bricksindex.BricksIndex, id string) (*bric
 	return index.FindBrick(id, version)
 }
 
-// LookupBrick parses a brick about to be added to an app, given as ID[@VERSION], and returns
-// it with its definition. A brick of the app or a built-in one has a single version and cannot
-// be pinned. Any other brick that is not installed must be listed in the bricks index saved in
-// remoteIndexDir: it is installed when the app starts, and its variables cannot be checked until
-// then (definition is nil).
-func LookupBrick(index *bricksindex.BricksIndex, remoteIndexDir *paths.Path, ref string) (Brick, *bricksindex.Brick, error) {
-	id, _, pinned := strings.Cut(ref, "@")
-	// local > built-in > installed > remote
-	if index.IsLocal(id) || index.IsBuiltIn(id) {
-		if pinned {
-			return Brick{}, nil, fmt.Errorf("brick %q cannot be pinned to a version: only the bricks installed from the bricks index can", id)
-		}
-		definition, _ := index.FindBrickByID(id)
-		return Brick{ID: id}, definition, nil
-	}
-	// Only a brick of the app can go without a namespace.
-	if !strings.Contains(id, ":") {
-		return Brick{}, nil, fmt.Errorf("brick %q not found", id)
-	}
-
-	id, version, err := bricksindex.ParseBrickReference(ref)
-	if err != nil {
-		return Brick{}, nil, err
-	}
-	brick := Brick{ID: id}
-	if version != nil {
-		brick.Version = version.String()
-	}
-	if definition, found := index.FindBrick(brick.ID, brick.Version); found {
-		return brick, definition, nil
-	}
-	if err := bricksindex.CheckListed(remoteIndexDir, id, version); err != nil {
-		return Brick{}, nil, err
-	}
-	return brick, nil, nil
-}
-
 // ReleaseBricks is the brick definitions a release ships in its .cache, which are the
 // ones the app was built with. The index of the board is not the one that built the
 // release, so it may hold neither the brick nor the same definition of it. Only the

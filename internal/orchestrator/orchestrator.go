@@ -821,12 +821,11 @@ func CreateApp(
 	}
 
 	appBricks := make([]app.Brick, 0, len(req.Bricks))
-	for _, ref := range req.Bricks {
-		brick, _, err := app.LookupBrick(bricksIndex, cfg.BricksIndexDir(), ref)
-		if err != nil {
-			return CreateAppResponse{}, fmt.Errorf("%w: %w", ErrBadRequest, err)
+	for _, id := range req.Bricks {
+		if _, found := bricksIndex.FindBrickByID(id); !found {
+			return CreateAppResponse{}, fmt.Errorf("%w: brick %q not found", ErrBadRequest, id)
 		}
-		appBricks = append(appBricks, brick)
+		appBricks = append(appBricks, app.Brick{ID: id})
 	}
 
 	basePath, appExists := findAppPathByName(req.Name, cfg)
