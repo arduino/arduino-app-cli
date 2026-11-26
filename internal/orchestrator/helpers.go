@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
@@ -47,7 +48,7 @@ func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 		if !ok {
 			continue
 		}
-		isMain := c.Labels[DockerAppMainLabel] == "true" //nolint:goconst
+		isMain, _ := strconv.ParseBool(c.Labels[DockerAppMainLabel])
 		appsStatusMap[appPath] = append(appsStatusMap[appPath], StatusFromDockerState(c.State, c.Status, isMain))
 	}
 
