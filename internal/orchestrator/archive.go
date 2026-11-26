@@ -338,13 +338,11 @@ func redactSecrets(bricksindex *bricksindex.BricksIndex, desc *app.AppDescriptor
 			continue
 		}
 
-		for k, v := range brick.Variables {
-			if v == "" {
-				continue // Only redact if variable is set
-			}
+		// Remove the secret variables from the app.
+		for k := range brick.Variables {
 			vDef, ok := brickDef.GetVariable(k)
 			if ok && vDef.Secret {
-				brick.Variables[k] = ""
+				delete(brick.Variables, k)
 			}
 		}
 	}
