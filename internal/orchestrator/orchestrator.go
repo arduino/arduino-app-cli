@@ -25,6 +25,8 @@ import (
 	"github.com/docker/cli/cli/command"
 	"github.com/goccy/go-yaml"
 	"github.com/gosimple/slug"
+	"github.com/moby/moby/api/types/container"
+	dockerClient "github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
 	semver "go.bug.st/relaxed-semver"
@@ -37,6 +39,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/launcher"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
@@ -334,6 +337,10 @@ func RestartApp(
 	verbose bool,
 	cb func(StreamMessage),
 ) error {
+	if cb == nil {
+		cb = func(StreamMessage) {}
+	}
+
 	runningApp, err := getRunningApp(ctx, docker.Client())
 	if err != nil {
 		return err
@@ -342,6 +349,15 @@ func RestartApp(
 	if runningApp != nil {
 		if runningApp.FullPath.String() != appToStart.FullPath.String() {
 			return fmt.Errorf("another app %q is running", runningApp.Name)
+		}
+
+		// A release is stopped and started
+		if !appToStart.IsRelease() {
+			err := restartInPlace(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, cb)
+			if !errors.Is(err, errReload) || ctx.Err() != nil {
+				return err
+			}
+			cb(StreamMessage{data: err.Error() + ", restarting it"})
 		}
 
 		if err := StopApp(ctx, docker, platform, *runningApp, cfg, cb); err != nil {
@@ -1053,6 +1069,101 @@ func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configu
 			return fmt.Errorf("failed to unset default app: %w", err)
 		}
 	}
+	return nil
+}
+
+var errReload = errors.New("the app could not be reloaded in its container")
+
+// restartInPlace updates a running editable app without stopping it: compose recreates what
+// changed, and a main container it keeps runs the app again.
+func restartInPlace(
+	ctx context.Context,
+	docker command.Cli,
+	provisioner *Provision,
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+	servicesIndex *servicesindex.ServicesIndex,
+	appToStart app.ArduinoApp,
+	cfg config.Configuration,
+	platform platform.Platform,
+	verbose bool,
+	cb func(StreamMessage),
+) error {
+	// Without its socket the launcher cannot reload the app, and a stop and start does the work once
+	socket := appRuntimeDir(cfg, appToStart.FullPath).Join(launcherSocketFile)
+	if !socket.Exist() {
+		return fmt.Errorf("%w: no app launcher listens on %s", errReload, socket)
+	}
+
+	bricksIndex = appToStart.Bricks(bricksIndex)
+	modelsIndex = appToStart.Models(modelsIndex, docker, cfg, platform)
+	if err := prepareModels(ctx, docker, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex, platform, cb); err != nil {
+		return err
+	}
+	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex, true); err != nil {
+		return err
+	}
+	if err := checkPortCollisions(appToStart.Descriptor, bricksIndex, servicesIndex); err != nil {
+		return err
+	}
+	if err := checkDevices(ctx, platform, bricksIndex, appToStart.Descriptor.Bricks); err != nil {
+		return err
+	}
+
+	cb(StreamMessage{data: fmt.Sprintf("Restarting app %q", appToStart.Name)})
+	cb(StreamMessage{progress: &Progress{Name: "preparing", Progress: 0.0}})
+
+	if err := updateSketch(ctx, verbose, platform, appToStart, cb); err != nil {
+		return err
+	}
+
+	if appToStart.MainPythonFile != nil {
+		prj, err := provisionApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, true, cb)
+		if err != nil {
+			return err
+		}
+		kept, err := mainContainer(ctx, docker.Client(), appToStart.FullPath)
+		if err != nil {
+			return err
+		}
+		if err := dockerhelper.ComposeUp(ctx, docker, prj, func(line string) { cb(StreamMessage{data: line}) }); err != nil {
+			return err
+		}
+		after, err := mainContainer(ctx, docker.Client(), appToStart.FullPath)
+		if err != nil {
+			return err
+		}
+		// A main container compose kept running gets the new app from the launcher, a new one starts it
+		if kept != nil && kept.State == container.StateRunning && after != nil && after.ID == kept.ID {
+			// FIXME: a local brick container that compose kept still runs the old code it mounts
+			for _, brick := range appToStart.LocalBricks {
+				if _, ok := brick.GetComposeFile(); ok {
+					cb(StreamMessage{data: fmt.Sprintf("Warning: the container of the local brick %q may not be restarted, stop and start the app to run its new code", brick.ID)})
+				}
+			}
+			cb(StreamMessage{data: "Reloading the app in its container"})
+			client := launcher.New(socket.String(), 15*time.Second)
+			// Only the first process of the container answers as the launcher
+			_, err = client.WithPeer(func(pid int) error {
+				inspected, err := docker.Client().ContainerInspect(ctx, after.ID, dockerClient.ContainerInspectOptions{})
+				if err != nil {
+					return err
+				}
+				if state := inspected.Container.State; state == nil || state.Pid != pid {
+					return fmt.Errorf("pid %d is not the first process of the app container", pid)
+				}
+				return nil
+			}).Start(ctx, nil)
+			// The sketch and the bricks are already updated: a restart of the container runs the new app
+			if err != nil {
+				cb(StreamMessage{data: fmt.Sprintf("the app could not be reloaded in its container: %s, restarting the container", err)})
+				if _, err := docker.Client().ContainerRestart(ctx, after.ID, dockerClient.ContainerRestartOptions{}); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
 	return nil
 }
 
