@@ -18,6 +18,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	semver "go.bug.st/relaxed-semver"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -39,7 +40,7 @@ type Configuration struct {
 	AllowRoot                        bool
 	LibrariesAPIURL                  *url.URL
 	EdgeImpulseAPIURL                *url.URL
-	BricksIndexURL                   *url.URL
+	BricksIndex                      *bricksindex.IndexResource
 	ArduinoPlatformVersionConstraint semver.Constraint
 }
 
@@ -147,11 +148,19 @@ func NewFromEnv() (Configuration, error) {
 	}
 
 	// TODO: set the default URL of the bricks index once it is final.
-	var parsedBricksIndexURL *url.URL
+	var bricksIndex *bricksindex.IndexResource
 	if bricksIndexURL := os.Getenv("ARDUINO_APP_CLI__BRICKS_INDEX_URL"); bricksIndexURL != "" {
-		parsedBricksIndexURL, err = url.Parse(bricksIndexURL)
+		parsedBricksIndexURL, err := url.Parse(bricksIndexURL)
 		if err != nil {
 			return Configuration{}, fmt.Errorf("invalid ARDUINO_APP_CLI__BRICKS_INDEX_URL: %w", err)
+		}
+		// The index must be signed by Arduino, unless the check is disabled to use an index
+		// that is not published by Arduino, e.g. during development.
+		if skip, _ := strconv.ParseBool(os.Getenv("ARDUINO_APP_CLI__BRICKS_INDEX_SKIP_SIGNATURE_VERIFICATION")); skip {
+			slog.Warn("The signature of the bricks index is not verified")
+			bricksIndex = &bricksindex.IndexResource{URL: parsedBricksIndexURL}
+		} else {
+			bricksIndex = bricksindex.NewSignedIndexResource(parsedBricksIndexURL)
 		}
 	}
 
@@ -176,7 +185,7 @@ func NewFromEnv() (Configuration, error) {
 		AllowRoot:                        allowRoot,
 		LibrariesAPIURL:                  parsedLibrariesURL,
 		EdgeImpulseAPIURL:                parsedEdgeImpulseURL,
-		BricksIndexURL:                   parsedBricksIndexURL,
+		BricksIndex:                      bricksIndex,
 		ArduinoPlatformVersionConstraint: constraint,
 	}
 
@@ -231,7 +240,7 @@ func (c *Configuration) ReleasesDir() *paths.Path {
 	return c.releasesDir
 }
 
-// BricksIndexDir holds the bricks index, as downloaded from BricksIndexURL.
+// BricksIndexDir holds the bricks index, as downloaded from BricksIndex.
 func (c *Configuration) BricksIndexDir() *paths.Path {
 	return c.dataDir
 }

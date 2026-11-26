@@ -22,6 +22,16 @@ not BuildKit: BuildKit-only Dockerfile syntax, such as `RUN --mount` or heredocs
 A release build refuses an app with such a brick. A start with `--no-prepare` does not
 build: it uses the image of the last build, and fails if there is none.
 
+## Bricks index
+
+The bricks index is published as a zstd-compressed tar archive (`.tar.zst`) that contains
+`brick-index-contrib.json` and its detached GPG signature `brick-index-contrib.json.sig`
+at its root; other files in the archive are ignored. The index must be signed by Arduino:
+an index without a valid signature is rejected, keeping the saved one.
+
+Set `ARDUINO_APP_CLI__BRICKS_INDEX_SKIP_SIGNATURE_VERIFICATION=true` to use an unsigned
+index, e.g. during development.
+
 ## Environment Variables
 
 The following environment variables are used to configure Arduino App CLI:
@@ -69,6 +79,7 @@ Examples of the `assets` and the builtin `examples` stored under the `ARDUINO_AP
 │       └── ...
 ├── bootloader_burned.flag
 ├── brick-index-contrib.json  # Bricks index, from `brick update-index`
+├── brick-index-contrib.json.sig # Signature of the bricks index
 ├── bricks
 │   └── <namespace>
 │       └── <name>
