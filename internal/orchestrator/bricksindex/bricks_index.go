@@ -167,10 +167,9 @@ type Brick struct {
 	ModelConfigurationVariables []string                  `yaml:"model_configuration_variables,omitempty"`
 
 	Source string `yaml:"-"`
-	// Version, Namespace and Latest are set only for the bricks installed from the remote bricks index.
+	// Version and Namespace are set only for the bricks installed from the remote bricks index.
 	Version   string `yaml:"-"`
-	Namespace string `yaml:"namespace,omitempty"`
-	Latest    string `yaml:"latest,omitempty"`
+	Namespace string `yaml:"-"`
 
 	FullPath     *paths.Path `yaml:"-"`
 	ComposeFile  *paths.Path `yaml:"-"` // brick_compose.yaml file path, optional

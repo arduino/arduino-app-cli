@@ -20,7 +20,7 @@ type BrickListItem struct {
 	BuiltIn      bool   `json:"built_in"`
 	// set only for the bricks installed from the remote bricks index.
 	Version   string `json:"version,omitempty"`
-	Namespace string `json:"namespace"`
+	Namespace string `json:"namespace,omitempty"`
 }
 
 type AppBrickInstancesResult struct {
@@ -108,4 +108,11 @@ type BrickDetailsResult struct {
 	CompatibleModels          []AIModel                `json:"compatible_models"`
 	ConfigVariables           []BrickConfigVariable    `json:"config_variables"`
 	AIFrameworksCompatibility []string                 `json:"ai_frameworks_compatibility,omitempty"`
+	BuiltIn                   bool                     `json:"built_in"`
+	// Version and Namespace are set only for the bricks of the remote index.
+	// Version is the installed one, or the latest for the board if not installed.
+	Version   string `json:"version,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+	// ReadmeURL is the README of the release in the remote index: the installed one, or the latest for the board.
+	ReadmeURL string `json:"readme_url,omitempty"`
 }

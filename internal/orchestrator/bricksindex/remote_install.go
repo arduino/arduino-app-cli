@@ -65,9 +65,10 @@ func ParseBrickReference(ref string) (id string, version *semver.Version, err er
 
 // FindBrick returns the brick with the given id.
 func (idx *RemoteIndex) FindBrick(id string) (*RemoteBrick, error) {
-	for i := range idx.Bricks {
-		if idx.Bricks[i].ID == id {
-			return &idx.Bricks[i], nil
+	bricks := idx.bricks()
+	for i := range bricks {
+		if bricks[i].ID == id {
+			return &bricks[i], nil
 		}
 	}
 	return nil, fmt.Errorf("%w: %s", ErrBrickNotFound, id)

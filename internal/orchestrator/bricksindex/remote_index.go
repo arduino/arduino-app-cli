@@ -81,6 +81,8 @@ type RemoteRelease struct {
 	// Hash is the SHA-256 of the archive, in hex.
 	Hash string `json:"hash"`
 	Size int64  `json:"size"`
+	// ReadmeURL is the web page of the README of the release, optional.
+	ReadmeURL string `json:"readme_url,omitempty"`
 	// SupportedBoards is empty when the release supports every board.
 	SupportedBoards []string `json:"supported_boards,omitempty"`
 }
