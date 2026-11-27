@@ -89,6 +89,7 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 		servicelocator.GetPlatform(),
 		verbose,
 		prepare,
+		nil,
 		streamCb,
 	)
 	if err != nil {
