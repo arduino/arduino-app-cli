@@ -7,6 +7,7 @@ package dockerhelper
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -66,6 +67,59 @@ func TestComposeRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, gone.Items)
+}
+
+// TestComposeUpStartsAProjectWhoseNetworkWasRemoved starts a stopped project again after
+// its network went, as a network prune takes it: the containers a stop left keep the id of
+// the network they were created on.
+func TestComposeUpStartsAProjectWhoseNetworkWasRemoved(t *testing.T) {
+	docker := getDockerCli(t)
+	const projectName = "arduino-app-cli-network-removed"
+
+	newProject := func() *types.Project {
+		return &types.Project{
+			Name:       projectName,
+			WorkingDir: t.TempDir(),
+			Networks:   types.Networks{"default": {Name: projectName + "_default"}},
+			Services: types.Services{
+				"main": types.ServiceConfig{
+					Name:     "main",
+					Image:    "busybox:latest",
+					Command:  types.ShellCommand{"sleep", "600"},
+					Networks: map[string]*types.ServiceNetworkConfig{"default": nil},
+				},
+			},
+		}
+	}
+	t.Cleanup(func() {
+		_ = ComposeDown(context.Background(), docker, projectName, nil, nil)
+	})
+	running := func() []container.Summary {
+		containers, err := docker.Client().ContainerList(t.Context(), dockerClient.ContainerListOptions{
+			Filters: make(dockerClient.Filters).Add("label", "com.docker.compose.project="+projectName),
+		})
+		require.NoError(t, err)
+		return containers.Items
+	}
+
+	require.NoError(t, ComposeUp(t.Context(), docker, newProject(), nil))
+	require.Len(t, running(), 1)
+	require.NoError(t, ComposeStop(t.Context(), docker, projectName, nil, nil))
+	_, err := docker.Client().NetworkRemove(t.Context(), projectName+"_default", dockerClient.NetworkRemoveOptions{})
+	require.NoError(t, err)
+
+	require.NoError(t, ComposeUp(t.Context(), docker, newProject(), nil))
+	require.Len(t, running(), 1)
+}
+
+func TestTheNetworkOfAContainerIsGoneWhenTheEngineDoesNotFindIt(t *testing.T) {
+	const id = "258b8c459387f75b4540add7311f7f15753fbb7b947339a3fad8b08a2be8f171"
+	require.True(t, networkGone(errors.New("Error response from daemon: network "+id+" not found")), "engine 26")
+	require.True(t, networkGone(errors.New("Error response from daemon: failed to set up container networking: network "+id+" not found")), "engine 29")
+
+	require.False(t, networkGone(nil))
+	require.False(t, networkGone(errors.New("Error response from daemon: No such image: busybox:latest")))
+	require.False(t, networkGone(errors.New("failed to create network my-app_default: all predefined address pools have been fully subnetted")))
 }
 
 // TestComposeStopRunsPreStopHooks stops a service with a pre_stop hook, given the project.
