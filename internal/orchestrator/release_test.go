@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/pkg/release"
@@ -131,6 +132,45 @@ func TestWriteReleaseArchive(t *testing.T) {
 	require.NotNil(t, link)
 	assert.Equal(t, byte(tar.TypeSymlink), link.Typeflag)
 	assert.Equal(t, "../../../../usr/bin/python3", link.Linkname)
+}
+
+func TestInstallReleaseRemovesAFailedInstall(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	releaseDir := paths.New(t.TempDir()).Join("my-app-unoq")
+
+	write := func(content string, part ...string) {
+		t.Helper()
+		file := releaseDir.Join(part...)
+		require.NoError(t, file.Parent().MkdirAll())
+		require.NoError(t, file.WriteFile([]byte(content)))
+	}
+	require.NoError(t, releaseDir.MkdirAll())
+	require.NoError(t, writeReleaseManifest(releaseDir, ReleaseManifest{
+		Schema:    app.ReleaseManifestSchema,
+		Name:      "my-app",
+		Target:    unoQPlatform.BoardName,
+		CreatedAt: time.Now().UTC(),
+	}))
+	write("name: my-app\n", "src", "app.yaml")
+	write("", "src", "python", "main.py")
+	// An unreadable bricks list: the render of the staged release fails on it.
+	write("bricks: [\n", release.BricksListFileName)
+	write("models: []\n", release.ModelsListFileName)
+
+	archivePath := paths.New(t.TempDir()).Join("my-app-unoq" + release.ReleaseArchiveExt)
+	file, err := archivePath.Create()
+	require.NoError(t, err)
+	require.NoError(t, writeReleaseArchiveTo(releaseDir, file))
+	require.NoError(t, file.Close())
+
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
+	require.NoError(t, cfg.ReleasesDir().MkdirAll())
+	// The second install would find the first one in place if it were left behind.
+	for range 2 {
+		_, err := InstallRelease(t.Context(), nil, nil, archivePath, idProvider, cfg, unoQPlatform, false, nil)
+		require.ErrorContains(t, err, "cannot read the bricks the release ships")
+		assert.NoDirExists(t, cfg.ReleasesDir().Join("my-app-unoq").String())
+	}
 }
 
 func TestAppLayout(t *testing.T) {
