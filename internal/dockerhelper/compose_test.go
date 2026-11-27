@@ -69,9 +69,7 @@ func TestComposeRoundTrip(t *testing.T) {
 	require.Empty(t, gone.Items)
 }
 
-// TestComposeUpKeepsAnAnonymousVolumeOfAReplacedContainer changes a service twice, so that
-// compose replaces its container: the anonymous volume goes to each new container, and a
-// service with no such volume is replaced as well.
+// TestComposeUpKeepsAnAnonymousVolumeOfAReplacedContainer replaces two containers twice: the anonymous volume of one stays the same.
 func TestComposeUpKeepsAnAnonymousVolumeOfAReplacedContainer(t *testing.T) {
 	docker := getDockerCli(t)
 	const projectName = "arduino-app-cli-anonymous-volume"
@@ -122,13 +120,12 @@ func TestComposeUpKeepsAnAnonymousVolumeOfAReplacedContainer(t *testing.T) {
 		ids, volume := state()
 		require.NotEqual(t, firstIDs["keeper"], ids["keeper"], "the keeper is replaced")
 		require.NotEqual(t, firstIDs["plain"], ids["plain"], "the plain service is replaced")
-		require.Equal(t, firstVolume, volume, "the anonymous volume goes to the new container")
+		require.Equal(t, firstVolume, volume, "the new container keeps the anonymous volume")
 		firstIDs = ids
 	}
 }
 
-// TestAVolumeTheProjectDoesNotNameIsAnonymous tells the volumes of a project from the
-// ones its containers got by themselves.
+// TestAVolumeTheProjectDoesNotNameIsAnonymous checks that only a volume the project does not declare counts as anonymous.
 func TestAVolumeTheProjectDoesNotNameIsAnonymous(t *testing.T) {
 	prj := &types.Project{Volumes: types.Volumes{"store": {Name: "app_store"}}}
 	with := func(mounts ...container.MountPoint) []container.Summary {
