@@ -210,6 +210,8 @@ func TestRenderComposeFileWithIncludedBrick(t *testing.T) {
 services:
   ei-video-obj-detection-runner:
     image: arduino/video-object-detection:latest
+    pre_stop:
+      - command: sh -c "pid=$$(pgrep -o hypercorn) && kill -TERM $$pid || true"
 `)))
 	require.NoError(t, cfg.AssetDir().Join("bricks-list.yaml").WriteFile([]byte(`
 bricks:
@@ -232,6 +234,9 @@ bricks:
 	prj, err := renderComposeFile(t.Context(), &arduinoApp, env, types.Mapping{}, "test-app")
 	require.NoError(t, err)
 	require.True(t, arduinoApp.AppComposeFilePath().Exist(), "the compose file docker is given should exist")
+	rendered, err := arduinoApp.AppComposeFilePath().ReadFile()
+	require.NoError(t, err)
+	require.Contains(t, string(rendered), "pid=$$(pgrep -o hypercorn) && kill -TERM $$pid || true", "a literal $$ of a brick survives")
 
 	runner, err := prj.GetService("ei-video-obj-detection-runner")
 	require.NoError(t, err, "the service the brick declares should be included")
