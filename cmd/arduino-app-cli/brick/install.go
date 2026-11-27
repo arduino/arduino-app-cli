@@ -25,7 +25,7 @@ func newInstallCmd(cfg config.Configuration, version string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "install ID[@VERSION]...",
 		Short: "Install bricks from the bricks index",
-		Long: "Install bricks from the bricks index. Without a version, the latest one that supports the board is installed.\n" +
+		Long: "Install bricks from the bricks index. Without a version, the latest one is installed. It must support the board.\n" +
 			"Several versions of the same brick can be installed side by side.",
 		Example: "  arduino-app-cli brick install acme:camera\n  arduino-app-cli brick install acme:camera@1.0.0 acme:camera@1.1.0",
 		Args:    cobra.MinimumNArgs(1),
@@ -47,11 +47,7 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 	}
 	resolved := make([]resolvedRelease, 0, len(refs))
 	for _, ref := range refs {
-		brick, err := index.FindBrick(ref.id)
-		if err != nil {
-			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
-		}
-		release, err := brick.FindRelease(ref.version, platform)
+		brick, release, err := index.FindBrickRelease(ref.id, ref.version, platform)
 		if err != nil {
 			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 		}
@@ -82,15 +78,10 @@ func installHandler(ctx context.Context, args []string, cfg config.Configuration
 	feedback.PrintResult(res)
 }
 
-// downloadProgress prints the progress of the download of a brick, once per percent.
+// downloadProgress prints the progress of the download of a brick, which is reported once per percent.
 func downloadProgress(out io.Writer, ref string) func(downloaded, total int64) {
-	last := -1
 	return func(downloaded, total int64) {
-		percent := int(downloaded * 100 / total)
-		if percent != last {
-			last = percent
-			fmt.Fprintf(out, "Downloading %s: %d%%\n", ref, percent)
-		}
+		fmt.Fprintf(out, "Downloading %s: %d%%\n", ref, downloaded*100/total)
 	}
 }
 

@@ -144,6 +144,31 @@ func RemoteIndexIsRecent(dir *paths.Path, maxAge time.Duration) bool {
 	return err == nil && time.Since(info.ModTime()) < maxAge
 }
 
+// LoadOrUpdateRemoteIndex returns the index saved in dir, downloading it from indexURL first when
+// there is none, when it is broken or when it is older than RemoteIndexMaxAge. onUpdate, if not
+// nil, is called before the download. If the download fails and a valid index is saved, that
+// index is returned and onWarning, if not nil, is called with the reason.
+func LoadOrUpdateRemoteIndex(ctx context.Context, config downloader.Config, indexURL *url.URL, dir *paths.Path, onUpdate func(), onWarning func(string)) (*RemoteIndex, error) {
+	saved, loadErr := LoadRemoteIndex(dir)
+	if loadErr == nil && RemoteIndexIsRecent(dir, RemoteIndexMaxAge) {
+		return saved, nil
+	}
+	if onUpdate != nil {
+		onUpdate()
+	}
+	updated, err := UpdateRemoteIndex(ctx, config, indexURL, dir)
+	if err == nil {
+		return updated, nil
+	}
+	if loadErr != nil {
+		return nil, err
+	}
+	if onWarning != nil {
+		onWarning(fmt.Sprintf("cannot update the bricks index, using the saved one: %v", err))
+	}
+	return saved, nil
+}
+
 // UpdateRemoteIndex downloads the index from indexURL and saves it in dir.
 func UpdateRemoteIndex(ctx context.Context, config downloader.Config, indexURL *url.URL, dir *paths.Path) (*RemoteIndex, error) {
 	indexPath := dir.Join(RemoteIndexFileName)

@@ -198,6 +198,74 @@ func TestUpdateKeepsPreviousIndexOnFailure(t *testing.T) {
 	}
 }
 
+func TestLoadOrUpdateRemoteIndex(t *testing.T) {
+	updatedIndex := strings.ReplaceAll(validIndex, "acme:camera", "acme:audio")
+	const (
+		missing = iota
+		recent
+		stale
+		broken
+	)
+	tests := []struct {
+		name        string
+		saved       int
+		serverFails bool
+		wantID      string
+		wantUpdate  bool
+		wantWarning bool
+		wantErr     bool
+	}{
+		{"recent index is used as is", recent, false, "acme:camera", false, false, false},
+		{"stale index is updated", stale, false, "acme:audio", true, false, false},
+		{"stale index is used if the update fails", stale, true, "acme:camera", true, true, false},
+		{"missing index is downloaded", missing, false, "acme:audio", true, false, false},
+		{"missing index cannot be downloaded", missing, true, "", true, false, true},
+		{"broken index is replaced", broken, false, "acme:audio", true, false, false},
+		{"broken index cannot be replaced", broken, true, "", true, false, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := paths.New(t.TempDir())
+			indexPath := dir.Join(RemoteIndexFileName)
+			switch tt.saved {
+			case recent, stale:
+				require.NoError(t, indexPath.WriteFile([]byte(validIndex)))
+			case broken:
+				require.NoError(t, indexPath.WriteFile([]byte("{")))
+			}
+			if tt.saved == stale {
+				old := time.Now().Add(-2 * RemoteIndexMaxAge)
+				require.NoError(t, os.Chtimes(indexPath.String(), old, old))
+			}
+			status, body := http.StatusOK, []byte(updatedIndex)
+			if tt.serverFails {
+				status, body = http.StatusInternalServerError, nil
+			}
+			u := mustParseURL(t, serveFile(t, status, body, false))
+
+			updated := false
+			var warnings []string
+			index, err := LoadOrUpdateRemoteIndex(t.Context(), DownloadConfig("test"), u, dir, func() { updated = true },
+				func(msg string) { warnings = append(warnings, msg) })
+			require.Equal(t, tt.wantUpdate, updated)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Nil(t, index)
+				require.Empty(t, warnings)
+				return
+			}
+			require.NoError(t, err)
+			if tt.wantWarning {
+				require.Len(t, warnings, 1)
+				require.Contains(t, warnings[0], "cannot update the bricks index, using the saved one")
+			} else {
+				require.Empty(t, warnings)
+			}
+			require.Equal(t, tt.wantID, index.Bricks[0].ID)
+		})
+	}
+}
+
 func TestUpdateInactivityTimeout(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-r.Context().Done()

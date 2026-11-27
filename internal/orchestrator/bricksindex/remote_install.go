@@ -25,6 +25,7 @@ import (
 	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
+	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -46,21 +47,32 @@ var (
 // when the reference does not have one.
 func ParseBrickReference(ref string) (id string, version *semver.Version, err error) {
 	id, versionString, hasVersion := strings.Cut(ref, "@")
-	if _, _, err := splitBrickID(id); err != nil {
+	if err := ValidateBrickID(id); err != nil {
 		return "", nil, fmt.Errorf("invalid brick reference %q: expected NAMESPACE:NAME[@VERSION]", ref)
 	}
 	if !hasVersion {
 		return id, nil, nil
 	}
-	// semver.Parse accepts an empty string.
-	if versionString == "" {
-		return "", nil, fmt.Errorf("invalid brick reference %q: missing version after '@'", ref)
-	}
-	version, err = semver.Parse(versionString)
+	version, err = ParseBrickVersion(versionString)
 	if err != nil {
 		return "", nil, fmt.Errorf("invalid brick reference %q: %w", ref, err)
 	}
 	return id, version, nil
+}
+
+// ValidateBrickID returns an error if id is not in the form NAMESPACE:NAME, each part made of
+// lowercase letters, digits and underscores, starting with a letter.
+func ValidateBrickID(id string) error {
+	_, _, err := splitBrickID(id)
+	return err
+}
+
+// ParseBrickVersion parses the version of a brick. Unlike semver.Parse, it rejects an empty string.
+func ParseBrickVersion(version string) (*semver.Version, error) {
+	if version == "" {
+		return nil, errors.New("missing version")
+	}
+	return semver.Parse(version)
 }
 
 // FindBrick returns the brick with the given id.
@@ -71,6 +83,42 @@ func (idx *RemoteIndex) FindBrick(id string) (*RemoteBrick, error) {
 		}
 	}
 	return nil, fmt.Errorf("%w: %s", ErrBrickNotFound, id)
+}
+
+// FindBrickRelease returns the brick with the given id and its release to install.
+// The release must support the board.
+func (idx *RemoteIndex) FindBrickRelease(id string, version *semver.Version, platform platform.Platform) (*RemoteBrick, *RemoteRelease, error) {
+	brick, err := idx.FindBrick(id)
+	if err != nil {
+		return nil, nil, err
+	}
+	if version != nil {
+		release, err := brick.FindRelease(version, platform)
+		if err != nil {
+			return nil, nil, err
+		}
+		return brick, release, nil
+	}
+	latest := brick.latestRelease()
+	if latest == nil {
+		return nil, nil, fmt.Errorf("%w: %s has no releases", ErrReleaseNotFound, id)
+	}
+	if !latest.SupportsBoard(platform) {
+		return nil, nil, fmt.Errorf("%w: the latest version of %s, %s, does not support %s", ErrUnsupportedBoard, id, latest.Version, platform.BoardName)
+	}
+	return brick, latest, nil
+}
+
+// latestRelease returns the release with the highest version, whatever the boards it supports,
+// or nil if the brick has no releases.
+func (b *RemoteBrick) latestRelease() *RemoteRelease {
+	var latest *RemoteRelease
+	for i := range b.Releases {
+		if r := &b.Releases[i]; latest == nil || r.Version.GreaterThan(latest.Version) {
+			latest = r
+		}
+	}
+	return latest
 }
 
 // FindRelease returns the release with the given version or, if version is nil,
@@ -171,7 +219,12 @@ func Install(ctx context.Context, config downloader.Config, bricksDir *paths.Pat
 	}
 	var downloadProgress func(int64)
 	if progress != nil {
-		downloadProgress = func(downloaded int64) { progress(downloaded, release.Size) }
+		var reported helpers.LastPercent
+		downloadProgress = func(downloaded int64) {
+			if reported.Moved(downloaded, release.Size) {
+				progress(downloaded, release.Size)
+			}
+		}
 	}
 	if err := downloadArchive(ctx, config, release, archivePath, expectedHash, downloadProgress); err != nil {
 		return InstallResult{}, fmt.Errorf("downloading brick %s: %w", ref, err)

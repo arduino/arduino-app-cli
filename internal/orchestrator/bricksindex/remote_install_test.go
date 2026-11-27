@@ -8,11 +8,15 @@ package bricksindex
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
@@ -72,13 +76,36 @@ func TestParseBrickReference(t *testing.T) {
 	}
 }
 
-func TestFindRelease(t *testing.T) {
+func TestValidateBrickID(t *testing.T) {
+	for _, id := range []string{"acme:camera", "acme_2:my_camera2"} {
+		require.NoError(t, ValidateBrickID(id), id)
+	}
+	for _, id := range []string{"", "camera", ":camera", "acme:", "acme:Camera", "acme:my-camera", "acme:2camera", "acme:_camera", "acme.io:camera", "acme:camera/..", "../acme:camera", "acme:camera@1.0.0"} {
+		require.ErrorContains(t, ValidateBrickID(id), "invalid brick id", id)
+	}
+}
+
+func TestParseBrickVersion(t *testing.T) {
+	version, err := ParseBrickVersion("1.2.0")
+	require.NoError(t, err)
+	require.Equal(t, "1.2.0", version.String())
+
+	_, err = ParseBrickVersion("")
+	require.ErrorContains(t, err, "missing version")
+	for _, v := range []string{"v1", "1.0.0/..", "latest"} {
+		_, err := ParseBrickVersion(v)
+		require.Error(t, err, v)
+	}
+}
+
+func TestFindBrickRelease(t *testing.T) {
 	release := func(version string, boards ...string) RemoteRelease {
 		return RemoteRelease{Version: semver.MustParse(version), SupportedBoards: boards}
 	}
 	index := &RemoteIndex{Bricks: []RemoteBrick{
 		{ID: "acme:camera", Releases: []RemoteRelease{release("1.10.0", "ventunoq"), release("1.2.0"), release("1.9.0", "unoq", "ventunoq")}},
 		{ID: "acme:audio", Releases: []RemoteRelease{release("1.0.0", "ventunoq")}},
+		{ID: "acme:empty"},
 	}}
 	unoq := platform.Platform{BoardName: "unoq"}
 
@@ -90,14 +117,16 @@ func TestFindRelease(t *testing.T) {
 		want     string
 		wantErr  error
 	}{
-		{"latest supported release", "acme:camera", "", unoq, "1.9.0", nil},
-		{"latest release", "acme:camera", "", platform.Platform{BoardName: "ventunoq"}, "1.10.0", nil},
+		{"latest release, compared as semver", "acme:camera", "", platform.Platform{BoardName: "ventunoq"}, "1.10.0", nil},
+		// An older release that supports the board is not chosen instead.
+		{"latest release not supported", "acme:camera", "", unoq, "", ErrUnsupportedBoard},
 		{"any board without a board name", "acme:camera", "", platform.Platform{}, "1.10.0", nil},
 		{"given version", "acme:camera", "1.2.0", unoq, "1.2.0", nil},
 		{"given version, compared as semver", "acme:camera", "1.2", unoq, "1.2.0", nil},
 		{"given version not supported", "acme:camera", "1.10.0", unoq, "", ErrUnsupportedBoard},
 		{"no release supported", "acme:audio", "", unoq, "", ErrUnsupportedBoard},
 		{"missing version", "acme:camera", "9.9.9", unoq, "", ErrReleaseNotFound},
+		{"no releases", "acme:empty", "", unoq, "", ErrReleaseNotFound},
 		{"missing brick", "acme:missing", "", unoq, "", ErrBrickNotFound},
 	}
 	for _, tt := range tests {
@@ -106,13 +135,11 @@ func TestFindRelease(t *testing.T) {
 			if tt.version != "" {
 				version = semver.MustParse(tt.version)
 			}
-			brick, err := index.FindBrick(tt.id)
-			var release *RemoteRelease
-			if err == nil {
-				release, err = brick.FindRelease(version, tt.platform)
-			}
+			brick, release, err := index.FindBrickRelease(tt.id, version, tt.platform)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
+				require.Nil(t, brick)
+				require.Nil(t, release)
 				return
 			}
 			require.NoError(t, err)
@@ -121,8 +148,13 @@ func TestFindRelease(t *testing.T) {
 		})
 	}
 
+	// The resolution of the bricks of an app falls back to the latest release that supports the board.
 	camera, err := index.FindBrick("acme:camera")
 	require.NoError(t, err)
+	latestSupported, err := camera.FindRelease(nil, unoq)
+	require.NoError(t, err)
+	require.Equal(t, "1.9.0", latestSupported.Version.String())
+
 	releases := camera.SupportedReleases(unoq)
 	versions := make([]string, 0, len(releases))
 	for _, r := range releases {
@@ -180,6 +212,48 @@ func TestInstall(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, entries, 1)
 		})
+	}
+}
+
+func TestInstallReportsDownloadOncePerPercent(t *testing.T) {
+	// Random content does not compress. The archive is served slowly and the downloader polled
+	// much more often, so that many polls see the same percentage.
+	content := make([]byte, 1<<20)
+	_, err := rand.Read(content)
+	require.NoError(t, err)
+	archive := makeZip(t, map[string]string{
+		"src/camera/brick_config.yaml": "id: acme:camera\n",
+		"src/camera/data.bin":          string(content),
+	})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", strconv.Itoa(len(archive)))
+		if r.Method == http.MethodHead {
+			return
+		}
+		const parts = 20
+		for i := range parts {
+			_, _ = w.Write(archive[i*len(archive)/parts : (i+1)*len(archive)/parts])
+			w.(http.Flusher).Flush()
+			time.Sleep(10 * time.Millisecond)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	release := archiveReleaseAt(t, archive, srv.URL+"/camera.zip")
+	config := DownloadConfig("test")
+	config.PollInterval = time.Millisecond
+
+	var percents []int64
+	progress := func(downloaded, total int64) {
+		require.Equal(t, release.Size, total)
+		percents = append(percents, downloaded*100/total)
+	}
+	_, err = Install(t.Context(), config, paths.New(t.TempDir()), cameraBrick, release, platform.Platform{}, progress, nil)
+	require.NoError(t, err)
+
+	require.Greater(t, len(percents), 1, "the download must be reported more than once to check it")
+	require.Equal(t, int64(100), percents[len(percents)-1])
+	for i := 1; i < len(percents); i++ {
+		require.Greater(t, percents[i], percents[i-1], "each percent is reported once: %v", percents)
 	}
 }
 
