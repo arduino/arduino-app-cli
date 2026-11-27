@@ -46,7 +46,7 @@ func HandleUninstallBrick(
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
 			return
 		}
-		if !bricksindex.IsThirdParty(id) {
+		if bricksIndex.IsBuiltIn(id) {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: fmt.Sprintf("the brick %s is built-in and cannot be uninstalled", id)})
 			return
 		}

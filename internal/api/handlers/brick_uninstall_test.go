@@ -62,7 +62,9 @@ func uninstallBrick(t *testing.T, cfg config.Configuration, docker *fakeContaine
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodDelete, target, nil)
 	req.SetPathValue("brickID", strings.TrimPrefix(strings.SplitN(target, "?", 2)[0], "/v1/bricks/"))
-	bricksIndex := (&bricksindex.BricksIndex{}).WithInstalledBricks(cfg.BricksDir())
+	bricksIndex := (&bricksindex.BricksIndex{
+		BuiltInBricks: []bricksindex.Brick{{ID: "arduino:camera"}},
+	}).WithInstalledBricks(cfg.BricksDir())
 	HandleUninstallBrick(cli, cfg, bricksIndex, nil, nil)(rec, req)
 	return rec
 }
