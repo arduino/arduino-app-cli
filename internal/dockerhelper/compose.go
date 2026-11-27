@@ -20,6 +20,8 @@ import (
 	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v5/pkg/api"
 	"github.com/docker/compose/v5/pkg/compose"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/mount"
 	dockerClient "github.com/moby/moby/client"
 )
 
@@ -61,8 +63,13 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 	if err != nil {
 		return err
 	}
+	// Keeping anonymous volumes costs compose one image inspect per mount: ask for it only when a container has one.
+	containers, err := Containers(ctx, docker.Client(), api.ProjectLabel+"="+prj.Name)
+	if err != nil {
+		return err
+	}
 	err = backend.Up(ctx, prj, api.UpOptions{
-		Create: api.CreateOptions{RemoveOrphans: true, Inherit: true, Build: &api.BuildOptions{}},
+		Create: api.CreateOptions{RemoveOrphans: true, Inherit: holdsAnonymousVolume(prj, containers), Build: &api.BuildOptions{}},
 		Start:  api.StartOptions{Project: prj},
 	})
 	// A prune never removes an image a container uses, so a failed up prunes too.
@@ -75,6 +82,22 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 		return fmt.Errorf("%w: %w", ErrNetwork, reported.networkError)
 	}
 	return err
+}
+
+// holdsAnonymousVolume tells whether a container mounts a volume that the project does not declare.
+func holdsAnonymousVolume(prj *types.Project, containers []container.Summary) bool {
+	named := make(map[string]bool, len(prj.Volumes))
+	for _, volume := range prj.Volumes {
+		named[volume.Name] = true
+	}
+	for _, c := range containers {
+		for _, m := range c.Mounts {
+			if m.Type == mount.TypeVolume && !named[m.Name] {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ErrNetwork states that the network of the app was not created. A pool with no

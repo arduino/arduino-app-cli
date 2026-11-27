@@ -14,6 +14,7 @@ import (
 	dockerCommand "github.com/docker/cli/cli/command"
 	"github.com/docker/compose/v5/pkg/api"
 	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/mount"
 	dockerClient "github.com/moby/moby/client"
 	"github.com/stretchr/testify/require"
 )
@@ -66,6 +67,80 @@ func TestComposeRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, gone.Items)
+}
+
+// TestComposeUpKeepsAnAnonymousVolumeOfAReplacedContainer replaces two containers twice: the anonymous volume of one stays the same.
+func TestComposeUpKeepsAnAnonymousVolumeOfAReplacedContainer(t *testing.T) {
+	docker := getDockerCli(t)
+	const projectName = "arduino-app-cli-anonymous-volume"
+
+	project := func(revision string) *types.Project {
+		service := func(name string) types.ServiceConfig {
+			return types.ServiceConfig{
+				Name:        name,
+				Image:       "busybox:latest",
+				Command:     types.ShellCommand{"sleep", "600"},
+				StopSignal:  "SIGKILL",
+				Environment: types.NewMappingWithEquals([]string{"REVISION=" + revision}),
+			}
+		}
+		keeper, plain := service("keeper"), service("plain")
+		keeper.Volumes = []types.ServiceVolumeConfig{{Type: types.VolumeTypeVolume, Target: "/data"}}
+		return &types.Project{
+			Name:         projectName,
+			WorkingDir:   t.TempDir(),
+			ComposeFiles: []string{"app-compose.yaml"},
+			Services:     types.Services{"keeper": keeper, "plain": plain},
+		}
+	}
+	// The id of the container of each service, and the volume the keeper mounts
+	state := func() (ids map[string]string, volume string) {
+		containers, err := Containers(t.Context(), docker.Client(), api.ProjectLabel+"="+projectName)
+		require.NoError(t, err)
+		require.Len(t, containers, 2)
+		ids = map[string]string{}
+		for _, c := range containers {
+			ids[c.Labels[api.ServiceLabel]] = c.ID
+			for _, m := range c.Mounts {
+				volume = m.Name
+			}
+		}
+		return ids, volume
+	}
+	t.Cleanup(func() {
+		_ = ComposeDown(t.Context(), docker, projectName, nil, nil)
+	})
+
+	require.NoError(t, ComposeUp(t.Context(), docker, project("1"), nil))
+	firstIDs, firstVolume := state()
+	require.NotEmpty(t, firstVolume)
+
+	for _, revision := range []string{"2", "3"} {
+		require.NoError(t, ComposeUp(t.Context(), docker, project(revision), nil))
+		ids, volume := state()
+		require.NotEqual(t, firstIDs["keeper"], ids["keeper"], "the keeper is replaced")
+		require.NotEqual(t, firstIDs["plain"], ids["plain"], "the plain service is replaced")
+		require.Equal(t, firstVolume, volume, "the new container keeps the anonymous volume")
+		firstIDs = ids
+	}
+}
+
+// TestAVolumeTheProjectDoesNotNameIsAnonymous checks that only a volume the project does not declare counts as anonymous.
+func TestAVolumeTheProjectDoesNotNameIsAnonymous(t *testing.T) {
+	prj := &types.Project{Volumes: types.Volumes{"store": {Name: "app_store"}}}
+	with := func(mounts ...container.MountPoint) []container.Summary {
+		return []container.Summary{{Mounts: mounts}}
+	}
+
+	require.False(t, holdsAnonymousVolume(prj, nil))
+	require.False(t, holdsAnonymousVolume(prj, with(
+		container.MountPoint{Type: mount.TypeBind, Source: "/dev", Destination: "/dev"},
+		container.MountPoint{Type: mount.TypeVolume, Name: "app_store", Destination: "/store"},
+	)))
+	require.True(t, holdsAnonymousVolume(prj, with(
+		container.MountPoint{Type: mount.TypeBind, Source: "/dev", Destination: "/dev"},
+		container.MountPoint{Type: mount.TypeVolume, Name: "0a1b2c3d4e5f", Destination: "/etc/influxdb2"},
+	)))
 }
 
 // TestComposeStopRunsPreStopHooks stops a service with a pre_stop hook, given the project.
