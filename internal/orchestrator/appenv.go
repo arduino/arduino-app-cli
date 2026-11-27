@@ -33,7 +33,7 @@ const appRuntimeDirRef = "${" + appRuntimeDirVar + "}"
 // The main service runs as the cli's uid:gid,
 // while all other services default to the fixed uid 1000.
 const appUserExpr = exprPrefix + `{{ with groupID "arduino" }}1000:{{ . }}{{ else }}1000{{ end }}`
-const mainUserExpr = exprPrefix + `{{ currentUser }}`
+const mainUserExpr = exprPrefix + `{{ currentUid }}:{{ currentGid }}`
 
 // hostVariables are what a template references as ${VAR}: the name is the reference the
 // resolve step writes, the function is the answer the render step fills in.

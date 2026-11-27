@@ -30,8 +30,9 @@ import (
 var hostFuncs = template.FuncMap{
 	"pathExists": func(path string) bool { return paths.New(path).Exist() },
 
-	// The uid:gid this process runs as.
-	"currentUser": func() string { return fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()) },
+	// The uid and gid this process runs as.
+	"currentUid": func() int { return os.Getuid() },
+	"currentGid": func() int { return os.Getgid() },
 
 	"groupID": func(name string) string {
 		group, err := user.LookupGroup(name)
