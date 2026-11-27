@@ -44,7 +44,7 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
-	cmd.Flags().BoolVar(&noPrepare, "no-prepare", false, "Start the app without preparing it first, failing if its containers or models are not already on the board")
+	cmd.Flags().BoolVar(&noPrepare, "no-prepare", false, "Start the app without preparing it first, failing if its containers, models or third-party bricks are not already on the board")
 
 	return cmd
 }

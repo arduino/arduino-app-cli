@@ -332,7 +332,7 @@ func redactSecrets(bricksindex *bricksindex.BricksIndex, desc *app.AppDescriptor
 	for i := range desc.Bricks {
 		brick := &desc.Bricks[i]
 
-		brickDef, found := bricksindex.FindBrickByID(brick.ID)
+		brickDef, found := bricksindex.FindBrick(brick.ID, brick.Version)
 		if !found {
 			// Brick definition not found; skip secret redaction
 			continue

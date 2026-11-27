@@ -99,6 +99,9 @@ func BuildRelease(
 	}
 
 	bricksIndex = bricksIndex.WithAppBricks(appToBuild.LocalBricks)
+	if err := checkReleaseBricks(appToBuild, bricksIndex); err != nil {
+		return BuildReleaseResult{}, nil, err
+	}
 	if err := checkBricks(ctx, appToBuild.Descriptor.Bricks, bricksIndex, modelsIndex, false); err != nil {
 		return BuildReleaseResult{}, nil, err
 	}
@@ -350,6 +353,17 @@ func releaseLibraries(ctx context.Context, arduinoApp app.ArduinoApp) []string {
 		return nil
 	}
 	return f.Map(libraries, LibraryReleaseID.String)
+}
+
+// TODO: ship the bricks installed from the bricks index in the release
+func checkReleaseBricks(appToBuild app.ArduinoApp, bricksIndex *bricksindex.BricksIndex) error {
+	for _, brick := range appToBuild.Descriptor.Bricks {
+		if bricksIndex.IsLocal(brick.ID) || bricksIndex.IsBuiltIn(brick.ID) {
+			continue
+		}
+		return fmt.Errorf("%w: the app uses the brick %q from the bricks index: releases do not support them yet", ErrBadRequest, brick.ID)
+	}
+	return nil
 }
 
 // targetIndexes are the indexes of the board the release is built for: which bricks and

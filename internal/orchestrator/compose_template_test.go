@@ -6,13 +6,64 @@
 package orchestrator
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
+
+func TestComposeTemplateMountsThirdPartyBricks(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	bricksDir := paths.New(t.TempDir())
+	brickDir := bricksDir.Join("acme", "camera", "1.0.0", "src", "camera")
+	require.NoError(t, brickDir.MkdirAll())
+	require.NoError(t, brickDir.Join("brick_config.yaml").WriteFile([]byte("id: acme:camera\nname: Camera\n")))
+
+	testApp := app.ArduinoApp{
+		Name:       "TestApp",
+		Descriptor: app.AppDescriptor{Bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "acme:camera", Version: "1.0.0"}}},
+		FullPath:   paths.New(t.TempDir()),
+	}
+	require.NoError(t, testApp.ProvisioningStateDir().MkdirAll())
+	bricksIndex := (&bricksindex.BricksIndex{BuiltInBricks: []bricksindex.Brick{{ID: "arduino:web_ui"}}}).
+		WithInstalledBricks(bricksDir)
+
+	require.NoError(t, generateComposeTemplate(&testApp, testApp.ProvisioningStateDir(), bricksIndex, &servicesindex.ServicesIndex{}, "python-apps-base", cfg, types.Mapping{}, platform.Platform{}, true))
+
+	data, err := testApp.AppComposeTemplateFilePath().ReadFile()
+	require.NoError(t, err)
+	var compose struct {
+		Services struct {
+			Main struct {
+				Volumes []any `yaml:"volumes"`
+			} `yaml:"main"`
+		} `yaml:"services"`
+	}
+	require.NoError(t, yaml.Unmarshal(data, &compose))
+	var brickMounts []any
+	for _, v := range compose.Services.Main.Volumes {
+		if m, ok := v.(map[string]any); ok && strings.HasPrefix(fmt.Sprint(m["target"]), thirdPartyBricksDir) {
+			brickMounts = append(brickMounts, m)
+		}
+	}
+	// Only the third-party brick is mounted, read/write, at a folder named after a hash of acme/camera.
+	require.Equal(t, []any{map[string]any{
+		"type":   "bind",
+		"source": brickDir.String(),
+		"target": "/opt/third-party-bricks/bfdeb4ac/camera",
+		"bind":   map[string]any{"create_host_path": false},
+	}}, brickMounts)
+}
 
 func TestFrozenLookup(t *testing.T) {
 	// The registry is read when the configuration is built, so what the environment says
@@ -88,6 +139,10 @@ func TestFrozenComposeIncludes(t *testing.T) {
 	require.NoError(t, assetCompose.Parent().MkdirAll())
 	require.NoError(t, assetCompose.WriteFile(compose))
 
+	thirdPartyCompose := cfg.BricksDir().Join("acme", "camera", "1.0.0", "src", "camera", "brick_compose.yaml")
+	require.NoError(t, thirdPartyCompose.Parent().MkdirAll())
+	require.NoError(t, thirdPartyCompose.WriteFile(compose))
+
 	// A brick the app brings along is outside the asset dir, at a different depth.
 	appDir := paths.New(t.TempDir()).Join("home", "arduino", "ArduinoApps", "my-app")
 	localCompose := appDir.Join("bricks", "local_brick", "brick_compose.yaml")
@@ -103,12 +158,14 @@ func TestFrozenComposeIncludes(t *testing.T) {
 	require.NoError(t, genPath.MkdirAll())
 
 	includes, err := frozenComposeIncludes(
-		paths.NewPathList(assetCompose.String(), localCompose.String(), nestedComposeA.String(), nestedComposeB.String()),
+		paths.NewPathList(assetCompose.String(), thirdPartyCompose.String(), localCompose.String(), nestedComposeA.String(), nestedComposeB.String()),
 		appDir, genPath, cfg, types.Mapping{},
 	)
 	require.NoError(t, err)
 	assert.Equal(t, []composeInclude{
 		{Path: "compose/compose/arduino/asset_brick/brick_compose.yaml"},
+		// An installed brick is copied apart from the app, and its relative paths stay in its folder.
+		{Path: "compose/third-party-bricks/acme/camera/1.0.0/src/camera/brick_compose.yaml", ProjectDirectory: "${THIRD_PARTY_BRICKS_PATH}/acme/camera/1.0.0/src/camera"},
 		{Path: "compose/bricks/local_brick/brick_compose.yaml", ProjectDirectory: "${APP_HOME}/bricks/local_brick"},
 		{Path: "compose/bricks/a/nested_brick/brick_compose.yaml", ProjectDirectory: "${APP_HOME}/bricks/a/nested_brick"},
 		{Path: "compose/bricks/b/nested_brick/brick_compose.yaml", ProjectDirectory: "${APP_HOME}/bricks/b/nested_brick"},

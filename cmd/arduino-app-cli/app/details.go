@@ -112,7 +112,7 @@ func newAppDetailsResult(
 	index := arduinoApp.Bricks(bricksIndex)
 	for i, appBrick := range arduinoApp.Descriptor.Bricks {
 		brick := appDetailsBrick{ID: appBrick.ID, Model: appBrick.Model}
-		if definition, found := index.FindBrickByID(appBrick.ID); found {
+		if definition, found := index.FindBrick(appBrick.ID, appBrick.Version); found {
 			brick.Name = definition.Name
 			brick.Category = definition.Category
 			for _, variable := range definition.Variables {

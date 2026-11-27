@@ -110,6 +110,15 @@ func StartApp(
 
 	bricksIndex = appToStart.Bricks(bricksIndex)
 
+	if missing := missingBricks(appToStart, bricksIndex); len(missing) > 0 {
+		if !prepare {
+			return fmt.Errorf("%w: the brick %q is not installed", ErrNotPrepared, missing[0].Reference())
+		}
+		if err := installBricks(ctx, docker, cfg, servicesIndex, platform, missing, cb); err != nil {
+			return fmt.Errorf("failed to install the bricks of the app: %w", err)
+		}
+	}
+
 	modelsIndex = appToStart.Models(modelsIndex, docker, cfg, platform)
 
 	if prepare && !appToStart.IsRelease() {
@@ -776,7 +785,7 @@ func AppDetails(
 		Notes:        release.Notes,
 		Bricks: f.Map(userApp.Descriptor.Bricks, func(b app.Brick) AppDetailedBrick {
 			res := AppDetailedBrick{ID: b.ID}
-			bi, found := bricksIndex.FindBrickByID(b.ID)
+			bi, found := bricksIndex.FindBrick(b.ID, b.Version)
 			if !found {
 				slog.Warn("brick not found in bricks index", slog.String("id", b.ID), slog.String("app", userApp.FullPath.String()))
 				return res

@@ -10,6 +10,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
+	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -128,4 +129,80 @@ func TestBricksIndexWithInstalledBricks(t *testing.T) {
 		require.False(t, ok)
 		require.Empty(t, index.ListBricks())
 	})
+}
+
+func TestListInstalledVersions(t *testing.T) {
+	bricksDir := installedBricks(t, "acme/camera/1.10.0", "acme/camera/1.2.0", "acme/camera/notes", "acme/camera2/1.0.0")
+	names := func(versions []*semver.Version) []string {
+		res := make([]string, 0, len(versions))
+		for _, v := range versions {
+			res = append(res, v.String())
+		}
+		return res
+	}
+
+	versions, err := ListInstalledVersions(bricksDir, "acme:camera", nil)
+	require.NoError(t, err)
+	require.Equal(t, []string{"1.2.0", "1.10.0"}, names(versions))
+
+	versions, err = ListInstalledVersions(bricksDir, "acme:camera", semver.MustParse("1.2"))
+	require.NoError(t, err)
+	require.Equal(t, []string{"1.2.0"}, names(versions))
+
+	versions, err = ListInstalledVersions(bricksDir, "acme:camera", semver.MustParse("2.0.0"))
+	require.NoError(t, err)
+	require.Empty(t, versions)
+
+	versions, err = ListInstalledVersions(paths.New(t.TempDir(), "missing"), "acme:camera", nil)
+	require.NoError(t, err)
+	require.Empty(t, versions)
+
+	_, err = ListInstalledVersions(bricksDir, "camera", nil)
+	require.ErrorContains(t, err, "invalid brick id")
+}
+
+func TestFindBrick(t *testing.T) {
+	bricksDir := paths.New(t.TempDir())
+	write := func(folder, config string) { writeInstalledBrick(t, bricksDir, folder, config) }
+	write("acme/camera/1.0.0", "id: acme:camera\nname: Camera 1.0\n")
+	write("acme/camera/1.2.0", "id: acme:camera\nname: Camera 1.2\n")
+	write("acme/camera/2.0.0", "id: acme:camera\nname: Camera 2.0\nsupported_boards: [other]\n")
+	write("acme/broken/1.0.0", "id: acme:other\n")
+	write("acme/local/1.0.0", "id: acme:local\nname: Installed local\n")
+	write("arduino/builtin/1.0.0", "id: arduino:builtin\nname: Installed built-in\n")
+	index := &BricksIndex{
+		platform:      platform.Platform{BoardName: "unoq"},
+		AppBricks:     []Brick{{ID: "acme:local", Name: "Local"}},
+		BuiltInBricks: []Brick{{ID: "arduino:builtin", Name: "Built-in"}},
+	}
+	index.WithInstalledBricks(bricksDir)
+
+	tests := []struct {
+		name, id, version string
+		want              string // name@version of the brick found, empty if not found
+	}{
+		{"unpinned is the latest installed that supports the board", "acme:camera", "", "Camera 1.2@1.2.0"},
+		{"pinned is that version", "acme:camera", "1.0.0", "Camera 1.0@1.0.0"},
+		{"the version is compared as semver", "acme:camera", "1.2", "Camera 1.2@1.2.0"},
+		{"a pinned version that is not installed does not fall back", "acme:camera", "1.1.0", ""},
+		{"a pinned version that does not support the board", "acme:camera", "2.0.0", ""},
+		{"an invalid installed brick", "acme:broken", "1.0.0", ""},
+		{"a brick that is not installed", "acme:audio", "1.0.0", ""},
+		// local > built-in > installed: a pinned version never reaches an installed copy.
+		{"an unpinned local brick", "acme:local", "", "Local@"},
+		{"a pinned local brick", "acme:local", "1.0.0", ""},
+		{"an unpinned built-in brick", "arduino:builtin", "", "Built-in@"},
+		{"a pinned built-in brick", "arduino:builtin", "1.0.0", ""},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			brick, found := index.FindBrick(test.id, test.version)
+			if test.want == "" {
+				require.False(t, found)
+				return
+			}
+			require.True(t, found)
+			require.Equal(t, test.want, brick.Name+"@"+brick.Version)
+		})
+	}
 }

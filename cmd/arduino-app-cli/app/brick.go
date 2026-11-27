@@ -72,7 +72,7 @@ func brickConfigHandler(ctx context.Context, appRef, brickID string, variableArg
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 	}
 
-	brick, ok := arduinoApp.Bricks(servicelocator.GetBricksIndex()).FindBrickByID(brickID)
+	brick, ok := arduinoApp.FindBrick(arduinoApp.Bricks(servicelocator.GetBricksIndex()), brickID)
 	if !ok {
 		feedback.Fatal(fmt.Sprintf("Cannot find the brick with ID %q", brickID), feedback.ErrBadArgument)
 	}

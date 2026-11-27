@@ -189,7 +189,7 @@ func (a *ArduinoApp) Secrets(board *bricksindex.BricksIndex) map[string]string {
 
 	values := make(map[string]string)
 	for _, brick := range a.Descriptor.Bricks {
-		definition, found := definitions.FindBrickByID(brick.ID)
+		definition, found := definitions.FindBrick(brick.ID, brick.Version)
 		if !found {
 			continue
 		}
@@ -212,7 +212,7 @@ var ErrNotASecret = errors.New("the variable is not a secret")
 // UpdateSecrets writes the secrets of one brick and refuses every other variable. It
 // takes a release: a hole in the read-only rule, until the board has a secret store.
 func (a *ArduinoApp) UpdateSecrets(board *bricksindex.BricksIndex, brickID string, values map[string]string) error {
-	definition, found := a.Bricks(board).FindBrickByID(brickID)
+	definition, found := a.FindBrick(a.Bricks(board), brickID)
 	if !found {
 		return fmt.Errorf("brick %q is not in the index", brickID)
 	}
@@ -303,6 +303,16 @@ func (a *ArduinoApp) Bricks(board *bricksindex.BricksIndex) *bricksindex.BricksI
 		}
 	}
 	return board.WithAppBricks(a.LocalBricks)
+}
+
+// FindBrick returns the definition of a brick of the app from index, in the version the app
+// pins it to, if any.
+func (a *ArduinoApp) FindBrick(index *bricksindex.BricksIndex, id string) (*bricksindex.Brick, bool) {
+	version := ""
+	if i := slices.IndexFunc(a.Descriptor.Bricks, func(b Brick) bool { return b.ID == id }); i != -1 {
+		version = a.Descriptor.Bricks[i].Version
+	}
+	return index.FindBrick(id, version)
 }
 
 // ReleaseBricks is the brick definitions a release ships in its .cache, which are the

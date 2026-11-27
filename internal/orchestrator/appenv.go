@@ -110,7 +110,7 @@ func appEnvironment(
 	models := modelsIndex.NewLookup()
 
 	for _, brick := range app.Descriptor.Bricks {
-		if brickDef, found := brickIndex.FindBrickByID(brick.ID); found {
+		if brickDef, found := brickIndex.FindBrick(brick.ID, brick.Version); found {
 			maps.Insert(envs, brickDef.GetDefaultVariables())
 		}
 

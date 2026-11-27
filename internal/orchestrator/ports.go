@@ -40,7 +40,7 @@ func AppPorts(
 	}
 
 	for _, appBrick := range a.Descriptor.Bricks {
-		indexBrick, found := index.FindBrickByID(appBrick.ID)
+		indexBrick, found := index.FindBrick(appBrick.ID, appBrick.Version)
 		if !found {
 			return nil, fmt.Errorf("brick %q not found in the index", appBrick.ID)
 		}

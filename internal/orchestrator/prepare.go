@@ -141,7 +141,7 @@ func prepareModels(
 ) error {
 	models := modelIndex.NewLookup()
 	for _, appBrick := range bricks {
-		indexBrick, found := index.FindBrickByID(appBrick.ID)
+		indexBrick, found := index.FindBrick(appBrick.ID, appBrick.Version)
 		if !found || !indexBrick.RequireModel {
 			continue
 		}

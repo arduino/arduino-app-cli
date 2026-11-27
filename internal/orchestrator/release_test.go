@@ -261,6 +261,26 @@ handlers:
 	assert.True(t, found, "handlers of built-in models should be included in the frozen index")
 }
 
+func TestCheckReleaseBricks(t *testing.T) {
+	index := &bricksindex.BricksIndex{
+		BuiltInBricks: []bricksindex.Brick{{ID: "arduino:web_ui"}},
+		AppBricks:     []bricksindex.Brick{{ID: "my-brick"}},
+	}
+	appToBuild := app.ArduinoApp{
+		Name:       "my-app",
+		Descriptor: app.AppDescriptor{Bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "my-brick"}}},
+	}
+	require.NoError(t, checkReleaseBricks(appToBuild, index))
+
+	// A brick from the bricks index is rejected, whatever its namespace.
+	for _, id := range []string{"acme:hello", "arduino:published"} {
+		appToBuild.Descriptor.Bricks = append(appToBuild.Descriptor.Bricks[:2], app.Brick{ID: id})
+		err := checkReleaseBricks(appToBuild, index)
+		require.ErrorIs(t, err, ErrBadRequest)
+		assert.ErrorContains(t, err, `"`+id+`"`)
+	}
+}
+
 func TestBuildSketch(t *testing.T) {
 	// Never the real data dir: the arduino-cli writes into it as soon as it starts.
 	t.Setenv("ARDUINO_DIRECTORIES_DATA", t.TempDir())

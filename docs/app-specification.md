@@ -94,7 +94,14 @@ The `app.yaml` file (also referred to as the **App Descriptor**) is the manifest
 - **`icon`** (Optional): A single emoji character displayed in the UI.
 - **`description`** (Optional): A short summary of the app's purpose. If omitted, it is retrieved from the first paragraph of README.md.
 - **`ports`** (Optional): A list of integers representing the network ports exposed by the app.
-- **`bricks`** (Optional): A list of Brick ids (e.g., `arduino:web_ui`, `arduino:image_classification`) needed by the application to perform specific tasks. Each reference may contain additional configuration options (see the next section for details).
+- **`bricks`** (Optional): A list of Brick ids (e.g., `arduino:web_ui`, `arduino:image_classification`) needed by the application to perform specific tasks. Each reference may contain additional configuration options (see the next section for details). A third-party Brick can be pinned to a version, written as `id (version)` (see [Third-party Bricks](#third-party-bricks)).
+
+### Third-party Bricks
+
+Bricks that do not ship with `arduino-app-cli` and are not local to the App are third-party Bricks, published in the online bricks index and installed on the board with `arduino-app-cli brick install`. Built-in Bricks have a single version and cannot be pinned. Each reference to a third-party Brick resolves to a single version:
+
+- a pinned reference, such as `acme:weather (1.2.0)`, uses that version;
+- an unpinned reference, such as `acme:weather`, uses the latest installed version or, if none is installed, the latest version in the bricks index.
 
 ### Brick config options
 
@@ -128,4 +135,7 @@ bricks:
       model: yolo-v8
       devices:
         - remote_camera_0
+  - acme:weather (1.2.0):
+      variables:
+        CITY: "Turin"
 ```

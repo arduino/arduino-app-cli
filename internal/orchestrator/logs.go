@@ -91,7 +91,7 @@ func AppLogs(
 		return nil
 	}
 	for _, appBrick := range app.Descriptor.Bricks {
-		brick, ok := bricksIndex.FindBrickByID(appBrick.ID)
+		brick, ok := bricksIndex.FindBrick(appBrick.ID, appBrick.Version)
 		if !ok {
 			slog.Warn("brick not valid", slog.String("brick_id", appBrick.ID))
 			continue
