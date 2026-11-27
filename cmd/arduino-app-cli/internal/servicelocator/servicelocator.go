@@ -68,7 +68,6 @@ var (
 		return bricks.NewService(
 			GetModelsIndex(),
 			GetBricksIndex(),
-			globalConfig.BricksIndexDir(),
 		)
 	})
 
