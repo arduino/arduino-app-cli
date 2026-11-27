@@ -144,10 +144,13 @@ func StartApp(
 		}
 	}
 
-	appsStatus, err := getAppsStatus(ctx, docker.Client())
+	// The containers of every app on the board: the status of each app, and the images
+	// the board is known to have.
+	appContainers, err := dockerhelper.Containers(ctx, docker.Client(), DockerAppLabel+"=true")
 	if err != nil {
 		return fmt.Errorf("failed to list apps status: %w", err)
 	}
+	appsStatus := parseAppStatus(appContainers)
 
 	// Reject if another app is running/starting; otherwise stop any *other*
 	// failed app so its sibling services release resources (ports, volumes)
@@ -260,7 +263,7 @@ func StartApp(
 		// Without a prepare, a start never fetches nor builds an image: it fails on a
 		// missing one and asks for a prepare first.
 		if !prepare {
-			if err := checkImages(ctx, docker, prj); err != nil {
+			if err := checkImages(ctx, docker, prj, appContainers); err != nil {
 				return err
 			}
 			for name, service := range prj.Services {
@@ -279,7 +282,7 @@ func StartApp(
 
 		cb(StreamMessage{data: "python downloading"})
 
-		if err := dockerhelper.PullImages(ctx, docker.Client(), dockerhelper.ComposeImages(prj),
+		if err := dockerhelper.PullImages(ctx, docker.Client(), imagesToCheck(dockerhelper.ComposeImages(prj), appContainers),
 			func(line string) { cb(StreamMessage{data: line}) },
 			func(label string, curr, total int64) {
 				// Downloading the images is from 20% to 80% of the start of an app.

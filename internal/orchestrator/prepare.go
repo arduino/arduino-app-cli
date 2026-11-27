@@ -9,10 +9,12 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/compose/v5/pkg/api"
+	"github.com/moby/moby/api/types/container"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -101,11 +103,26 @@ func PrepareInstalledRelease(
 	return PrepareRelease(ctx, docker, arduinoApp, prj, cfg, plat, cb)
 }
 
-// checkImages verifies the container images an app needs are on the board
+// imagesToCheck is the images the engine has to be asked about: the ones no container is
+// listed under. The engine lists a container under the name of its image only while that
+// name still is the image the container was created from, and under the id of that image
+// once the name was moved or removed. So a name a container is listed under is an image
+// the board has, and asking for it again is one engine call saved.
+func imagesToCheck(images []string, containers []container.Summary) []string {
+	known := make(map[string]bool, len(containers))
+	for _, c := range containers {
+		known[c.Image] = true
+	}
+	return slices.DeleteFunc(slices.Clone(images), func(image string) bool { return known[image] })
+}
+
+// checkImages verifies the container images an app needs are on the board. The given
+// containers spare the check of the images they are listed under, see imagesToCheck.
 func checkImages(
 	ctx context.Context,
 	docker command.Cli,
 	prj *types.Project,
+	containers []container.Summary,
 ) error {
 	images := dockerhelper.ComposeImages(prj)
 	for _, service := range prj.Services {
@@ -114,7 +131,7 @@ func checkImages(
 			images = append(images, api.GetImageNameOrDefault(service, prj.Name))
 		}
 	}
-	for _, image := range images {
+	for _, image := range imagesToCheck(images, containers) {
 		present, err := dockerhelper.HasImage(ctx, docker.Client(), image)
 		if err != nil {
 			return err

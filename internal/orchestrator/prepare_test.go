@@ -13,6 +13,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/containerd/errdefs"
 	"github.com/docker/cli/cli/command"
+	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,7 +59,7 @@ func TestCheckImages(t *testing.T) {
 			prj := &types.Project{Services: types.Services{
 				"main": {Image: "viktoruj/ping_pong"},
 			}}
-			err := checkImages(t.Context(), docker, prj)
+			err := checkImages(t.Context(), docker, prj, nil)
 			if tc.wantErr == nil {
 				require.NoError(t, err)
 			} else {
@@ -66,6 +67,32 @@ func TestCheckImages(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAnImageAContainerIsListedUnderIsNotAskedFor checks an image against the containers
+// before the engine: the name a container is listed under is an image the board has.
+func TestAnImageAContainerIsListedUnderIsNotAskedFor(t *testing.T) {
+	containers := []container.Summary{
+		{Image: "app-bricks/python-apps-base:1.0.0"},
+		// The name was moved to another image: the engine lists the container under the id
+		{Image: "sha256:0a1b2c"},
+	}
+
+	require.Equal(t,
+		[]string{"influxdb:2.9-alpine", "app-bricks/python-apps-base:1.0.1"},
+		imagesToCheck([]string{"app-bricks/python-apps-base:1.0.0", "influxdb:2.9-alpine", "app-bricks/python-apps-base:1.0.1"}, containers))
+	require.Equal(t, []string{"busybox"}, imagesToCheck([]string{"busybox"}, nil))
+
+	docker := preparedImageCLI{docker: preparedImageClient{inspect: func(image string) error {
+		require.Equal(t, "influxdb:2.9-alpine", image, "only the image no container is listed under is inspected")
+		return errdefs.ErrNotFound
+	}}}
+	prj := &types.Project{Services: types.Services{
+		"main":    {Image: "app-bricks/python-apps-base:1.0.0"},
+		"sidecar": {Image: "influxdb:2.9-alpine"},
+	}}
+	require.NoError(t, checkImages(t.Context(), docker, &types.Project{Services: types.Services{"main": prj.Services["main"]}}, containers))
+	require.ErrorIs(t, checkImages(t.Context(), docker, prj, containers), ErrNotPrepared)
 }
 
 func TestPrepareModelsSkipsWhatItShould(t *testing.T) {
