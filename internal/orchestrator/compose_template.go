@@ -287,7 +287,7 @@ func generateComposeTemplate(
 	mainAppCompose.Services = map[string]any{"main": service{
 		Image:             pythonImage,
 		Volumes:           volumes,
-		Ports:             slices.Collect(maps.Keys(ports)),
+		Ports:             slices.Sorted(maps.Keys(ports)),
 		Entrypoint:        "/run.sh",
 		Command:           command,
 		DependsOn:         dependsOn,

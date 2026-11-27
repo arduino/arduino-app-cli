@@ -229,9 +229,15 @@ bricks:
 		servicesIndex, "python-apps-base:latest", cfg, appEnv, unkownPlatform, true))
 
 	env := hostEnvironment(t.Context(), arduinoApp.FullPath, cfg).Merge(appEnv)
+	_, preview, err := renderCompose(t.Context(), &arduinoApp, env, types.Mapping{}, "test-app")
+	require.NoError(t, err)
+	require.True(t, arduinoApp.AppComposeFilePath().NotExist(), "a preview writes no compose file")
+
 	prj, err := renderComposeFile(t.Context(), &arduinoApp, env, types.Mapping{}, "test-app")
 	require.NoError(t, err)
-	require.True(t, arduinoApp.AppComposeFilePath().Exist(), "the compose file docker is given should exist")
+	written, err := arduinoApp.AppComposeFilePath().ReadFile()
+	require.NoError(t, err, "the compose file docker is given should exist")
+	require.Equal(t, string(preview), string(written), "a preview is the file a start writes")
 
 	runner, err := prj.GetService("ei-video-obj-detection-runner")
 	require.NoError(t, err, "the service the brick declares should be included")

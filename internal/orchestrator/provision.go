@@ -189,6 +189,17 @@ func (p *Provision) Render(
 	return prj, nil
 }
 
+// Preview is the project Render would give now and the compose file it would write, with
+// nothing written: the compose file stays the one the app was last started with.
+func (p *Provision) Preview(
+	ctx context.Context,
+	arduinoApp *app.ArduinoApp,
+	env types.Mapping,
+	secrets types.Mapping,
+) (*types.Project, []byte, error) {
+	return renderCompose(ctx, arduinoApp, env, secrets, composeProjectName(arduinoApp.FullPath, p.appsDir))
+}
+
 func (p *Provision) init(srcPath string) error {
 	return dockerhelper.Run(context.Background(), p.docker.Client(), dockerhelper.RunOptions{
 		Image: p.pythonImage,

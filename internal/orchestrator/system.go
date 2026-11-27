@@ -658,6 +658,9 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, seenP
 // composeProjectLabel names the project a container or a network belongs to.
 const composeProjectLabel = "com.docker.compose.project"
 
+// composeServiceLabel names the service of the project a container runs.
+const composeServiceLabel = "com.docker.compose.service"
+
 // ourNetworks tells the networks of our apps, which cost a subnet each. The label
 // reaches a network only from this version on: an older one is ours by the compose
 // project of the containers, which the caller reads before they go.
