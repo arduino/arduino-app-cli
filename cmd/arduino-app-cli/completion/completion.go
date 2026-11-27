@@ -119,7 +119,7 @@ func BrickIDs() cobra.CompletionFunc {
 
 func BrickIDsWithFilterFunc(filter func(apps bricks.BrickListItem) bool) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		brickList := servicelocator.GetBrickService().List()
+		brickList := servicelocator.GetBrickService().List("", servicelocator.GetPlatform())
 
 		var res []string
 		for _, brick := range brickList.Bricks {

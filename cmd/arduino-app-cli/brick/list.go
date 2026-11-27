@@ -27,7 +27,8 @@ func newBricksListCmd() *cobra.Command {
 }
 
 func bricksListHandler() {
-	res := servicelocator.GetBrickService().List()
+	plat := servicelocator.GetPlatform()
+	res := servicelocator.GetBrickService().List("", plat)
 	feedback.PrintResult(brickListResult{BrickListResult: res})
 }
 

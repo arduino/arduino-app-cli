@@ -149,6 +149,7 @@ func loadInstalledBrick(platform platform.Platform, brickDir *paths.Path, namesp
 	if id := namespace + ":" + name; brick.ID != id {
 		return Brick{}, fmt.Errorf("%s declares id %q instead of %q", brickConfigFileName, brick.ID, id)
 	}
+	brick.Namespace = namespace
 	brick.ExamplesPath = brickDir.Join(releaseExamplesDir)
 	brick.DocsAPIPath = brickDir.Join(releaseDocsDir, "API.md")
 	return brick, nil

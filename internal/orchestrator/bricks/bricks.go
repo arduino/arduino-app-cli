@@ -13,10 +13,12 @@ import (
 	"log/slog"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
 	"go.bug.st/f"
+	semver "go.bug.st/relaxed-semver"
 
 	apimodels "github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
@@ -38,23 +40,38 @@ var (
 type Service struct {
 	modelsIndex *modelsindex.ModelsIndex
 	bricksIndex *bricksindex.BricksIndex
+	remoteIndex *bricksindex.RemoteIndex
 }
 
 func NewService(
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
+	remoteIndex *bricksindex.RemoteIndex,
 ) *Service {
 	return &Service{
 		modelsIndex: modelsIndex,
 		bricksIndex: bricksIndex,
+		remoteIndex: remoteIndex,
 	}
 }
 
-func (s *Service) List() BrickListResult {
-	bricks := s.bricksIndex.ListBricks()
-	res := BrickListResult{Bricks: make([]BrickListItem, len(bricks))}
-	for i, brick := range bricks {
-		res.Bricks[i] = BrickListItem{
+func (s *Service) List(query string, platform platform.Platform) BrickListResult {
+	// TODO: implement orphan bricks field
+	res := BrickListResult{Bricks: []BrickListItem{}}
+
+	bricks := s.bricksIndex.Search(query)
+	remoteBricks := s.remoteIndex.Search(query, platform)
+
+	brickIDs := make(map[string]bool, len(bricks))
+	for _, brick := range bricks {
+
+		isbuiltin := false
+		if brick.Version == "" {
+			isbuiltin = true
+		}
+		brickIDs[brick.ID] = true
+
+		res.Bricks = append(res.Bricks, BrickListItem{
 			ID:           brick.ID,
 			Name:         brick.Name,
 			Author:       brick.Source,
@@ -63,8 +80,28 @@ func (s *Service) List() BrickListResult {
 			Status:       "installed",
 			RequireModel: brick.RequireModel,
 			Version:      brick.Version,
-		}
+			Namespace:    brick.Namespace,
+			BuiltIn:      isbuiltin,
+		})
 	}
+
+	for _, brick := range remoteBricks {
+		if brickIDs[brick.ID] {
+			continue
+		}
+		res.Bricks = append(res.Bricks, BrickListItem{
+			ID:          brick.ID,
+			Name:        brick.Name,
+			Author:      brick.Author,
+			Description: brick.Description,
+			Status:      "not-installed",
+			Namespace:   brick.Namespace,
+		})
+	}
+
+	slices.SortFunc(res.Bricks, func(a, b BrickListItem) int {
+		return cmp.Or(strings.Compare(a.Name, b.Name), strings.Compare(a.ID, b.ID))
+	})
 	return res
 }
 
@@ -186,7 +223,28 @@ func (s *Service) BricksDetails(ctx context.Context, id string, idProvider *appi
 	cfg config.Configuration, platform platform.Platform) (BrickDetailsResult, error) {
 	brick, found := s.bricksIndex.FindBrickByID(id)
 	if !found {
-		return BrickDetailsResult{}, ErrBrickNotFound
+		remoteBrick, err := s.remoteIndex.FindBrick(id)
+		if err != nil {
+			return BrickDetailsResult{}, ErrBrickNotFound
+		}
+		latest := remoteBrick.Latest(platform)
+		if latest == nil {
+			return BrickDetailsResult{}, ErrBrickNotFound
+		}
+		return BrickDetailsResult{
+			ID:               remoteBrick.ID,
+			Name:             remoteBrick.Name,
+			Author:           remoteBrick.Author,
+			Description:      remoteBrick.Description,
+			Namespace:        remoteBrick.Namespace,
+			Version:          latest.Version.String(),
+			ReadmeURL:        latest.ReadmeURL,
+			Status:           "not-installed",
+			CodeExamples:     []CodeExample{},
+			UsedByApps:       []AppReference{},
+			CompatibleModels: []AIModel{},
+			ConfigVariables:  []BrickConfigVariable{},
+		}, nil
 	}
 
 	readme, err := brick.GetReadmeFile()
@@ -205,7 +263,16 @@ func (s *Service) BricksDetails(ctx context.Context, id string, idProvider *appi
 	if err != nil {
 		slog.Warn("invalid brick id", "brickID", brick.ID, "error", err.Error())
 	}
-	codeExamples := getBrickExamplesInfo(cfg, idProvider, brickNamespace, brickName)
+
+	examplesDir := cfg.ExamplesBaseDir().Join("bricks", brickNamespace, brickName)
+	builtIn := true
+	var readmeURL string
+	if brick.Version != "" {
+		builtIn = false
+		examplesDir = brick.ExamplesPath // installed from the index: <ver>/examples
+		readmeURL = s.installedReadmeURL(brick, platform)
+	}
+	codeExamples := getBrickExamplesInfo(idProvider, examplesDir)
 
 	usedByApps, err := getUsedByApps(cfg, brick.ID, idProvider, platform)
 	if err != nil {
@@ -221,7 +288,7 @@ func (s *Service) BricksDetails(ctx context.Context, id string, idProvider *appi
 		Description:               brick.Description,
 		Category:                  brick.Category,
 		RequireModel:              brick.RequireModel,
-		Status:                    "installed", // For now every Arduino brick are installed
+		Status:                    "installed",
 		Variables:                 variables,
 		Readme:                    readme,
 		ApiDocsPath:               apiDocsPath,
@@ -230,13 +297,33 @@ func (s *Service) BricksDetails(ctx context.Context, id string, idProvider *appi
 		CompatibleModels:          compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID),
 		ConfigVariables:           configVariables,
 		AIFrameworksCompatibility: brick.AIFrameworksCompatibility,
+		BuiltIn:                   builtIn,
+		Version:                   brick.Version,
+		Namespace:                 brick.Namespace,
+		ReadmeURL:                 readmeURL,
 	}, nil
 }
 
-func getBrickExamplesInfo(cfg config.Configuration, idProvider *appid.Provider, brickNamespace string, brickName string) []CodeExample {
-	var codeExamples = []CodeExample{}
+// installedReadmeURL returns the readme_url of the installed version of a brick of the remote
+// index, or "" if that version is no longer in the index.
+func (s *Service) installedReadmeURL(brick *bricksindex.Brick, platform platform.Platform) string {
+	remoteBrick, err := s.remoteIndex.FindBrick(brick.ID)
+	if err != nil {
+		return ""
+	}
+	version, err := semver.Parse(brick.Version)
+	if err != nil {
+		return ""
+	}
+	release, err := remoteBrick.FindRelease(version, platform)
+	if err != nil {
+		return ""
+	}
+	return release.ReadmeURL
+}
 
-	examplesPath := cfg.ExamplesBaseDir().Join("bricks", brickNamespace, brickName)
+func getBrickExamplesInfo(idProvider *appid.Provider, examplesPath *paths.Path) []CodeExample {
+	var codeExamples = []CodeExample{}
 
 	dirEntries, err := examplesPath.ReadDir()
 	if err != nil {

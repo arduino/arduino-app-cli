@@ -50,7 +50,7 @@ func NewHTTPRouter(
 	mux.Handle("GET /v1/version", handlers.HandlerVersion(version))
 	mux.Handle("GET /v1/config", handlers.HandleConfig(cfg))
 	mux.Handle("GET /v1/examples", handlers.HandleExamples(cfg, bricksIndex, idProvider))
-	mux.Handle("GET /v1/bricks", handlers.HandleBrickList(brickService))
+	mux.Handle("GET /v1/bricks", handlers.HandleBrickList(brickService, platform))
 	mux.Handle("GET /v1/bricks/{brickID}", handlers.HandleBrickDetails(brickService, idProvider, cfg, platform))
 
 	mux.Handle("GET /v1/properties", handlers.HandlePropertyKeys(cfg))

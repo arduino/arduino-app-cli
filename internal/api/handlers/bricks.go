@@ -22,9 +22,10 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
-func HandleBrickList(brickService *bricks.Service) http.HandlerFunc {
+func HandleBrickList(brickService *bricks.Service, platform platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		render.EncodeResponse(w, http.StatusOK, brickService.List())
+		query := r.URL.Query().Get("query")
+		render.EncodeResponse(w, http.StatusOK, brickService.List(query, platform))
 	}
 }
 

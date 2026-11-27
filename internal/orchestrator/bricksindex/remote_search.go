@@ -18,8 +18,9 @@ import (
 func (idx *RemoteIndex) Search(query string, platform platform.Platform) []*RemoteBrick {
 	terms := strings.Fields(strings.ToLower(query))
 	res := []*RemoteBrick{}
-	for i := range idx.Bricks {
-		b := &idx.Bricks[i]
+	bricks := idx.bricks()
+	for i := range bricks {
+		b := &bricks[i]
 		if b.Latest(platform) == nil {
 			continue
 		}
@@ -33,11 +34,5 @@ func (idx *RemoteIndex) Search(query string, platform platform.Platform) []*Remo
 
 // matches reports whether every term is contained in the brick, ignoring case.
 func (b RemoteBrick) matches(terms []string) bool {
-	text := strings.ToLower(strings.Join([]string{b.ID, b.Name, b.Namespace, b.Author, b.Description}, " "))
-	for _, term := range terms {
-		if !strings.Contains(text, term) {
-			return false
-		}
-	}
-	return true
+	return matchesTerms(terms, b.ID, b.Name, b.Namespace, b.Author, b.Description)
 }
