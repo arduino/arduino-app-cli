@@ -20,6 +20,8 @@ import (
 	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v5/pkg/api"
 	"github.com/docker/compose/v5/pkg/compose"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/mount"
 	dockerClient "github.com/moby/moby/client"
 )
 
@@ -61,8 +63,16 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 	if err != nil {
 		return err
 	}
+	// A container compose replaces hands its anonymous volumes over to the new one. To
+	// tell which of its mounts they are, compose inspects the image once for each mount,
+	// and a container of an app has tens of them: it is asked for only when a container
+	// of the project holds such a volume.
+	containers, err := Containers(ctx, docker.Client(), api.ProjectLabel+"="+prj.Name)
+	if err != nil {
+		return err
+	}
 	err = backend.Up(ctx, prj, api.UpOptions{
-		Create: api.CreateOptions{RemoveOrphans: true, Inherit: true, Build: &api.BuildOptions{}},
+		Create: api.CreateOptions{RemoveOrphans: true, Inherit: holdsAnonymousVolume(prj, containers), Build: &api.BuildOptions{}},
 		Start:  api.StartOptions{Project: prj},
 	})
 	// A prune never removes an image a container uses, so a failed up prunes too.
@@ -75,6 +85,24 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 		return fmt.Errorf("%w: %w", ErrNetwork, reported.networkError)
 	}
 	return err
+}
+
+// holdsAnonymousVolume tells whether one of the containers mounts a volume the project
+// does not name: an anonymous one, which lives as long as its container unless the next
+// container takes it over. A volume it cannot tell apart counts as one.
+func holdsAnonymousVolume(prj *types.Project, containers []container.Summary) bool {
+	named := make(map[string]bool, len(prj.Volumes))
+	for _, volume := range prj.Volumes {
+		named[volume.Name] = true
+	}
+	for _, c := range containers {
+		for _, m := range c.Mounts {
+			if m.Type == mount.TypeVolume && !named[m.Name] {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ErrNetwork states that the network of the app was not created. A pool with no
