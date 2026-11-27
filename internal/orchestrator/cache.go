@@ -8,6 +8,7 @@ package orchestrator
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/docker/cli/cli/command"
 
@@ -51,5 +52,8 @@ func CleanAppCache(
 		_ = StopAndDestroyApp(ctx, docker, platform, app, cfg, func(StreamMessage) {})
 	}
 
+	if err := removeArduinoCliBuildCache(ctx); err != nil {
+		slog.Warn("unable to remove the arduino-cli build cache", slog.String("error", err.Error()))
+	}
 	return app.ProvisioningStateDir().RemoveAll()
 }

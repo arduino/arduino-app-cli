@@ -136,10 +136,6 @@ func (a *ArduinoApp) GetDescriptorPath() *paths.Path {
 	return descriptorFile
 }
 
-func (a *ArduinoApp) SketchBuildPath() *paths.Path {
-	return a.FullPath.Join(".cache", "sketch")
-}
-
 func (a *ArduinoApp) GetBricksPath() *paths.Path {
 	return a.FullPath.Join("bricks")
 }
