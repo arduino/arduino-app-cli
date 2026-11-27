@@ -7,6 +7,7 @@ package apt
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -50,7 +51,7 @@ func (s *Service) ListUpgradablePackages(ctx context.Context, matcher func(updat
 		slog.Warn("error running dpkg configure command, skipped", "error", err)
 	}
 
-	err := runUpdateCommand(ctx)
+	err := runAptUpdateCommand(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -91,21 +92,16 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	})
 	eventCB(update.NewDataEvent(update.StartEvent, "Upgrade is starting"))
 	eventCB(update.NewProgressEvent("apt upgrade", aptUpgradeProgress))
-	stream := runUpgradeCommand(ctx, names)
-	for line, err := range stream {
-		if err != nil {
-			return fmt.Errorf("error running upgrade command: %w", err)
-		}
-		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+	err := runAptUpgradeCommand(ctx, names, func(line string) { eventCB(update.NewDataEvent(update.UpgradeLineEvent, line)) })
+	if err != nil {
+		return err
 	}
 
 	eventCB(update.NewDataEvent(update.StartEvent, "apt cleaning cache is starting"))
 	eventCB(update.NewProgressEvent("apt cache cleanup", aptCacheCleanProgress))
-	for line, err := range runAptCleanCommand(ctx) {
-		if err != nil {
-			return fmt.Errorf("error running apt clean command: %w", err)
-		}
-		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+	err = runAptCleanCommand(ctx, func(line string) { eventCB(update.NewDataEvent(update.UpgradeLineEvent, line)) })
+	if err != nil {
+		return err
 	}
 	eventCB(update.NewProgressEvent("docker images download", imagesDownloadProgress))
 
@@ -182,16 +178,14 @@ func runDpkgConfigureCommand(ctx context.Context) error {
 	return nil
 }
 
-func runUpdateCommand(ctx context.Context) error {
+func runAptUpdateCommand(ctx context.Context) error {
 	cmd, err := sudo.AptUpdate.Process()
 	if err != nil {
 		return err
 	}
-	if out, err := cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
-		if isAptLockHeldErr(out, err) {
-			return update.NewLockHeldError(fmt.Errorf("%w: %s", err, out))
-		}
-		return fmt.Errorf("error running apt-get update command: %w: %s", err, out)
+
+	if err = runAptCommand(ctx, cmd, nil); err != nil {
+		return fmt.Errorf("running apt update command: %w", err)
 	}
 	return nil
 }
@@ -203,7 +197,7 @@ func isAptLockHeldErr(out []byte, err error) bool {
 	}
 	// check "/lock"" as all files locked by apt are "*/lock*"
 	// just checking "lock" may result in a false positive for words like "block"
-	return strings.Contains(strings.ToLower(string(out)), "/lock")
+	return bytes.Contains(out, []byte("/lock"))
 }
 
 // checkAptLockHeld probes whether the dpkg lock is held by another process
@@ -228,7 +222,7 @@ func checkAptLockHeld(ctx context.Context) error {
 	return nil
 }
 
-func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, error] {
+func runAptUpgradeCommand(ctx context.Context, names []string, onLine func(string)) error {
 	aptOptions := []string{
 		"-o", "Acquire::Retries=3",
 		"-o", "Acquire::http::Timeout=30",
@@ -244,53 +238,49 @@ func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, er
 	args = append(args, aptOptions...)
 	args = append(args, names...)
 
-	return func(yield func(string, error) bool) {
-		cmd, err := sudo.AptUpgrade.Process(args...)
-		if err != nil {
-			_ = yield("", err)
-			return
-		}
-
-		stdout := orchestrator.NewCallbackWriter(func(line string) {
-			if !yield(line, nil) {
-				if err := cmd.Kill(); err != nil {
-					slog.Error("Failed to kill upgrade command", slog.String("error", err.Error()))
-				}
-			}
-		})
-		cmd.RedirectStderrTo(stdout)
-		cmd.RedirectStdoutTo(stdout)
-
-		if err := cmd.RunWithinContext(ctx); err != nil {
-			_ = yield("", err)
-			return
-		}
+	cmd, err := sudo.AptUpgrade.Process(args...)
+	if err != nil {
+		return err
 	}
+
+	if err = runAptCommand(ctx, cmd, onLine); err != nil {
+		return fmt.Errorf("running apt upgrade command: %w", err)
+	}
+	return nil
 }
 
-func runAptCleanCommand(ctx context.Context) iter.Seq2[string, error] {
-	return func(yield func(string, error) bool) {
-		cmd, err := sudo.AptClean.Process()
-		if err != nil {
-			_ = yield("", err)
-			return
-		}
+func runAptCommand(ctx context.Context, cmd *paths.Process, onLine func(string)) error {
+	// TODO: buffering all output just to check the error might not be wise
+	//  maybe we can gather only the last line? not sure
+	out := &bytes.Buffer{}
 
-		stdout := orchestrator.NewCallbackWriter(func(line string) {
-			if !yield(line, nil) {
-				if err := cmd.Kill(); err != nil {
-					slog.Error("Failed to kill apt clean command", slog.String("error", err.Error()))
-				}
-			}
-		})
-		cmd.RedirectStderrTo(stdout)
-		cmd.RedirectStdoutTo(stdout)
-
-		if err := cmd.RunWithinContext(ctx); err != nil {
-			_ = yield("", err)
-			return
-		}
+	var w io.Writer = out
+	if onLine != nil {
+		w = io.MultiWriter(w, orchestrator.NewCallbackWriter(onLine))
 	}
+
+	cmd.RedirectStderrTo(w)
+	cmd.RedirectStdoutTo(w)
+
+	if err := cmd.RunWithinContext(ctx); err != nil {
+		if isAptLockHeldErr(out.Bytes(), err) {
+			return update.NewLockHeldError(fmt.Errorf("%w: %s", err, out.String()))
+		}
+		return fmt.Errorf("%w: %s", err, out.String())
+	}
+	return nil
+}
+
+func runAptCleanCommand(ctx context.Context, onLine func(line string)) error {
+	cmd, err := sudo.AptClean.Process()
+	if err != nil {
+		return err
+	}
+
+	if err = runAptCommand(ctx, cmd, onLine); err != nil {
+		return fmt.Errorf("running apt clean command: %w", err)
+	}
+	return nil
 }
 
 func runSystemInit(ctx context.Context) iter.Seq2[orchestrator.InitResult, error] {
