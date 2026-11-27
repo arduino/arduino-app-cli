@@ -9,7 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/arduino/go-paths-helper"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/update"
@@ -215,4 +218,87 @@ func TestImagesDownloadBand(t *testing.T) {
 	// the progress outside of the band.
 	require.Equal(t, imagesDownloadProgress, imagesDownloadBand(-10))
 	require.Equal(t, imagesCleanupProgress, imagesDownloadBand(300))
+}
+
+func TestRunAptCommand(t *testing.T) {
+	const (
+		lockLine    = "E: Could not get lock /var/lib/dpkg/lock-frontend. It is held by process 42 (apt)"
+		failureLine = "E: Temporary failure resolving deb.debian.org"
+	)
+
+	tests := []struct {
+		name            string
+		script          string
+		withLines       bool
+		wantLines       []string
+		wantErr         bool
+		wantCode        update.ErrorCode
+		wantErrContains string
+	}{
+		{
+			name:   "success without onLine",
+			script: "echo success; exit 0",
+		},
+		{
+			name:      "success streams the output",
+			script:    "echo first; echo second; exit 0",
+			withLines: true,
+			wantLines: []string{"first", "second"},
+		},
+		{
+			name:            "generic failure without onLine is UNKNOWN_ERROR",
+			script:          "echo '" + failureLine + "'; exit 100",
+			wantErr:         true,
+			wantCode:        update.UnknownErrorCode,
+			wantErrContains: failureLine,
+		},
+		{
+			name:            "generic failure streams and keeps UNKNOWN_ERROR",
+			script:          "echo '" + failureLine + "'; exit 100",
+			withLines:       true,
+			wantLines:       []string{failureLine},
+			wantErr:         true,
+			wantCode:        update.UnknownErrorCode,
+			wantErrContains: failureLine,
+		},
+		{
+			name:            "lock failure without onLine is APT_LOCK_HELD",
+			script:          "echo '" + lockLine + "'; exit 100",
+			wantErr:         true,
+			wantCode:        update.AptLockHeld,
+			wantErrContains: lockLine,
+		},
+		{
+			name:            "lock failure streams and keeps APT_LOCK_HELD",
+			script:          "echo '" + lockLine + "'; exit 100",
+			withLines:       true,
+			wantLines:       []string{lockLine},
+			wantErr:         true,
+			wantCode:        update.AptLockHeld,
+			wantErrContains: lockLine,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := f.Must(paths.NewProcess(nil, "/bin/sh", "-c", tt.script))
+
+			var gotLines []string
+			var onLine func(string)
+			if tt.withLines {
+				onLine = func(line string) { gotLines = append(gotLines, line) }
+			}
+
+			err := runAptCommand(t.Context(), cmd, onLine)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Equal(t, tt.wantCode, update.GetUpdateErrorCode(err))
+				assert.Contains(t, err.Error(), tt.wantErrContains, "the output must be kept for diagnostics")
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tt.wantLines, gotLines)
+		})
+	}
 }
