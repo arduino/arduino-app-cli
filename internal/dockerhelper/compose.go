@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -61,10 +62,23 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 	if err != nil {
 		return err
 	}
-	err = backend.Up(ctx, prj, api.UpOptions{
-		Create: api.CreateOptions{RemoveOrphans: true, Inherit: true, Build: &api.BuildOptions{}},
-		Start:  api.StartOptions{Project: prj},
-	})
+	// recreate is the policy for the containers the project already has: by default
+	// compose keeps the ones that still fit it.
+	up := func(recreate string) error {
+		return backend.Up(ctx, prj, api.UpOptions{
+			Create: api.CreateOptions{RemoveOrphans: true, Inherit: true, Build: &api.BuildOptions{}, Recreate: recreate},
+			Start:  api.StartOptions{Project: prj},
+		})
+	}
+	err = up("")
+	// A stopped container keeps the id of the network it was created on. When that
+	// network went, as a network prune takes the one of a stopped project, compose
+	// makes a new one and starts the container as it is, which the engine refuses:
+	// the containers are created again, on the new network.
+	if networkGone(err) {
+		slog.Warn("the network of a stopped container is gone, the containers are created again", slog.String("project", prj.Name), slog.String("error", err.Error()))
+		err = up(api.RecreateForce)
+	}
 	// A prune never removes an image a container uses, so a failed up prunes too.
 	pruneDanglingBuilds(ctx, docker, prj.Name)
 	// What went wrong is reported as an event, and the error itself says little.
@@ -76,6 +90,14 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 	}
 	return err
 }
+
+// networkGone tells whether a container did not start because the network it was created
+// on does not exist anymore. The engine says so only in the words of its error.
+func networkGone(err error) bool {
+	return err != nil && networkGoneMessage.MatchString(err.Error())
+}
+
+var networkGoneMessage = regexp.MustCompile(`network \S+ not found`)
 
 // ErrNetwork states that the network of the app was not created. A pool with no
 // subnet left is one of the reasons, worded by the daemon.
