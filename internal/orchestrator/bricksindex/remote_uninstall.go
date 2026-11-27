@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"slices"
 
 	"github.com/arduino/go-paths-helper"
 	semver "go.bug.st/relaxed-semver"
@@ -26,13 +27,26 @@ type UninstallResult struct {
 // Uninstall removes the given version of the brick from bricksDir or, if version is nil,
 // all of its installed versions. On error, the result contains the versions removed so far.
 func Uninstall(bricksDir *paths.Path, id string, version *semver.Version) (UninstallResult, error) {
-	versions, err := ListInstalledVersions(bricksDir, id, version)
-	if err != nil || len(versions) == 0 {
+	namespace, name, err := splitBrickID(id)
+	if err != nil {
 		return UninstallResult{}, err
 	}
-	namespace, name, _ := splitBrickID(id) // ListInstalledVersions checked it
+	if bricksDir.NotExist() {
+		return UninstallResult{}, nil
+	}
+
 	namespaceDir := bricksDir.Join(namespace)
 	nameDir := namespaceDir.Join(name)
+	versions, err := installedVersions(nameDir)
+	if err != nil {
+		return UninstallResult{}, err
+	}
+	if version != nil {
+		versions = slices.DeleteFunc(versions, func(v *semver.Version) bool { return !v.Equal(version) })
+	}
+	if len(versions) == 0 {
+		return UninstallResult{}, nil
+	}
 
 	// Each version is moved out of the way with an atomic rename before being deleted, so that an
 	// interrupted removal never leaves a partial brick that looks installed.

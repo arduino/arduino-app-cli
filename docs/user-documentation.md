@@ -29,7 +29,6 @@ An App can use third-party Bricks from the bricks index, listed in its `app.yaml
 - `app start` downloads the bricks index when it is missing from the board or older than one hour, and installs the Bricks that are not installed yet. If an old index cannot be updated, the saved one is used, so the App still starts offline.
 - `app start --no-prepare` never accesses the network: it fails if a Brick is not installed.
 - The Python code of the App imports a third-party Brick by its name, e.g. `import weather`: `app start` mounts the Python package of each Brick in the App container.
-- `brick uninstall` refuses to remove a Brick version that a running App uses: stop the App first.
 - Releases do not support third-party Bricks yet: building a release of an App that uses them fails.
 
 ## Environment Variables
