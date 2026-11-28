@@ -321,7 +321,7 @@ func WriteModelsList(dir *paths.Path, models []AIModel) error {
 const modelsListFileName = "models-list.yaml"
 
 func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, error) {
-	if dir == nil {
+	if dir == nil || !dir.Join(modelsListFileName).Exist() {
 		// skip loading internal models
 		return []AIModel{}, nil
 	}

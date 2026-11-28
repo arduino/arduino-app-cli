@@ -31,7 +31,7 @@ const appRuntimeDirVar = "APP_RUNTIME_DIR"
 const appRuntimeDirRef = "${" + appRuntimeDirVar + "}"
 
 // The main service runs as the cli's uid:gid,
-// while all other services default to the fixed uid 1000.
+// while all other services default to the hardcoded uid 1000.
 const appUserExpr = exprPrefix + `{{ with groupID "arduino" }}1000:{{ . }}{{ else }}1000{{ end }}`
 const mainUserExpr = exprPrefix + `{{ currentUid }}:{{ currentGid }}`
 
